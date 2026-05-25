@@ -108,7 +108,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     [needColl, needPlpAnchorStep],
   )
   const lastStep = steps.last
-  const _docsStep = steps.documents
+
   const productsForType = productsForBorrowerType(activeWorkflows, form.borrowerType)
   const staffProductList = useMemo(() => uniqueActiveWorkflowLoanProducts(activeWorkflows), [activeWorkflows])
   const selectedWorkflow = productsForType.find((w) => w.loanProduct === form.loanProduct) ?? null
