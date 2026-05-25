@@ -1,0 +1,188 @@
+services:
+  discovery-service:
+    build:
+      context: .
+      dockerfile: services/discovery-service/Dockerfile
+    container_name: los_discovery
+    command: sh -c "java -jar app.jar"
+    ports:
+      - "8761:8761"
+    env_file:
+      - .env.dev
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8761
+
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: los_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - los_postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: los_redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: los_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: losuser
+      RABBITMQ_DEFAULT_PASS: lospassword
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # 🔥 Backend (HOT RELOAD)
+  los-core:
+    build:
+      context: .
+      dockerfile: services/los-core-service/Dockerfile.dev
+    container_name: los_core
+    working_dir: /app/services/los-core-service
+    command: mvn spring-boot:run
+    volumes:
+      - .:/app
+    ports:
+      - "8083:8083"
+    env_file:
+      - .env.dev
+    environment:
+      LOS_NOTIFICATION_URL: http://notification-service:8084
+      ENCORE_BASE_URL: ${VENDOR_ENCORE_BASE_URL:-https://core.dev.billionloans.com/encore/}
+      ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-billiontech}
+      ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-billionTech@encore25}
+      LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
+    depends_on:
+      - discovery-service
+      - postgres
+      - redis
+      - rabbitmq
+      - notification-service
+      - encore-server
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: los_notification
+    command: sh -c "java -jar app.jar"
+    ports:
+      - "8084:8084"
+    env_file:
+      - .env.dev
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/los_notification
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: losuser
+      SPRING_RABBITMQ_PASSWORD: lospassword
+      EUREKA_HOST: discovery-service
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-billiontechuat@gmail.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-lqwt apmk jusw hcyo}
+      SPRING_MAIL_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-billiontechuat@gmail.com}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-lqwt apmk jusw hcyo}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT: "10000"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT: "10000"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT: "10000"
+      SPRING_MAIL_PROPERTIES_MAIL_DEBUG: ${SMTP_DEBUG:-false}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-SMTP}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-billiontechuat@gmail.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-LOS Platform}
+      EMAIL_SIMULATION_ENABLED: ${EMAIL_SIMULATION_ENABLED:-false}
+    depends_on:
+      - discovery-service
+      - postgres
+      - rabbitmq
+
+  encore-mysql:
+    image: mysql:8.0
+    container_name: los_encore_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${ENCORE_MYSQL_ROOT_PASSWORD:-encoreroot}
+      MYSQL_DATABASE: encoredb
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pencoreroot"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  encore-server:
+    build:
+      context: ./external-services/encore-server
+    container_name: los_encore_server
+    working_dir: /home/encoresite
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://encore-mysql:3306/encoredb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&zeroDateTimeBehavior=convertToNull
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${ENCORE_MYSQL_ROOT_PASSWORD:-encoreroot}
+    depends_on:
+      encore-mysql:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+    command:
+      - "-jar"
+      - "/home/encoresite/encore-boot-server-2026.05.01-mysql-local-nokafka-native.jar"
+      - "--server.port=8090"
+      - "--spring.profiles.active=uat"
+
+  encore-client:
+    build:
+      context: ./external-services/encore-client
+    container_name: los_encore_client
+    ports:
+      - "9080:80"
+    depends_on:
+      - encore-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # 🔥 UI (HOT RELOAD)
+  ui-service:
+    image: node:20-alpine
+    container_name: los_ui
+    working_dir: /app
+    volumes:
+      - ./ui-service:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    ports:
+      - "5173:5173"
+
+volumes:
+  los_postgres_data:

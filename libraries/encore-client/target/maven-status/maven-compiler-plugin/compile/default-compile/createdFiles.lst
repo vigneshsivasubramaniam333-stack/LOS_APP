@@ -1,0 +1,11 @@
+com\los\encore\client\api\DefaultEncoreLmsApi.class
+com\los\encore\client\http\EncoreHttpTransport.class
+com\los\encore\client\jar\EncoreLegacyJarBridge.class
+com\los\encore\client\config\EncoreClientProperties.class
+com\los\encore\client\api\EncoreLmsApi.class
+com\los\encore\client\logging\LmsLogEvent.class
+com\los\encore\client\api\EncoreOpenLoanParams.class
+com\los\encore\client\logging\LogSanitizer.class
+com\los\encore\client\api\EncoreTemporaryOverrides.class
+com\los\encore\client\config\EncoreClientAutoConfiguration.class
+com\los\encore\client\config\EncoreClientProperties$EncoreApiEndpoints.class

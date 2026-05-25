@@ -1,0 +1,10 @@
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\api\DefaultEncoreLmsApi.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\api\EncoreLmsApi.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\api\EncoreOpenLoanParams.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\api\EncoreTemporaryOverrides.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\config\EncoreClientAutoConfiguration.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\config\EncoreClientProperties.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\http\EncoreHttpTransport.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\jar\EncoreLegacyJarBridge.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\logging\LmsLogEvent.java
+D:\LOS\los-app\los-app\libraries\encore-client\src\main\java\com\los\encore\client\logging\LogSanitizer.java
