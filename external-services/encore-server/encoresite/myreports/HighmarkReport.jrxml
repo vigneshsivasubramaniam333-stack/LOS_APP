@@ -1,0 +1,1292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.4.0.final using JasperReports Library version 6.4.1  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="HighmarkReport" language="groovy" pageWidth="8500" pageHeight="842" columnWidth="8500" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="6a3afdfb-6dba-4047-84ab-39dd379d19a8">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="2055"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select c.first_name,c.middle_name,case when c.last_name is null then SUBSTRING_INDEX(c.first_name, ' ', -1) else c.last_name end as last_name ,c.date_of_birth,
+c.gender,c.pan,c.uid_num,c.phone1,c.phone2,c.email,
+concat(c.address1,',',c.address2,',',c.address3),c.city_code,c.district_code,case when s.state_name='Jammu & Kashmir' then '01' when s.state_name='Himachal Pradesh' then '02' when s.state_name='Punjab' then '03' 
+		when s.state_name='Chandigarh' then '04' when s.state_name in ('Uttaranchal','Uttarakhand') then '05' when s.state_name='Haryana' then '06' 
+		when s.state_name='Delhi' then '07' when s.state_name='Rajasthan' then '08' when s.state_name='Uttar Pradesh' then '09' 
+		when s.state_name='Bihar' then '10' when s.state_name='Sikkim' then '11' when s.state_name='Arunachal Pradesh' then '12' 
+		when s.state_name='Nagaland' then '13' when s.state_name='Manipur' then '14' when s.state_name='Mizoram' then '15' 
+		when s.state_name='Tripura' then '16' when s.state_name='Meghalaya' then '17' when s.state_name='Assam' then '18' 
+		when s.state_name='West Bengal' then '19' when s.state_name='Jharkhand' then '20' when s.state_name='Orissa' then '21' 
+		when s.state_name='Chhattisgarh' then '22' when s.state_name='Madhya Pradesh' then '23' when s.state_name='Gujarat' then '24' 
+		when s.state_name='Daman & Diu' then '25' when s.state_name='Dadra & Nagar Haveli' then '26' when s.state_name='Maharashtra' then '27' 
+		when s.state_name='Andhra Pradesh' then '28' when s.state_name='Karnataka' then '29' when s.state_name='Goa' then '30' 
+		when s.state_name='Lakshadweep' then '31' when s.state_name='Kerala' then '32' when s.state_name='Tamil Nadu' then '33' 
+		when s.state_name='Pondicherry' then '34' when s.state_name='Andaman & Nicobar Islands' then '35' else '90' end as state_code,s.state_name,c.pin_code,
+concat(c.alt1_address1,',',c.alt1_address2,',',c.alt1_address3),c.alt1_city_code,c.alt1_district_code,
+c.alt1_state_code,c.alt1_pin_code,lp.account_id,lr.first_disbursement_date,lr.last_repayment_date,
+ap.closed_on_value_date,b.current_working_date,lp.amount_magnitude,ab.balance_magnitude,lr.total_demand_due_magnitude,
+lp.normal_interest_rate,lr.installment_amount_magnitude,case when lp.tenure_unit=2 then '01'
+when lp.tenure_unit=3 then '02' when lp.tenure_unit=4 then '03' when lp.tenure_unit=5 then '04' end as frequency,
+case when lr.oldest_due_demand_num = 0 then 0 else datediff(b.current_working_date, d.demand_date)
+end as dpd,lr.asset_category, c.customer_id, c.customer_type,c.document_number1,c.document_type1 
+from customers c, loan_od_profiles lp, loan_od_working_registers lr left join loan_od_demands d on
+(lr.tenant_code = d.tenant_code and lr.account_id = d.account_id and lr.oldest_due_demand_num = d.demand_num),
+ account_balances ab,account_holders ah, account_profiles ap, banks b,states s
+where b.tenant_code=s.tenant_code and b.tenant_code=lp.tenant_code and c.tenant_code=lp.tenant_code and lp.tenant_code=lr.tenant_code and lr.tenant_code=ab.tenant_code and c.state_code=s.state_code and
+ab.tenant_code=ah.tenant_code and ap.tenant_code=lp.tenant_code and lp.account_id=ah.account_id and ab.account_id=lp.account_id
+and c.customer_id=ah.customer_id and lp.account_id=lr.account_id and ap.account_id=lp.account_id and
+lp.tenant_code= $P{tenant_code}  and c.customer_type=0 and c.first_name not like '%SHG%' and c.first_name  not like '%JLG%' 
+and c.first_name not like '%COMPANY%' and c.first_name not like '%LTD%' and c.first_name not like '%LIMITED%' and 
+c.first_name not like '%SOCIETY%' and c.first_name not like '%KULU%' and c.first_name not like '%SUKS%' and 
+c.first_name not like '%GROUP%' and c.first_name not like '%FARMER' and c.last_name not like '%SHG%' and 
+c.last_name not like '%JLG%' and c.last_name not like '%COMPANY%' and c.last_name not like '%LTD%' and 
+c.last_name not like '%LIMITED%' and c.last_name not like '%SOCIETY%' and c.last_name not like '%KULU%' and 
+c.last_name not like '%SUKS%' and c.last_name not like '%GROUP%' and c.last_name not like '%FARMER%' and 
+c.date_of_birth is not null  and ((c.phone1 is not null and c.phone1 != '' and c.phone1 != '0') or 
+(c.phone2 is not null and c.phone2 != '' and c.phone2 != '0')) and ((c.pan !='' and c.pan is not null) or (c.uid_num!='' and c.uid_num 
+is not null) or ((document_number1 is not null and document_number1 !='') or (document_type1='uid%' and document_type1 ='Uid%')))]]>
+	</queryString>
+	<field name="first_name" class="java.lang.String"/>
+	<field name="middle_name" class="java.lang.String"/>
+	<field name="last_name" class="java.lang.String"/>
+	<field name="date_of_birth" class="java.sql.Date"/>
+	<field name="gender" class="java.lang.String"/>
+	<field name="pan" class="java.lang.String"/>
+	<field name="uid_num" class="java.lang.String"/>
+	<field name="phone1" class="java.lang.String"/>
+	<field name="email" class="java.lang.String"/>
+	<field name="concat(c.address1,&apos;,&apos;,c.address2,&apos;,&apos;,c.address3)" class="java.lang.String"/>
+	<field name="city_code" class="java.lang.String"/>
+	<field name="district_code" class="java.lang.String"/>
+	<field name="state_code" class="java.lang.String"/>
+	<field name="state_name" class="java.lang.String"/>
+	<field name="pin_code" class="java.lang.Integer"/>
+	<field name="concat(c.alt1_address1,&apos;,&apos;,c.alt1_address2,&apos;,&apos;,c.alt1_address3)" class="java.lang.String"/>
+	<field name="alt1_city_code" class="java.lang.String"/>
+	<field name="alt1_district_code" class="java.lang.String"/>
+	<field name="alt1_state_code" class="java.lang.String"/>
+	<field name="alt1_pin_code" class="java.lang.String"/>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="first_disbursement_date" class="java.sql.Date"/>
+	<field name="last_repayment_date" class="java.sql.Date"/>
+	<field name="closed_on_value_date" class="java.sql.Date"/>
+	<field name="current_working_date" class="java.sql.Date"/>
+	<field name="amount_magnitude" class="java.math.BigDecimal"/>
+	<field name="balance_magnitude" class="java.math.BigDecimal"/>
+	<field name="total_demand_due_magnitude" class="java.math.BigDecimal"/>
+	<field name="normal_interest_rate" class="java.math.BigDecimal"/>
+	<field name="installment_amount_magnitude" class="java.math.BigDecimal"/>
+	<field name="frequency" class="java.lang.String"/>
+	<field name="dpd" class="java.lang.Long"/>
+	<field name="asset_category" class="java.lang.String"/>
+	<field name="customer_id" class="java.lang.String"/>
+	<field name="phone2" class="java.lang.String"/>
+	<field name="document_type1" class="java.lang.String"/>
+	<field name="document_number1" class="java.lang.String"/>
+	<columnHeader>
+		<band height="42" splitType="Stretch">
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Consumer Name1® (First Name)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="114" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Consumer Name2® (Middle Name)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="228" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Consumer Name3® (Last Name)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="342" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date of Birth ®  (DDMMYYYY)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="456" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gender]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="570" y="0" width="178" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Income Tax ID Number(PAN)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="748" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Passport Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="862" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Voter ID Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="976" y="0" width="149" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Driver's License Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1125" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ration Card Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1239" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Universal ID Number (UID)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1353" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Additional ID #1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1467" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Telephone Number1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1581" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Telephone Number2]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1695" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Telephone Number3]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1809" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Telephone Extention]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="1923" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Telephone Type]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2037" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[E-mailID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2151" y="0" width="207" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Consumer Address1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2358" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[City]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2472" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[District]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2586" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[State Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2700" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[PIN Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="2814" y="0" width="253" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Consumer Address2]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3067" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[City]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3181" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[District]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3295" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[State Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3409" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[PIN Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3523" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Address Category]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3637" y="0" width="114" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Residence Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3751" y="0" width="158" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Current/New Reporting Member
+Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="3909" y="0" width="158" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Current/New Member
+Short Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4067" y="0" width="158" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Current/New
+Account Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4225" y="0" width="96" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Account Type]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4321" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ownership
+Indicator]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4442" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date Opened/
+Disbursed  (DDMMYYYY)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4563" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date of Last
+Payment  (DDMMYYYY)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4684" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date Closed  (DDMMYYYY)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4805" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date Reported and
+Certified  (DDMMYYYY)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="4926" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[High Credit/
+Sanctioned Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5047" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Current Balance]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5168" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Amount Overdue]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5289" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Number of Days
+Past Due]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5410" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Old Reporting
+Member Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5531" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Old Member Short
+Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5652" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Old Account Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5773" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Old Account Type]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="5894" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Old Ownership
+Indicator]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6015" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Suit Filed/ Wilful
+Default]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6136" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Written-off and
+Settled Status]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6257" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Asset
+Classification]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6378" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Value of Collateral]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6499" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Type of Collateral]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6620" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Credit Limit]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6741" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cash Limit]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6862" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Rate Of Interest]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="6983" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Repayment Tenure]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7104" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[EMI Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7225" y="0" width="156" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Written-off Amount
+(Total)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7381" y="0" width="180" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Written-off Amount
+(Principal)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7561" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Settlement Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7682" y="0" width="110" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Payment
+Frequency]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7792" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Actual Payment
+Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="7913" y="0" width="155" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Occupation Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="8068" y="0" width="121" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Income]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="8189" y="0" width="144" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Net/Gross Income
+Indicator]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="8333" y="0" width="167" height="42" uuid="05254275-cddf-40de-babf-e136af606d62"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Monthly/Annual Income
+Indicator]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="46" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{first_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="114" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{middle_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="228" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{last_name}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement x="342" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[(new SimpleDateFormat("ddMMyyyy")).format($F{date_of_birth})]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="456" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[($F{gender}.equals("M"))?"1" : "2"]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="570" y="0" width="178" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{pan}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="748" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="976" y="0" width="149" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1125" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1239" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[($F{uid_num}==null&&($F{document_type1}.contains("uid") || $F{document_type1}.contains("Uid")))?$F{document_number1}:$F{uid_num}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1353" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{customer_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1467" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{phone1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1695" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1809" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField>
+				<reportElement x="1923" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[01]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2037" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{email}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2151" y="0" width="207" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{concat(c.address1,',',c.address2,',',c.address3)}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2358" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{city_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2472" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{district_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2586" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{state_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2700" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{pin_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2814" y="0" width="253" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="3067" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="3181" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="3295" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="3409" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField>
+				<reportElement x="3523" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[04]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="3637" y="0" width="114" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4067" y="0" width="158" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="4225" y="0" width="96" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[00]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4321" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[1]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4442" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[(new SimpleDateFormat("ddMMyyyy")).format($F{first_disbursement_date})]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4563" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[(new SimpleDateFormat("ddMMyyyy")).format($F{last_repayment_date})]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4684" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[(new SimpleDateFormat("ddMMyyyy")).format($F{closed_on_value_date})]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0;(-###0)" isBlankWhenNull="true">
+				<reportElement x="4926" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0" isBlankWhenNull="true">
+				<reportElement x="5047" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{balance_magnitude}.abs()]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0" isBlankWhenNull="true">
+				<reportElement x="5168" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{total_demand_due_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="5289" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{dpd}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="5410" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="5531" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="5652" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="5773" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="5894" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6015" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6136" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6257" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6378" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6499" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6620" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6741" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField pattern="###0;(###0)" isBlankWhenNull="true">
+				<reportElement x="6862" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{normal_interest_rate}*100]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6983" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField pattern="###0;(-###0)" isBlankWhenNull="true">
+				<reportElement x="7104" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{installment_amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="7225" y="0" width="156" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="7381" y="0" width="180" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="7561" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="7682" y="0" width="110" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{frequency}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="7792" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="7913" y="0" width="155" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="8068" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="8189" y="0" width="144" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="8333" y="0" width="167" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4805" y="0" width="121" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[(new SimpleDateFormat("ddMMyyyy")).format($F{current_working_date})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="3751" y="0" width="158" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA["NBF0001084"]]></textFieldExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="3909" y="0" width="158" height="46" uuid="bd431a93-87f9-44eb-9440-f3856a68adc8"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA["Samunnati"]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1581" y="0" width="114" height="46" uuid="9102df90-0b7b-45d7-9e0e-637fa1e4e89c"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{phone2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="862" y="0" width="114" height="46" uuid="345fe914-ec81-4c51-a410-5a45359d00c5"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{document_number1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6257" y="0" width="121" height="46" uuid="e44cbb06-93f5-4dd1-92c8-792488d6e24f"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{asset_category}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

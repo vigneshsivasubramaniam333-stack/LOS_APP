@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.10.0.final using JasperReports Library version 6.10.0-unknown  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CumulativeDisbFeeSubReport1" language="groovy" pageWidth="200" pageHeight="13" whenNoDataType="AllSectionsNoDetail" columnWidth="200" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="d28599b5-d4f0-42be-b84c-07a962dffba8">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.unit." value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageHeight" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.topMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.bottomMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.leftMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.rightMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnSpacing" value="pixel"/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<parameter name="account_id" class="java.lang.String"/>
+	<parameter name="charged_value_date" class="java.sql.Date"/>
+	<queryString>
+		<![CDATA[select sum(f.gross_amount_magnitude) as grossAmount 
+from fees f,loan_od_products p,account_profiles ap, enumerations en where 
+f.tenant_code=p.tenant_code and f.tenant_code=en.tenant_code and p.tenant_code=ap.tenant_code and f.account_id=ap.account_id and 
+p.product_code=ap.product_code and en.reference='1' and en.classifier='FeeName' and 
+f.fee_category=en.name and f.account_id=$P{account_id} and f.charged_value_date=$P{charged_value_date}
+group by f.account_id,en.name]]>
+	</queryString>
+	<field name="grossAmount" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="grossAmount"/>
+	</field>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="200" height="13" uuid="9f8c447e-c7f1-40db-93f9-858e5b17c7f6"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{grossAmount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

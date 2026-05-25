@@ -1,0 +1,30 @@
+{
+    "encoreclientApp": {
+        "calender" : {
+            "saveError": "An error occurred while saving your document",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "title": "Calenders",
+                "createLabel": "Create a new Calender",
+                "createOrEditLabel": "Create or edit a Calender"
+            },
+            "created": "A new Calender is created with identifier {{ param }}",
+            "updated": "A Calender is updated with identifier {{ param }}",
+            "deleted": "A Calender is deleted with identifier {{ param }}",
+            "delete": {
+                "question": "Are you sure you want to delete Calender {{ id }}?"
+            },
+            "detail": {
+                "title": "Calender"
+            },
+            "version": "Version",
+            "calendarCategory": "Calendar Category",
+            "calendarCode": "Calendar Code",
+            "year": "Year",
+            "holidayName": "Holiday Name",
+            "holidayDate": "Holiday Date"
+        }
+
+    }
+}

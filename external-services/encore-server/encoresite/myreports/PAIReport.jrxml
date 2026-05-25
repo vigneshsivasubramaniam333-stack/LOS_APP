@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="PAIReport" language="groovy" pageWidth="1850" pageHeight="842" columnWidth="1850" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="633cb402-2d72-4f2e-9439-1ff625f674a3">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="532"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To Date]]></parameterDescription>
+	</parameter>
+	<queryString>
+		<![CDATA[select ld.account_id,ld.value_date,c.account_holder_name1,
+concat(c.father_or_spouse_first_name,' ',c.father_or_spouse_middle_name,' ',c.father_or_spouse_last_name) as fatherOrSpouseName,
+concat(c.address1,' ',c.address2,' ',c.address3,' ',c.city_code,' ',c.state_code,' ',c.country_code,' ',c.pin_code) as address,
+c.gender,c.date_of_birth,c.occupation,concat(n.first_name,' ',n.middle_name,' ',n.last_name) as nomineeName,c.nominee_relationship_type,f.gross_amount_magnitude,TIMESTAMPDIFF(YEAR,c.date_of_birth,b.current_working_date) AS age,lp.amount_magnitude as loanAmount
+ from account_holders ah, loan_od_disbursements ld,loan_od_profiles lp, customers c left join customers n on
+(c.tenant_code = n.tenant_code and c.nominee_customer_id = n.customer_id), fees f,banks b
+where ah.tenant_code=b.tenant_code and ah.tenant_code=ld.tenant_code and ah.tenant_code=lp.tenant_code and c.tenant_code=ah.tenant_code and ah.tenant_code=f.tenant_code
+and ld.account_id=ah.account_id and ah.customer_id=c.customer_id and ld.account_id=f.account_id
+and ld.account_id=lp.account_id
+and f.fee_description='Personal Accident Insurance' and ah.tenant_code=$P{tenant_code} and ld.value_date >= $P{from_date} and ld.value_date <= $P{to_date}]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="value_date" class="java.sql.Date"/>
+	<field name="account_holder_name1" class="java.lang.String"/>
+	<field name="fatherOrSpouseName" class="java.lang.String"/>
+	<field name="address" class="java.lang.String"/>
+	<field name="gender" class="java.lang.String"/>
+	<field name="date_of_birth" class="java.sql.Date"/>
+	<field name="occupation" class="java.lang.String"/>
+	<field name="nomineeName" class="java.lang.String"/>
+	<field name="nominee_relationship_type" class="java.lang.String"/>
+	<field name="gross_amount_magnitude" class="java.math.BigDecimal"/>
+	<field name="age" class="java.lang.Long"/>
+	<field name="loanAmount" class="java.math.BigDecimal"/>
+	<columnHeader>
+		<band height="42" splitType="Stretch">
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="0" y="0" width="121" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[LAN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="121" y="0" width="163" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Disbursement Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="284" y="0" width="187" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Customer Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="471" y="0" width="194" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Father/Spouse Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="665" y="0" width="194" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Address]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="859" y="0" width="100" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gender]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="959" y="0" width="110" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Age]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="1069" y="0" width="129" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Occupation]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="1198" y="0" width="194" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nominee Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="1392" y="0" width="194" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Relationship with the Insurer]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="1586" y="0" width="133" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Sum insured]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" stretchType="RelativeToBandHeight" x="1719" y="0" width="131" height="42"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Premium]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="42" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="b0557f98-a6b2-4b37-ace4-b143a834516d" x="0" y="0" width="121" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="6b5ac917-8d94-4bf5-b78a-c8fb427fc55e" x="121" y="0" width="163" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{value_date}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="904df2fc-1441-4ab6-bb65-03d6bcbf080e" x="284" y="0" width="187" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{account_holder_name1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="cd64f0eb-9828-46e5-b60b-369ad2caccc7" x="471" y="0" width="194" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{fatherOrSpouseName}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="1c4cb187-c0dd-4dc9-82df-ab9444ceef21" x="665" y="0" width="194" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{address}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="ce29552a-b689-4ea1-9b3b-7a1d75e1b6eb" x="859" y="0" width="100" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{gender}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement uuid="d7d91502-cc2e-4d81-91a9-b0250f76efd6" x="959" y="0" width="110" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{age}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="34d31b06-b7e2-4b86-ac26-f1df7b686b7c" x="1069" y="0" width="129" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{occupation}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="f73a681e-8c2c-40a8-97bf-df8a6bdb2a19" x="1198" y="0" width="194" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{nomineeName}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="d22d880e-450b-4f5e-9628-ea2ff755edd6" x="1392" y="0" width="194" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{nominee_relationship_type}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0;(###0)" isBlankWhenNull="true">
+				<reportElement uuid="7513aafe-143f-44e5-9f83-55b30830ce17" x="1586" y="0" width="133" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{loanAmount}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0;(###0)" isBlankWhenNull="true">
+				<reportElement uuid="49153c06-057a-4afe-8ada-73d9c2ba4b21" x="1719" y="0" width="131" height="42"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{gross_amount_magnitude}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

@@ -1,0 +1,61 @@
+{
+  "encoreclientApp": {
+    "loanOdRepaymentCompositeDto": {
+      "saveError": "An error occurred while saving your document",
+      "error": "An error occurred while fetching the results",
+      "reindex": "All documents successfully reindexed",
+      "home": {
+        "title": "Loan Od Accounts",
+        "createLabel": "Create a new  Loan Od Repayment Composite Dto",
+        "createOrEditLabel": "Create or edit a  Loan Od Repayment Composite Dto",
+        "bulkActionLabel": "Bulk Actions",
+        "fileUploadLabel": "Upload File",
+        "setTags": "Save",
+        "findLabel": "Find"
+      },
+      "created": "A new  Loan Od Repayment Composite Dtois created with identifier {{ param }}",
+      "updated": "A Loan Od Repayment Composite Dto is updated with identifier {{ param }}",
+      "deleted": "A  Loan Od Repayment Composite Dto is deleted with identifier {{ param }}",
+      "uploaded": "A file Loan Od Accounts is uploaded",
+      "delete": {
+        "question": "Are you sure you want to delete Loan Od Accounts {{ id }}?"
+      },
+      "detail": {
+        "title": " Loan Od Repayment Composite Dto"
+      },
+      "accountId": "Account Id",
+      "tolerance": "Tolerance",
+      "repaymentDate": "RepaymentDate",
+      "repaymentDateFirstLast":"Repayment Date First/Last",
+      "transactionName": "TransactionName",
+      "feeNumStr": "FeeNumStr",
+      "instrument": "Instrument",
+      "reference": "Reference",
+      "details": "Details",
+      "summary" : {
+        "id": "id",
+        "accountId": "Account Id",
+        "customerName":"Customer Name",
+        "accountBalance": "Account Balance",
+        "accountOpenDate": "Account Open Date",
+        "customerId1": "Customer Id 1",
+        "normalInterestRate": "Normal Interest Rate",
+        "tenure": "Tenure",
+        "equatedInstallment": "Equated Installment",
+        "totalDemandDue": "Total Demand Due"
+      },
+      "loanOdRepaymentItemsDto" : {
+        "id": "id",
+        "accountId": "Account Id",
+        "mandateActive": "Mandate Active",
+        "accountHolderName": "Account Holder Name",
+        "sponsorAccountCode": "Sponsor Account Code",
+        "sponsorBankCode": "Sponsor Bank Code",
+        "utilityCode": "Utility Code",
+        "bankName": "Bank Name",
+        "bankCity": "Bank City",
+        "branchName": "Branch Name"
+      }
+    }
+  }
+}

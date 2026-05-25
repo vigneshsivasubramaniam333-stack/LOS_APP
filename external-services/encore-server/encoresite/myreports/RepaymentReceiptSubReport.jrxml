@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RepaymentReceiptSubReport" language="groovy" pageWidth="200" pageHeight="842" columnWidth="200" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="bad99908-6103-4bf8-9d78-4f85a7134a20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="account_id" class="java.lang.String"/>
+	<parameter name="repayment_num" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select group_concat('',demandNum) as demand_num from (select d.account_id as account_id, d.amount_magnitude as amount, d.amount_currency as currency,
+MIN(d.demand_num) as demandNum, r.repayment_num  as repaymentNum, d.demand_date as demandDate,
+r.value_date as repaymentDate,r.transaction_id as transactionId from loan_od_demands d, loan_od_repayments r where d.tenant_code = r.tenant_code
+and d.tenant_code = $P{tenant_code} and d.account_id = r.account_id and d.account_id =$P{account_id} and
+r.last_satisfied_demand_num >= d.demand_num group by d.demand_num) as w where w.repaymentNum=$P{repayment_num}]]>
+	</queryString>
+	<field name="demand_num" class="java.lang.String"/>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement uuid="4be5daac-6937-4813-98d5-bfafd65d0724" x="0" y="0" width="100" height="13"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{demand_num}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

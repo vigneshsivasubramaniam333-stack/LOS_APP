@@ -1,0 +1,560 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.10.0.final using JasperReports Library version 6.10.0-unknown  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="DisbursementBODReport" language="groovy" pageWidth="2300" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="2300" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="f238e559-3c9c-4989-bb60-28250435826f">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="216"/>
+	<property name="ireport.y" value="0"/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To Date]]></parameterDescription>
+	</parameter>
+	<parameter name="branchset_code_select" class="java.lang.String">
+		<parameterDescription><![CDATA[BranchSet Code]]></parameterDescription>
+		<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT ah.customer_id,ld.account_id,ap.product_code,ap.branch_code,b.branch_name,
+ld.amount_magnitude,ld.value_date,ld.transaction_date,ld.user_id,ld.net_disbursement_magnitude,
+concat(COALESCE(ah.first_name,''),' ',COALESCE(ah.middle_name,''),' ',COALESCE(ah.last_name)) as customerName,c.sector,
+ap.account_name, f1.gross_amount_magnitude as fee1_amount, f2.gross_amount_magnitude as fee2_amount, f3.gross_amount_magnitude as fee3_amount , 
+concat(COALESCE(cs.first_name,''),' ',COALESCE(cs.middle_name,''),' ',COALESCE(cs.last_name)) as guarantorName 
+FROM 
+loan_od_profiles lp left join customers cs on (lp.tenant_code=cs.tenant_code and lp.guarantor_customer_id1=cs.customer_id), 
+account_profiles ap  
+left join loan_od_products pd on (ap.tenant_code=pd.tenant_code and ap.product_code=pd.product_code and ap.currency_code=pd.currency_code )
+left join loan_od_disbursements ld on (ld.tenant_code=ap.tenant_code  and ld.account_id=ap.account_id )
+left join fees f1 on (f1.tenant_code=ap.tenant_code and f1.account_id=ap.account_id and f1.fee_category=(Select en.name from enumerations en where en.tenant_code=f1.tenant_code and en.reference=1 and en.classifier='FeeName') and ld.transaction_id=f1.charged_transaction_id ) 
+left join fees f2 on (f2.tenant_code=ap.tenant_code and f2.account_id=ap.account_id and f2.fee_category=(Select en.name from enumerations en where en.tenant_code=f1.tenant_code and en.reference=2 and en.classifier='FeeName') and ld.transaction_id=f2.charged_transaction_id ) 
+left join fees f3 on (f3.tenant_code=ap.tenant_code and f3.account_id=ap.account_id and f3.fee_category=(Select en.name from enumerations en where en.tenant_code=f1.tenant_code and en.reference=3 and en.classifier='FeeName') and ld.transaction_id=f3.charged_transaction_id ) ,
+account_holders ah,branches b,branchset_branches bs, customers c 
+where ld.tenant_code=lp.tenant_code and ah.tenant_code=c.tenant_code and ah.tenant_code=c.tenant_code and ld.tenant_code=ap.tenant_code 
+and ld.tenant_code=bs.tenant_code and ah.holder_num=1 and ld.account_id=ap.account_id and ap.tenant_code=ah.tenant_code and 
+ap.account_id=ah.account_id and ah.tenant_code=b.tenant_code and ap.branch_code=b.branch_code and ap.branch_code=bs.branch_code and 
+ah.customer_id=c.customer_id and ld.account_id=lp.account_id and bs.branchset_code =$P{branchset_code_select} and ap.tenant_code=$P{tenant_code} and 
+(ld.transaction_date>=DATE_SUB($P{from_date},INTERVAL 1 DAY) and ld.transaction_date<=DATE_SUB($P{to_date},INTERVAL 1 DAY))]]>
+	</queryString>
+	<field name="customer_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="customer_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="account_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="account_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_disbursements"/>
+	</field>
+	<field name="product_code" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="product_code"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_profiles"/>
+	</field>
+	<field name="branch_code" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="branch_code"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_profiles"/>
+	</field>
+	<field name="branch_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="branch_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="branches"/>
+	</field>
+	<field name="amount_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="amount_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_disbursements"/>
+	</field>
+	<field name="value_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="value_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_disbursements"/>
+	</field>
+	<field name="transaction_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="transaction_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_disbursements"/>
+	</field>
+	<field name="user_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="user_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_disbursements"/>
+	</field>
+	<field name="net_disbursement_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="net_disbursement_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_disbursements"/>
+	</field>
+	<field name="customerName" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="customerName"/>
+	</field>
+	<field name="sector" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="sector"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="customers"/>
+	</field>
+	<field name="account_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="account_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_profiles"/>
+	</field>
+	<field name="fee1_amount" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="fee1_amount"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="fees"/>
+	</field>
+	<field name="fee2_amount" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="fee2_amount"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="fees"/>
+	</field>
+	<field name="fee3_amount" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="fee3_amount"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="fees"/>
+	</field>
+	<field name="guarantorName" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="guarantorName"/>
+	</field>
+	<columnHeader>
+		<band height="15">
+			<staticText>
+				<reportElement x="597" y="0" width="123" height="15" uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Disbursement Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="95" height="15" uuid="85c21cac-e203-4684-bb40-1ec23b1646ae"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Account Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="202" y="0" width="84" height="15" uuid="04fd5db7-4998-4994-9aa2-f18997e9bbdf"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Branch Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="366" y="0" width="111" height="15" uuid="62689bbf-b376-4c81-bcf3-6efb16cdf6f4"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Disbursement Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="286" y="0" width="80" height="15" uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Product Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="95" y="0" width="107" height="15" uuid="85c21cac-e203-4684-bb40-1ec23b1646ae"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[URN No]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="477" y="0" width="120" height="15" uuid="62689bbf-b376-4c81-bcf3-6efb16cdf6f4"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Transaction Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="720" y="0" width="130" height="15" uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[UserId]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="850" y="0" width="150" height="15" uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Net Disbursement Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1000" y="0" width="200" height="15" uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Customer Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1200" y="0" width="150" height="15" uuid="161dbe81-56c0-498c-aa98-5efdc37cb39e"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Vertical]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1350" y="0" width="150" height="15" uuid="968d4934-1d90-46be-8899-6a8031972a65"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Branch Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1500" y="0" width="150" height="15" uuid="4a9d9d81-e82c-4870-85dc-6d65d4e00a00"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Account Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1650" y="0" width="150" height="15" uuid="14bde8ff-1998-48a6-9192-a18fd136133f"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Fee1 Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1800" y="0" width="150" height="15" uuid="1b9d98fc-9443-4094-8db4-cd6aeb6cfbae"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Fee2 Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1950" y="0" width="150" height="15" uuid="c8b4d9d2-9288-48ac-87c5-3984ef560869"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Fee3 Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2100" y="0" width="200" height="15" uuid="79d4dc6b-2d6c-4b17-af9a-6da2b5b18a4c"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Guarantor Name]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="95" height="13" uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="202" y="0" width="95" height="13" uuid="e0b882e9-1031-4a13-87a7-e36909ff63e3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{branch_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="286" y="0" width="95" height="13" uuid="78fcbac0-40a0-4b2b-96ad-0134e836c8fc"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+					<paragraph rightIndent="2"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{product_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="597" y="0" width="95" height="13" uuid="9128600c-e209-4aa7-9a0b-d596164193b6"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+					<paragraph rightIndent="2"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="366" y="0" width="95" height="13" uuid="02f462d9-1526-4a0b-b346-6d79916629e3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{value_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="95" y="0" width="95" height="13" uuid="2824d195-fa53-4bf0-b220-970735871d9f"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{customer_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="477" y="0" width="95" height="13" uuid="02f462d9-1526-4a0b-b346-6d79916629e3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{transaction_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="720" y="0" width="95" height="13" uuid="e0b882e9-1031-4a13-87a7-e36909ff63e3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{user_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="850" y="0" width="95" height="13" uuid="9128600c-e209-4aa7-9a0b-d596164193b6"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+					<paragraph rightIndent="2"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{net_disbursement_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1000" y="0" width="95" height="13" uuid="e0b882e9-1031-4a13-87a7-e36909ff63e3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{customerName}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1200" y="0" width="95" height="13" uuid="e67ba4fa-2aac-46d9-8131-ea40dc682244"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{sector}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1350" y="0" width="95" height="13" uuid="0a2078fe-46b3-4991-b9eb-bc48f183073c"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{branch_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1500" y="0" width="95" height="13" uuid="151e5eda-4f40-4ebc-8a81-380f1f0e226b"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{account_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1800" y="0" width="95" height="13" uuid="d0e49a43-a886-4f61-82c0-acd10e15a23a"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fee2_amount}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1650" y="0" width="95" height="13" uuid="ee8d4db0-8532-48ea-b8dc-3f41b795fa52"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fee1_amount}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1950" y="0" width="95" height="13" uuid="bca91259-4b39-4698-9b44-222365317a64"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fee3_amount}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2100" y="0" width="95" height="13" uuid="4e0f346d-c077-4899-aa5e-ee3892d57a9b"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{guarantorName}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

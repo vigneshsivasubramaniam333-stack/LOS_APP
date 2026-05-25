@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.4.0.final using JasperReports Library version 6.4.1  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="MakerCheckerTransactionReport" pageWidth="1000" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="1000" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="c9ca52c5-4a0b-47b4-a035-6525ec71f208">
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="TestzEncore"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<parameter name="instrument_select" class="java.lang.String">
+		<parameterDescription><![CDATA[Instrument]]></parameterDescription>
+	</parameter>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To date]]></parameterDescription>
+	</parameter>
+	<parameter name="action_type_select" class="java.lang.String">
+		<parameterDescription><![CDATA[Action Type]]></parameterDescription>
+	</parameter>
+	<parameter name="status_select" class="java.lang.String">
+		<parameterDescription><![CDATA[Status]]></parameterDescription>
+	</parameter>
+	<parameter name="user_select" class="java.lang.String">
+		<parameterDescription><![CDATA[User]]></parameterDescription>
+	</parameter>
+	<queryString>
+		<![CDATA[select account_id,transaction_id,transaction_name,
+instrument,action_type,case when status=0 then 'PENDING' 
+when status=1 then 'APPROVED' else 'REJECTED' end as status ,amount_magnitude,
+value_date,checked_date, checked_by 
+from maker_checker_transactions where
+tenant_code= $P{tenant_code} and 
+(instrument=$P{instrument_select} or $P{instrument_select}='' or $P{instrument_select} is null) and 
+(status= $P{status_select} or $P{status_select}='' or $P{status_select} is null) and 
+(action_type= $P{action_type_select} or $P{action_type_select}='' or $P{action_type_select} is null) and 
+(value_date >= $P{from_date}  and value_date <= $P{to_date}) and 
+(created_by= $P{user_select} or checked_by= $P{user_select} )]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="account_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="transaction_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="transaction_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="transaction_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="transaction_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="instrument" class="java.lang.Integer">
+		<property name="com.jaspersoft.studio.field.label" value="instrument"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="action_type" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="action_type"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="status" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="status"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="amount_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="amount_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="value_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="value_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="checked_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="checked_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<field name="checked_by" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="checked_by"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="maker_checker_transactions"/>
+	</field>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<columnHeader>
+		<band height="32" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="1" width="101" height="30" uuid="aaa6b5a0-400d-4b31-99ab-b7f2e0652fea"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Account ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="101" y="0" width="109" height="31" uuid="4c2f0679-f7b6-458b-b180-e74d14223998"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Transaction ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="210" y="0" width="115" height="31" uuid="2012d881-a7e0-48a1-a9f1-031df63142dc"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Transaction Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="325" y="0" width="120" height="32" uuid="d2cdacc3-ce32-4ebd-82c3-b6bd02ee8412"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Action Type]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="445" y="0" width="124" height="32" uuid="d85c0896-ebb0-4706-9cde-cbbf3c301d48"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Amount Magnitude]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="569" y="0" width="127" height="31" uuid="41fa0d05-8b49-4b3d-af07-a9afe045d2fa"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Value_Date	]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="696" y="0" width="104" height="31" uuid="8912039f-efa6-4c09-a4bf-3eb65b6896db"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Checked_Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="800" y="0" width="100" height="31" uuid="bbf6b4d8-f0eb-4f7b-832a-0c8695c15781"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Checked_By]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="900" y="0" width="100" height="31" uuid="26b93a56-e7e3-45d6-8eaf-eb1531fd6d64"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[Status]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="32" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="101" height="32" uuid="fa223f54-419a-4a01-b560-e184eed6505e"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="101" y="0" width="109" height="32" uuid="2aa43d4d-ba22-4759-ba88-f2336751a7af"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{transaction_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="210" y="0" width="115" height="32" uuid="f1db5fdf-356b-467d-8ba1-c4946279cc34"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{transaction_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="325" y="0" width="120" height="32" uuid="a95eb4c2-ee18-40b8-9587-a40f14750385"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{action_type}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="445" y="0" width="124" height="32" uuid="b91069e4-c3c2-491a-a3f9-9bfe382e517d"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-mm-dd" isBlankWhenNull="true">
+				<reportElement x="569" y="0" width="127" height="32" uuid="337a9d14-a612-4be7-8ebc-2e5e8246be5b"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{value_date}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-mm-dd" isBlankWhenNull="true">
+				<reportElement x="696" y="0" width="104" height="32" uuid="eb199322-b17d-40a8-b41d-218be6c1889a"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{checked_date}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="800" y="0" width="100" height="32" uuid="4967094d-2d43-4eae-a4e3-cac57c3abf60"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{checked_by}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="900" y="0" width="100" height="32" uuid="537d33f3-544c-4ebf-a21e-c18b903b51e1"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{status}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

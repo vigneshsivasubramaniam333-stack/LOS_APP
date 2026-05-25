@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.6.0.final using JasperReports Library version 6.6.0  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="SOACoapplicant" pageWidth="1069" pageHeight="842" whenNoDataType="NoPages" columnWidth="1069" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="97869369-f0b3-46ca-a402-b6741b876b81">
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="Local"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<parameter name="accountId_text" class="java.lang.String"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select concat(COALESCE(ah1.first_name,' '),' ',COALESCE(ah1.middle_name,' '),' ',COALESCE(ah1.last_name,' ')) as customer_name1,
+concat(COALESCE(ah1.address1,''),' ',COALESCE(ah1.address2,''),' ',COALESCE(ah1.address3,''),' ',COALESCE(ah1.city_code,''),' ',
+COALESCE(ah1.state_code,''),' ',COALESCE(ah1.district_code,''),' ',COALESCE(ah1.pin_code,'')) as address2,ifnull(ah1.phone1,'N/A') as phone,ifnull(ah1.phone2,'N/A') as phoneah,ifnull(ah1.email,'N/A') as emailah,ah1.holder_num,
+lp.account_id from loan_od_profiles lp left join account_holders ah1 on(lp.account_id=ah1.account_id) where ah1.holder_num > 1 and
+lp.account_id=$P{accountId_text} and ah1.tenant_code=$P{tenant_code}]]>
+	</queryString>
+	<field name="address2" class="java.lang.String"/>
+	<field name="emailah" class="java.lang.String"/>
+	<field name="customer_name1" class="java.lang.String"/>
+	<field name="phone" class="java.lang.String"/>
+	<field name="phoneah" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="55">
+			<frame>
+				<reportElement mode="Opaque" x="0" y="0" width="1068" height="20" backcolor="#BAC8E8" uuid="c8fe1358-6723-4934-a6b0-031bc165150d"/>
+				<staticText>
+					<reportElement x="480" y="-1" width="226" height="17" uuid="dbc3bf84-6e70-4ae4-ae1d-a762480bf784"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Co-Applicant Details]]></text>
+				</staticText>
+			</frame>
+			<staticText>
+				<reportElement x="0" y="34" width="90" height="21" uuid="e85050ff-c9b9-4252-acfb-43ca9a44b8cb"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Sr. No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="90" y="34" width="190" height="20" uuid="c2fa95b7-f748-4ed1-b2f5-c4453311f99e"/>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Co-Applicant name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="280" y="34" width="788" height="21" uuid="01d54341-0d52-4969-ae1e-c6222dc7b3fd"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Co-Applicant Address]]></text>
+			</staticText>
+		</band>
+	</title>
+	<detail>
+		<band height="45">
+			<textField isBlankWhenNull="true">
+				<reportElement x="280" y="0" width="788" height="45" uuid="89c69ef9-7255-4262-9bf5-fd441f45723a"/>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="14"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Address:"+$F{address2}+"   "+"Phone:"+ $F{phone}+"   "+"Email:"+$F{emailah}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="90" y="0" width="190" height="45" uuid="633718fc-62f2-4369-961c-a12d41855151"/>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{customer_name1}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="-1" width="90" height="46" uuid="38a09d9c-566f-40de-b0c6-57ee5f8a2713"/>
+				<box>
+					<topPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$V{REPORT_COUNT}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

@@ -1,0 +1,20 @@
+{
+    "encoreclientApp": {
+        "document": {
+            "home": {
+                "title": "Documents",
+                "heading": "Documents",
+                "searchLabel": "Search By",
+                "noResultsFound": "No Document found."
+            },
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "error": "An error occurred while fetching the results",
+            "name": "Name",
+            "workingDate": "Working Date",
+            "createdAt": "Created At",
+            "createdBy": "Created By",
+            "actions": "Actions"
+        }
+    }
+}

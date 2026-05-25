@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.4.0.final using JasperReports Library version 6.4.1  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="BalanceReport" language="groovy" pageWidth="800" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="800" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="6382d83c-1b9b-4752-a478-cbc0821645db">
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.sql.SQLQueryDesigner.sash.w1" value="294"/>
+	<property name="com.jaspersoft.studio.data.sql.SQLQueryDesigner.sash.w2" value="697"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="from_date" class="java.sql.Date">
+		<parameterDescription><![CDATA[Date]]></parameterDescription>
+	</parameter>
+	<queryString>
+		<![CDATA[select p.account_id,p.branch_code,p.product_code,b.balance_magnitude as closingBalance,
+sum(case when e.account_entry_type=1 then e.amount_magnitude else 0 end) as debitAmount,
+sum(case when e.account_entry_type=0 then e.amount_magnitude else 0 end) as creditAmount
+from account_balances b, account_profiles p left join account_entries e 
+on (p.tenant_code=e.tenant_code and p.account_id=e.account_id and e.transaction_date=$P{from_date} )
+where b.tenant_code=p.tenant_code and b.account_id=p.account_id  and
+b.tenant_code=$P{tenant_code}  group by p.account_id,p.branch_code,p.product_code,b.balance_magnitude]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="branch_code" class="java.lang.String"/>
+	<field name="product_code" class="java.lang.String"/>
+	<field name="closingBalance" class="java.math.BigDecimal"/>
+	<field name="debitAmount" class="java.math.BigDecimal"/>
+	<field name="creditAmount" class="java.math.BigDecimal"/>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="120" height="15" uuid="0402345f-3188-455e-b368-f9993e0e1edf"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ Account Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="120" y="0" width="95" height="15" uuid="ab7c1c8e-227e-46ff-b0e7-bc03698f3831"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Branch Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="215" y="0" width="95" height="15" uuid="93c503b3-80cc-4426-9526-9d25f492fefa"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Product Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="310" y="0" width="140" height="15" uuid="90d684bf-1032-4669-8b4f-4d1337bbefe6"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Opening Balance]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="450" y="0" width="95" height="15" uuid="dddb8375-5c4d-479e-88d3-b60fef8aedbb"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cr Movement]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="545" y="0" width="105" height="15" uuid="bab6ae05-2968-4ac7-a504-5a9067485369"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Dr Movement]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="650" y="0" width="130" height="15" uuid="618cd706-4ec8-4d1d-bd92-b836ec6799f4"/>
+				<box bottomPadding="0">
+					<pen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Closing Balance]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="120" height="13" uuid="aaf71f3f-af9a-4f4a-9731-099ec11b8aa1"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="120" y="0" width="95" height="13" uuid="df0bc022-470b-4978-96dd-858cf7bc313a"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{branch_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="215" y="0" width="95" height="13" uuid="5d9074bf-db81-46d0-b5cd-4401f2ce7c86"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{product_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="650" y="0" width="130" height="13" uuid="2d7c262a-fe15-44d3-99d8-e6e340a3e911"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{closingBalance}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="450" y="0" width="95" height="13" uuid="29294fef-a06c-4939-922b-295f11bb52c7"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{creditAmount}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="545" y="0" width="105" height="13" uuid="1d48b483-5170-443e-b95c-c7fba320cb3e"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{debitAmount}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="310" y="0" width="140" height="13" uuid="f0a8c3fc-a31a-49d6-b291-5d848a784c48"/>
+				<box>
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{closingBalance}.subtract($F{creditAmount}).add($F{debitAmount})]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

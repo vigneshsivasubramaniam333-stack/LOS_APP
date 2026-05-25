@@ -1,0 +1,49 @@
+{
+    "encoreclientApp": {
+        "bank" : {
+            "saveError": "An error occurred while saving your document.",
+            "serverError": "{{ message }}",
+            "error": "An error occurred while fetching the result.",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "Bank",
+                "createLabel": "Create a new Bank",
+                "createOrEditLabel": "Create or edit a Bank"
+            },
+            "created": "A new Bank is created with identifier {{ param }}",
+            "updated": "Bank updated successfully.",
+            "deleted": "A Bank is deleted with identifier {{ param }}",
+            "delete": {
+                "question": "Are you sure you want to delete Bank {{ id }}?"
+            },
+            "detail": {
+                "title": "Show Bank",
+                "pageTitle": "Show Bank"
+            },
+            "edit": {
+                "title": "Update Bank",
+                "pageTitle": "Update Bank"
+            },
+            "bankName": "Bank Name",
+            "registeredBankName": "Registered Bank Name",
+            "bankCode": "Bank Code",
+            "currentWorkingDate": "Current Working Date",
+            "lastArchiveDate": "Last Archive Date",
+            "weekendDay1": "Weekend 1",
+            "weekendDay2": "Weekend 2",
+            "pan": "PAN",
+            "gstin": "GSTIN",
+            "address" :{
+                "address1": "Address 1",
+                "address2": "Address 2",
+                "address3": "Address 3",
+                "countryCode": "Country",
+                "stateCode": "State",
+                "districtCode": "District",
+                "cityCode": "City",
+                "pinCode": "Pin Code"
+            }
+        }
+
+    }
+}

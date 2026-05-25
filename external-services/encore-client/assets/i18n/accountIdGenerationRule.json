@@ -1,0 +1,61 @@
+{
+    "encoreclientApp": {
+        "accountIdGenerationRule": {
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your document",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "AccountId Generation Rules",
+                "createLabel": "New AccountId Generation Rule",
+                "createOrEditLabel": "Create or edit a AccountId Generation Rule",
+                "heading": " AccountId Generation Rules",
+                "searchLabel": "Search By",
+                "noResultsFound": "No AccountId Generation Rule found."
+            },
+            "created": "Successfully created AccountId Generation Rule : {{ name }}",
+            "updated": "Successfully updated AccountId Generation Rule : {{ name }}",
+            "deleted": "Successfully deleted AccountId Generation Rule",
+            "delete": {
+                "question": "Are you sure you want to delete AccountId Generation Rule : {{ name }}?"
+            },
+            "detail": {
+                "title": "Show AccountId Generation Rule",
+                "pageTitle": "Show AccountId Generation Rule"
+            },
+            "create": {
+                "title": "Create New AccountId Generation Rule",
+                "pageTitle": "Create AccountId Generation Rule"
+            },
+            "edit": {
+                "title": "Update AccountId Generation Rule",
+                "pageTitle": "Update AccountId Generation Rule"
+            },
+            "ruleCode": "Rule Code",
+            "name": "Name",
+            "padding": "Padding",
+            "sequenceInitialValue": "Sequence Initial Value",
+            "part1Type": "Part 1 Type",
+            "numPart1Digits": "Num Part 1 Digits",
+            "part2Type": "Part 2 Type",
+            "numPart2Digits": "Num Part 2 Digits",
+            "part3Type": "Part 3 Type",
+            "numPart3Digits": "Num Part 3 Digits",
+            "part4Type": "Part 4 Type",
+            "numPart4Digits": "Num Part 4 Digits",
+            "part5Type": "Part 5 Type",
+            "numPart5Digits": "Num Part 5 Digits",
+            "part1Metadata": "Part 1 Metadata",
+            "part2Metadata": "Part 2 Metadata",
+            "part3Metadata": "Part 3 Metadata",
+            "part4Metadata": "Part 4 Metadata",
+            "part5Metadata": "Part 5 Metadata",
+            "part1": "Part 1",
+            "part2": "Part 2",
+            "part3": "Part 3",
+            "part4": "Part 4",
+            "part5": "Part 5"
+        }
+    }
+}

@@ -1,0 +1,61 @@
+{
+    "encoreclientApp": {
+        "calendar": {
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your document",
+            "uploadError": "Holidays could not be saved.",
+            "generateError": "An error occurred.",
+            "holidayUploadError": "Holiday not Saved: '{{message}}'",
+            "fileNotPresentError": "Please select a file to upload.",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "Holidays",
+                "createLabel": "Create Holiday",
+                "createOrEditLabel": "Create or edit a Holiday",
+                "uploadLabel": "Upload Holidays",
+                "generateLabel": "Generate Holidays",
+                "heading": "Holidays",
+                "searchLabel": "Search By",
+                "noResultsFound": "No Holiday found."
+            },
+            "created": "Successfully created holiday : {{ holidayName }}",
+            "updated": "Successfully updated holiday : {{ holidayName }}",
+            "deleted": "Successfully deleted holiday",
+            "uploaded": "Successfully saved holidays.",
+            "generated": "Successfully saved holiday.",
+            "delete": {
+                "question": "Are you sure you want to delete holiday : {{ name }}?"
+            },
+            "detail": {
+                "title": "Show Holiday",
+                "pageTitle": "Show Holiday"
+            },
+            "create": {
+                "title": "Create New Holiday",
+                "pageTitle": "Create Holiday"
+            },
+            "edit": {
+                "title": "Update Holiday",
+                "pageTitle": "Update Holiday"
+            },
+            "upload": {
+                "title": "Upload New Holidays",
+                "pageTitle": "Upload Holidays",
+                "label": "Upload Holidays : "
+            },
+            "generate": {
+                "title": "Generate Holidays",
+                "pageTitle": "Generate Holidays"
+            },
+            "version": "Version",
+            "calendarCategory": "Category",
+            "calendarCode": "Code",
+            "year": "Year",
+            "holidayName": "Holiday Name",
+            "holidayDate": "Holiday Date",
+            "cronExpression": "Cron Expression"
+        }
+    }
+}

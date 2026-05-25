@@ -1,0 +1,67 @@
+{
+    "encoreclientApp": {
+        "voucher": {
+            "saveError": "An error occurred while saving your voucher",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your voucher",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "List vouchers",
+                "createLabel": "New voucher",
+                "createOrEditLabel": "Create or edit a voucher",
+                "heading": "Vouchers",
+                "searchLabel": "Search By",
+                "noResultsFound": "No voucher found."
+            },
+            "created": "Successfully created voucher : {{ code }}",
+            "updated": "Successfully updated voucher : {{ code }}",
+            "reversed": "Successfully reversed voucher : {{code}}",
+            "deleted": "Successfully deleted voucher",
+            "delete": {
+                "question": "Are you sure you want to delete voucher : {{ code }}?"
+            },
+            "detail": {
+                "title": "Show Voucher",
+                "pageTitle": "Show Voucher"
+            },
+            "create": {
+                "title": "Create New Voucher",
+                "pageTitle": "Create Voucher"
+            },
+            "edit": {
+                "title": "Update Voucher",
+                "pageTitle": "Update Voucher"
+            },
+            "reverse": {
+                "title": "Reverse Voucher",
+                "pageTitle": "Reverse Voucher"
+            },
+            "upload": {
+                "title": "Upload Voucher",
+                "label": "Upload Document"
+            },
+            "voucherNumber": "Voucher Number",
+            "voucherCode": "voucher Code",
+            "description": "Description",
+            "authorities": "Authorities",
+            "voucherType": "Voucher Type",
+            "transactionId": "Transaction Id",
+            "transactionLotId": "Transaction Lot Id",
+            "valueDate": "Value Date",
+            "transactionDate": "Transaction Date",
+            "creditAccountCode": "Credit Account Code",
+            "creditBranchCode": "Credit Branch Code",
+            "debitAccountCode": "Debit Account Code",
+            "debitBranchCode": "Debit Branch Code",
+            "amount": "Amount",
+            "reference": "Reference",
+            "referencedAccountId": "Referenced Account Id",
+            "uploaded": "Uploaded",
+            "uploadError": "Voucher could not be saved.",
+            "voucherUploadError": "Voucher not Saved: '{{message}}'",
+            "fileNotPresentError": "Please select a file to upload.",
+            "document": "Document"
+        }
+    }
+}

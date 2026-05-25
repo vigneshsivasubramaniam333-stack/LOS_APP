@@ -1,0 +1,25 @@
+{
+    "encoreclientApp": {
+        "summaryBalance" : {
+            "home": {
+                "title": "Summary Balances",
+                "createLabel": "Summary Balance-ஐ உருவாக்கு",
+                "createOrEditLabel": "Summary Balance -ஐ மாற்று (அ) உருவாக்கு"
+            },
+            "created": "Summary Balance புதிதாக உருவாக்கப்பட்டது, அடையாளம் {{ param }}",
+            "updated": "Summary Balance மாற்றப்பட்டது, அடையாளம்  {{ param }}",
+            "deleted": "A Summary Balance நீக்கப்பட்டது, அடையாளம {{ param }}",
+            "delete": {
+                "question": "நீக்குவதற்கு உறுதி செய் Summary Balance {{ id }}?"
+            },
+            "detail": {
+                "title": "Summary Balance"
+            },
+            "glHead": "Gl Head",
+            "glSubHead": "Gl Sub Head",
+            "code": "Code",
+            "balance": "Balance",
+            "branchCode": "Branch Code"
+        }
+    }
+}

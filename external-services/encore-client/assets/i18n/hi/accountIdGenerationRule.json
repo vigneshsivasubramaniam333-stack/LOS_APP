@@ -1,0 +1,39 @@
+{
+    "encoreclientApp": {
+        "accountIdGenerationRule" : {
+            "home": {
+                "title": "_AccountIdGenerationRules",
+                "createLabel": "_नया Account Id Generation Rule बनाएँ",
+                "createOrEditLabel": "_Account Id Generation Rule बनाएँ या संपादित करें"
+            },
+            "created": "_एक नया Account Id Generation Rule [identifier: {{ param }}] तैयार है",
+            "updated": "_एक Account Id Generation Rule [identifier: {{ param }}] का अद्यतन हुआ है",
+            "deleted": "_Account Id Generation Rule [identifier: {{ param }}] हटा दिया है",
+            "delete": {
+                "question": "_Account Id Generation Rule [id: {{ id }}] हटाने की पुष्टि करें"
+            },
+            "detail": {
+                "title": "_Account Id Generation Rule"
+            },
+            "ruleCode": "_Rule Code",
+            "name": "_Name",
+            "padding": "_Padding",
+            "sequenceInitialValue": "Sequence Initial Value",
+            "part1Type": "_Part 1 Type",
+            "numPart1Digits": "_Num Part 1 Digits",
+            "part2Type": "_Part 2 Type",
+            "numPart2Digits": "_Num Part 2 Digits",
+            "part3Type": "_Part 3 Type",
+            "numPart3Digits": "_Num Part 3 Digits",
+            "part4Type": "_Part 4 Type",
+            "numPart4Digits": "_Num Part 4 Digits",
+            "part5Type": "_Part 5 Type",
+            "numPart5Digits": "_Num Part 5 Digits",
+            "part1Metadata": "Part 1 Metadata",
+            "part2Metadata": "Part 2 Metadata",
+            "part3Metadata": "Part 3 Metadata",
+            "part4Metadata": "Part 4 Metadata",
+            "part5Metadata": "Part 5 Metadata"
+        }
+    }
+}

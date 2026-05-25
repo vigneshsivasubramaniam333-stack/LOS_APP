@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.19.0.final using JasperReports Library version 6.19.0-646c68931cebf1a58bc65c4359d1f0ca223c5e94  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RepaymentSchedulePreciseReport" language="groovy" pageWidth="1119" pageHeight="842" columnWidth="1119" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isSummaryNewPage="true" isIgnorePagination="true" uuid="15de755d-64a1-4168-b22d-22c28beee0da">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="95"/>
+	<property name="ireport.y" value="62"/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<parameter name="imagePath" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="customerName" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="mobileNo" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="emailId" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="accountId_text" class="java.lang.String">
+		<parameterDescription><![CDATA[AccountId]]></parameterDescription>
+	</parameter>
+	<parameter name="normalInterestRate" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="loanAmount" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="tenure" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="disbursementDate" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="maturityDate" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="totalDisbursed" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="accountOpenDate" class="java.lang.String" isForPrompting="false"/>
+	<queryString>
+		<![CDATA[]]>
+	</queryString>
+	<field name="accountId" class="java.lang.String">
+		<fieldDescription><![CDATA[accountId]]></fieldDescription>
+	</field>
+	<field name="amount1" class="java.lang.String">
+		<fieldDescription><![CDATA[amount1]]></fieldDescription>
+	</field>
+	<field name="amount2" class="java.lang.String">
+		<fieldDescription><![CDATA[amount2]]></fieldDescription>
+	</field>
+	<field name="amount3" class="java.lang.String">
+		<fieldDescription><![CDATA[amount3]]></fieldDescription>
+	</field>
+	<field name="customerName" class="java.lang.String">
+		<fieldDescription><![CDATA[customerName]]></fieldDescription>
+	</field>
+	<field name="description" class="java.lang.String">
+		<fieldDescription><![CDATA[description]]></fieldDescription>
+	</field>
+	<field name="entityId" class="java.lang.String">
+		<fieldDescription><![CDATA[entityId]]></fieldDescription>
+	</field>
+	<field name="param1" class="java.lang.String">
+		<fieldDescription><![CDATA[param1]]></fieldDescription>
+	</field>
+	<field name="param2" class="java.util.Date">
+		<fieldDescription><![CDATA[param2]]></fieldDescription>
+	</field>
+	<field name="part1" class="java.lang.String">
+		<fieldDescription><![CDATA[part1]]></fieldDescription>
+	</field>
+	<field name="part2" class="java.lang.String">
+		<fieldDescription><![CDATA[part2]]></fieldDescription>
+	</field>
+	<field name="part3" class="java.lang.String">
+		<fieldDescription><![CDATA[part3]]></fieldDescription>
+	</field>
+	<field name="part4" class="java.lang.String">
+		<fieldDescription><![CDATA[part4]]></fieldDescription>
+	</field>
+	<field name="part5" class="java.lang.String">
+		<fieldDescription><![CDATA[part5]]></fieldDescription>
+	</field>
+	<field name="part6" class="java.lang.String">
+		<fieldDescription><![CDATA[part6]]></fieldDescription>
+	</field>
+	<field name="payeeAccountId" class="java.lang.String">
+		<fieldDescription><![CDATA[payeeAccountId]]></fieldDescription>
+	</field>
+	<field name="responseCode" class="java.lang.String">
+		<fieldDescription><![CDATA[responseCode]]></fieldDescription>
+	</field>
+	<field name="sequenceNum" class="java.lang.Integer">
+		<fieldDescription><![CDATA[sequenceNum]]></fieldDescription>
+	</field>
+	<field name="status" class="java.lang.String">
+		<fieldDescription><![CDATA[status]]></fieldDescription>
+	</field>
+	<field name="transactionDate" class="java.util.Date">
+		<fieldDescription><![CDATA[transactionDate]]></fieldDescription>
+	</field>
+	<field name="transactionId" class="java.lang.String">
+		<fieldDescription><![CDATA[transactionId]]></fieldDescription>
+	</field>
+	<field name="transactionName" class="java.lang.String">
+		<fieldDescription><![CDATA[transactionName]]></fieldDescription>
+	</field>
+	<field name="userId" class="java.lang.String">
+		<fieldDescription><![CDATA[userId]]></fieldDescription>
+	</field>
+	<field name="valueDate" class="java.util.Date">
+		<fieldDescription><![CDATA[valueDate]]></fieldDescription>
+	</field>
+	<variable name="variable1" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="256" splitType="Stretch">
+			<image>
+				<reportElement x="0" y="0" width="355" height="76" uuid="5d167dbb-4f7c-4c7b-969f-7bdb7f9c221e"/>
+				<imageExpression><![CDATA[$P{imagePath}+"logo.jpg"]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="76" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Name of Customer]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="96" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Mobile No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="116" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Email ID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="136" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Loan A/C No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="156" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Rate of Interest]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="176" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Loan Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="196" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Loan Tenure]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="216" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Disbursement Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="236" width="564" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Maturity Date]]></text>
+			</staticText>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="76" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="90cf1995-ec53-42a1-ad85-61d510ef907f"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{customerName}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="96" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="ff418e49-8ab6-4b1c-bad5-2c3e57591e58"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{mobileNo}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="116" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="bc5a1d89-4fda-4d0c-82a6-e01dd6f1293b"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" markup="none">
+					<font isBold="true" isUnderline="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{emailId}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="136" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="78da9f4f-455f-4e30-8bed-6f4baf17b963"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{accountId_text}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="156" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="eacfdf67-236d-479f-9f34-f16b35b95681"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{normalInterestRate}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="176" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="7a6c72cb-c812-4c1d-ac4d-679a28e5f2dd"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{totalDisbursed}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="196" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="d29793fb-7051-4070-b012-41f860db3ddf"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{tenure}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" pattern="MMM dd, yyyy" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="216" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="9c9bda83-1fdd-4d80-b061-5558637d6b3f"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{disbursementDate}]]></textFieldExpression>
+			</textField>
+			<textField textAdjust="StretchHeight" pattern="MMM dd, yyyy" isBlankWhenNull="true">
+				<reportElement mode="Opaque" x="564" y="236" width="555" height="20" forecolor="#FFFFFF" backcolor="#003366" uuid="8f385e74-b555-452a-a674-c6d0c681e009"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{maturityDate}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="20">
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="100" height="20" uuid="a999a4c1-f63b-4729-bc0d-a742efd01eef"/>
+				<box topPadding="0">
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[EMI No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="100" y="0" width="280" height="20" uuid="f5cc088b-0c87-4dcc-b2c3-617f9ff8df65"/>
+				<box topPadding="0">
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[EMI Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="380" y="0" width="270" height="20" uuid="0d42c27f-0859-4c8c-ad99-d51fc0cb1ded"/>
+				<box topPadding="0">
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Normal Interest]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="650" y="0" width="250" height="20" uuid="40352315-89ad-41cd-bbcb-e029d6551ff8"/>
+				<box topPadding="0">
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Principal]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="900" y="0" width="218" height="20" uuid="6573a46e-7465-4c81-a97d-cd1471fda8c1"/>
+				<box topPadding="0">
+					<topPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Balance]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="100" height="20" uuid="045c23b4-60df-48c1-b163-3d7ca388275e"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{sequenceNum}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="380" y="0" width="270" height="20" uuid="0edeb2cc-7ae1-4d64-912c-dae920a6ee83"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{part1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="650" y="0" width="250" height="20" uuid="44653829-bc78-48e0-ab14-020ec0515299"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{part2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="0" width="280" height="20" uuid="080c55f3-dab9-4ec6-ab60-7aac3d86e458"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{amount1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="900" y="0" width="219" height="20" uuid="e315d51d-4cb9-4c5f-aed3-76f6a8e525c4"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{amount2}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

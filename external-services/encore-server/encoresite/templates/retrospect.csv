@@ -1,0 +1,24 @@
+#AccountId,transactionId,transactionName,valueDate,transactionDate,amount1,amount2,amount3,part1,part2,part3,part4,part5,part6,part7,part8,description,payeeAccountId,userId,param1,param2,param3,param4,param5,Instrument,Reference,sequenceNum,transactionLotId,CurrencyCode
+# In retrospection, back-value-dated input transactions are specified for same account sequentially in ascending order of date-time. 
+# The transactions are posted such that their executions are interleaved into the interest booking and demand generation sequence for that account
+# which is called forward plan.
+# Retrospection has three use-cases: 
+# 1. specified existing transaction has to be reversed; transactions following that transaction should be rerun if required; new transaction set has to be executed if provided
+#    reverseRootTransaction = true, runReversedTransactions = true/false; forwardTransactions if present
+# 2. specified existing transaction should not be reversed; transactions following that transaction have to be rerun if required; new transaction set has to be executed if provided
+#    reverseRootTransaction = false, runReversedTransactions = true/false; forwardTransactions if present
+# 3. specified new transaction to be run; specified transaction set has to be rerun; transactions following that transaction have to be rerun
+#    reverseRootTransaction = NA, runReversedTransactions = true/false; forwardTransactions if present
+# In comment line, specify parameters as reverseRootTransaction:true runReversedTransactions:false
+# For case 1, 2 the list should have the existing transaction specified by its transactionId, transactionName as its first element
+#             followed by the new transactions each with new transactionId
+# For case 3, the list should contain the new transactions each with new transactionId
+# In cases 1, the first transaction is reversed; In case 2 and 3, the transactions specified are executed 
+#               The remaining transactions are executed as part of forward plan of first transaction
+# Requirements from transactions parameter:
+#     transactions should be in ascending order of time
+#     minimum parameters expected in a transaction are accountId, transactionId, transactionName, valueDate and any command-specific value
+508640100017,,Disbursement,2017-08-16,2017-08-16,25000,0,0,-1,-1,-1,-1,-1,-1,-1,-1,,,saroj.behera,,,,CASH,,,,INR
+508640100017,,Fee Charge,2017-08-16,2017-08-16,100,0,0,0,0,0,0,0,0,0,0,,,saroj.behera,,,,CASH,,,,INR
+508640100017,,Fee Payment,2017-08-16,2017-08-16,100,0,0,0,0,0,0,0,0,0,0,,,saroj.behera,Processing Fee,,,CASH,,,,INR
+508640100017,,ScheduledRepayment,2017-08-23,2017-08-23,561,0,0,0,0,0,0,0,0,0,0,,,saroj.behera,,,,CASH,,,,INR

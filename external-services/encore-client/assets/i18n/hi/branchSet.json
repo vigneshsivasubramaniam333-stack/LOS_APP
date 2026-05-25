@@ -1,0 +1,23 @@
+{
+    "encoreclientApp": {
+        "branchSet" : {
+            "home": {
+                "title": "BranchSets",
+                "createLabel": "नया Branch Set बनाएँ",
+                "createOrEditLabel": "Branch Set बनाएँ या संपादित करें"
+            },
+            "created": "एक नया Branch Set [identifier: {{ param }}] तैयार है",
+            "updated": "एक Branch Set [identifier: {{ param }}] का अद्यतन हुआ है",
+            "deleted": "Branch Set [identifier: {{ param }}] हटा दिया है",
+            "delete": {
+                "question": "Branch Set [id: {{ id }}] हटाने की पुष्टि करें"
+            },
+            "detail": {
+                "title": "Branch Set"
+            },
+            "branchSetCode": "Branch Set Code",
+            "branchSetName": "Branch Set Name",
+            "operationalMode": "Operational Mode"
+        }
+    }
+}

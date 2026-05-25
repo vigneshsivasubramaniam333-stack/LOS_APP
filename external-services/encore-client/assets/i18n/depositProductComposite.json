@@ -1,0 +1,78 @@
+{
+  "encoreclientApp": {
+    "depositProductComposite": {
+      "saveError": "An error occurred while saving your document",
+      "serverError": "{{ message }}",
+      "deleteError": "An error occurred while deleting your document",
+      "error": "An error occurred while fetching the results",
+      "reindex": "All documents successfully reindexed",
+      "home": {
+        "pageTitle": "Deposit Products",
+        "createLabel": "New Deposit Product",
+        "createOrEditLabel": "Create or edit a Deposit Product",
+        "heading": " Deposit Products",
+        "noResultsFound": "No Deposit Product found."
+      },
+      "created": "Successfully created Deposit Product : {{ code }}",
+      "updated": "Successfully updated Deposit Product : {{ code }}",
+      "deleted": "Successfully deleted Deposit Product",
+      "delete": {
+        "question": "Are you sure you want to delete Deposit Product : {{ code }}?"
+      },
+      "detail": {
+        "title": "Show Deposit Product",
+        "pageTitle": "Show Deposit Product"
+      },
+      "create": {
+        "title": "Create New Deposit Product",
+        "pageTitle": "Create Deposit Product"
+      },
+      "edit": {
+        "title": "Update Deposit Product",
+        "pageTitle": "Update Deposit Product"
+      },
+      "productType": "Product Type",
+      "productCode": "Product Code",
+      "productDescription": "Product Description",
+      "glSubHead": "Gl Sub Head",
+      "accountIdCode": "Account Id Code",
+      "dateMin": "Effective Date",
+      "dateMax": "Expiry Date",
+      "currencyCode": "Currency Code",
+      "branchSetCode": "Branch Set Code",
+      "accountIdGenerationRuleCode": "Account Id Generation Rule Code",
+      "category": "Category",
+      "GLCode": "GL Code",
+      "dproductCode": "Dproduct Code",
+      "depositType": "Deposit Type",
+      "interestTableCode": "Interest Table Code",
+      "depositFrequency": "Deposit Frequency",
+      "bookingFrequency": "Booking Frequency",
+      "compoundingFrequency": "Compounding Frequency",
+      "payoutFrequency": "Payout Frequency",
+      "interestExpenseAccountCode": "Interest Expense Account Code",
+      "interestPayableAccountCode": "Interest Payable Account Code",
+      "taxDeductionPayableAccountCode": "Tax Deduction Payable Account Code",
+      "taxDeductionApplicable": "Tax Deduction Applicable",
+      "calendarBasedSchedule": "Calendar Based Schedule",
+      "latePaymentPenaltyRate": "Late Payment Penalty Rate",
+      "preclosurePenaltyRate": "Preclosure Penalty Rate",
+      "roundOffPenaltyDays": "Round Off Penalty Days",
+      "depositInterestComputationMethod": "Deposit Interest Computation Method",
+      "interestComputationMethod": "Interest Computation Method",
+      "autoRenewalAllowed": "Auto Renewal Allowed",
+      "interestFractionDigits": "Interest Fraction Digits",
+      "interestRoundingMode": "Interest Rounding Mode",
+      "interestComputationFractionDigits": "Interest Computation Fraction Digits",
+      "interestComputationRoundingMode": "Interest Computation Rounding Mode",
+      "interestRateFractionDigits": "Interest Rate Fraction Digits",
+      "interestRateRoundingMode": "Interest Rate Rounding Mode",
+      "holidayHandlingMode": "Holiday Handling Mode",
+      "useTemplate": "Use Template",
+      "roundingMode": "Rounding Mode",
+      "interestAccrualCalculationMethod": "Interest Accrual Calculation Method",
+      "carryOverInterest": "Carry Over Interest",
+      "interestAccruedAccountCode": "Interest Accrued Account Code"
+    }
+  }
+}

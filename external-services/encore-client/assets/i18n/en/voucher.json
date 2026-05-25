@@ -1,0 +1,41 @@
+{
+    "encoreclientApp": {
+        "voucher": {
+            "saveError": "An error occurred while saving your voucher",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your voucher",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "List vouchers",
+                "createLabel": "New voucher",
+                "createOrEditLabel": "Create or edit a voucher",
+                "heading": "Vouchers",
+                "searchLabel": "Search By",
+                "noResultsFound": "No voucher found."
+            },
+            "created": "Successfully created voucher : {{ code }}",
+            "updated": "Successfully updated voucher : {{ code }}",
+            "deleted": "Successfully deleted voucher",
+            "delete": {
+                "question": "Are you sure you want to delete voucher : {{ code }}?"
+            },
+            "detail": {
+                "title": "Show voucher",
+                "pageTitle": "Show voucher"
+            },
+            "create": {
+                "title": "Create New voucher",
+                "pageTitle": "Create voucher"
+            },
+            "edit": {
+                "title": "Update voucher",
+                "pageTitle": "Update voucher"
+            },
+            "voucherName": "voucher Name",
+            "voucherCode": "voucher Code",
+            "description": "Description",
+            "authorities": "Authorities"
+        }
+    }
+}

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.10.0.final using JasperReports Library version 6.10.0-unknown  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ForfeitureAndWaiverBalanceReport" language="groovy" pageWidth="350" pageHeight="842" whenNoDataType="BlankPage" columnWidth="350" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="43ba0069-355a-4691-b723-6db840a6eff6">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<parameter name="tenant_code" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<queryString>
+		<![CDATA[Select p.product_code,p.branch_code,sum(b.balance_magnitude) as balance
+from account_profiles p,account_balances b, products ps where
+p.account_id = b.account_id and p.tenant_code = b.tenant_code and p.tenant_code = ps.tenant_code and
+p.tenant_code =$P{tenant_code} and ps.gl_subhead = p.gl_subhead and p.currency_code=ps.currency_code and b.balance_magnitude != 0
+and p.product_type = 'Internal' and ps.gl_subhead in ('Forfeiture', 'Waiver') group by p.branch_code, ps.gl_subhead]]>
+	</queryString>
+	<field name="product_code" class="java.lang.String"/>
+	<field name="branch_code" class="java.lang.String"/>
+	<field name="balance" class="java.math.BigDecimal"/>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="95" height="15" uuid="85c21cac-e203-4684-bb40-1ec23b1646ae"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="207" y="0" width="143" height="15" uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Balance]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="95" y="0" width="112" height="15" uuid="04fd5db7-4998-4994-9aa2-f18997e9bbdf"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ Branch Code]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="207" y="0" width="143" height="20" uuid="a7f25c12-19e2-48f0-8b6f-e3b1cc78b014"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{balance}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="95" y="0" width="112" height="20" uuid="87fb0030-ea82-481a-beb6-44bc5e7511a6"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{branch_code}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="95" height="20" uuid="780d6aa2-ce2c-46f2-9101-70e821d3fffe"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$P{from_date}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

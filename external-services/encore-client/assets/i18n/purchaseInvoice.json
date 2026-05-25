@@ -1,0 +1,175 @@
+{
+    "encoreclientApp": {
+        "purchaseInvoice" : {
+            "saveError": "An error occurred while saving your Purchase Invoice",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your Purchase Invoice",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "Purchase Invoices",
+                "createLabel": "New Purchase Invoice",
+                "createOrEditLabel": "Create or edit a purchaseInvoice",
+                "heading": "Purchase Invoices",
+                "searchLabel": "Search By",
+                "noResultsFound": "No Purchase Invoice found."
+            },
+            "created": "Successfully created Purchase Invoice : {{ code }}",
+            "updated": "Successfully updated Purchase Invoice : {{ code }}",
+            "deleted": "Successfully deleted Purchase Invoice",
+            "debit":{
+                "show":"Show Debit Note",
+                "create":"Create Debit Note",
+                "update":"Update Debit Note",
+                "pageTitle":" Debit Notes"
+            },
+            "bulk":{
+                "title":"Invoice Payment"
+            },
+            "delete": {
+                "question": "Are you sure you want to delete Purchase Invoice : {{ code }}?"
+            },
+            "detail": {
+                "title": "Show Purchase Invoice",
+                "pageTitle": "Show Purchase Invoice"
+            },
+            "create": {
+                "title": "Create New Purchase Invoice",
+                "pageTitle": "Create Purchase Invoice"
+            },
+            "edit": {
+                "title": "Update Purchase Invoice",
+                "pageTitle": "Update Purchase Invoice"
+            },
+            "upload":{
+                "label":"Upload Document"
+            },
+            "description": "Description",
+            "authorities": "Authorities",
+            "transactionId": "Transaction Id",
+            "transactionLotId": "Transaction Lot Id",
+            "valueDate": "Value Date",
+            "transactionDate": "Transaction Date",
+            "branchCode": "Branch Code",
+            "amount": "Amount",
+            "reference": "Reference",
+            "grossAmount":"Gross Amount",
+            "surcharge":"Surcharge",
+            "tax1Amount": "Tax 1 Amount",
+            "tax2Amount":"Tax 2 Amount",
+            "tax3Amount":"Tax 3 Amount",
+            "tax4Amount":"Tax 4 Amount",
+            "customerId":"Customer Id",
+            "terms":"Terms",
+            "dueDate":"Due Date",
+            "category":"Category",
+            "tax":"Tax",
+            "rate":"Rate",
+            "quantity":"Quantity",
+            "unitPrice":"Unit Price",
+            "add":"Add",
+            "deleteRow":"Delete",
+            "uploaded": "Uploaded",
+            "uploadError": "Document could not be saved.",
+            "voucherUploadError": "Document not Saved: '{{message}}'",
+            "fileNotPresentError": "Please select a file to upload.",
+            "document":"Document",
+            "transactionNumber":"Transaction Number",
+            "invoiceNumber":"Invoice Number",
+            "tds":"TDS",
+            "taxAmount":"Tax Amount",
+            "instrument":"Instrument",
+            "accountCode":"Account Code",
+            "firstName":"First Name",
+            "lastName":"Last Name",
+            "middleName":"Middle Name",
+            "pan":"PAN",
+            "gstin":"GSTIN",
+            "email":"Email",
+            "address1":"Address 1",
+            "address2":"Address 2",
+            "address3":"Address 3",
+            "phone1":"Phone 1",
+            "phone2":"Phone 2",
+            "stateCode":"State Code",
+            "countryCode":"Country Code",
+            "cityCode":"City Code",
+            "districtCode":"District Code",
+            "pinCode":"Pin Code",
+            "vendorId":"Vendor Id"
+        },
+        "salesInvoice":{
+            "saveError": "An error occurred while saving your Sales Invoice",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your Sales Invoice",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "Sales Invoices",
+                "createLabel": "New Sales Invoice",
+                "createOrEditLabel": "Create or edit a Sales Invoice",
+                "heading": " Sales Invoices",
+                "searchLabel": "Search By",
+                "noResultsFound": "No Sales Invoice found."
+            },
+            "credit":{
+                "show":"Show Credit Note",
+                "create":"Create Credit Note",
+                "update":"Update Credit Note",
+                "pageTitle":" Credit Notes"
+            },
+            "created": "Successfully created Sales Invoice : {{ code }}",
+            "updated": "Successfully updated Sales Invoice : {{ code }}",
+            "deleted": "Successfully deleted Sales Invoice",
+            "delete": {
+                "question": "Are you sure you want to delete Sales Invoice : {{ code }}?"
+            },
+            "detail": {
+                "title": "Show Sales Invoice",
+                "pageTitle": "Show Sales Invoice"
+            },
+            "create": {
+                "title": "Create New Sales Invoice",
+                "pageTitle": "Create Sales Invoice"
+            },
+            "edit": {
+                "title": "Update Sales Invoice",
+                "pageTitle": "Update Sales Invoice"
+            },
+            "upload":{
+                "label":"Upload Document"
+            },
+            "description": "Description",
+            "authorities": "Authorities",
+            "transactionId": "Transaction Id",
+            "transactionLotId": "Transaction Lot Id",
+            "valueDate": "Value Date",
+            "transactionDate": "Transaction Date",
+            "branchCode": "Branch Code",
+            "amount": "Amount",
+            "reference": "Reference",
+            "grossAmount":"Gross Amount",
+            "surcharge":"Surcharge",
+            "tax1Amount": "Tax 1 Amount",
+            "tax2Amount":"Tax 2 Amount",
+            "tax3Amount":"Tax 3 Amount",
+            "tax4Amount":"Tax 4 Amount",
+            "customerId":"Customer Id",
+            "terms":"Terms",
+            "dueDate":"Due Date",
+            "category":"Category",
+            "tax":"Tax",
+            "rate":"Rate",
+            "quantity":"Quantity",
+            "add":"Add",
+            "deleteRow":"Delete",
+            "uploaded": "Uploaded",
+            "uploadError": "Document could not be saved.",
+            "voucherUploadError": "Document not Saved: '{{message}}'",
+            "fileNotPresentError": "Please select a file to upload.",
+            "document":"Document"
+        }
+
+
+    }
+}

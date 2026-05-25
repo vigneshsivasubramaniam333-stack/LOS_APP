@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="BookedInterestReport" language="groovy" pageWidth="1150" pageHeight="842" columnWidth="1130" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10" isIgnorePagination="true" uuid="4a0ad14c-729f-4a0f-8595-07a98353ff2c">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="109"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="branchset_code_select" class="java.lang.String">
+		<parameterDescription><![CDATA[BranchSet Code]]></parameterDescription>
+	</parameter>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To Date]]></parameterDescription>
+	</parameter>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select ic.account_id,t.tag, ap.branch_code,ap.product_code,ic.start_date as from_date,
+ic.computation_date as to_date,
+ic.interest_magnitude, ic.amount_magnitude as balance, ic.tenure_days as tenure_days, case when ic.interest_type=0 then 'Normal Interest' else 'Penal Interest' end as interest_type,(ic.tenure_days - (greatest(DATEDIFF($P{from_date}, ic.start_date),0) + greatest(DATEDIFF(ic.computation_date,$P{to_date}),0))) as applicable_days
+FROM interest_computations ic ,account_profiles ap left join loan_od_tags t on ( ap.tenant_code = t.tenant_code and ap.account_id = t.account_id), branchset_branches bs
+where ic.tenant_code=ap.tenant_code and ic.tenant_code=bs.tenant_code and ic.account_id=ap.account_id and ap.branch_code=bs.branch_code and bs.branchset_code =$P{branchset_code_select}
+and ic.tenant_code=$P{tenant_code}
+and (ic.computation_date>=$P{from_date} and ic.start_date<=$P{to_date}) order by ic.interest_type,ic.account_id, ic.start_date]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="tag" class="java.lang.String"/>
+	<field name="branch_code" class="java.lang.String"/>
+	<field name="product_code" class="java.lang.String"/>
+	<field name="from_date" class="java.sql.Date"/>
+	<field name="to_date" class="java.sql.Date"/>
+	<field name="interest_magnitude" class="java.math.BigDecimal"/>
+	<field name="balance" class="java.math.BigDecimal"/>
+	<field name="tenure_days" class="java.lang.Integer"/>
+	<field name="interest_type" class="java.lang.String"/>
+	<field name="applicable_days" class="java.lang.Long"/>
+	<variable name="variable1" class="java.lang.String"/>
+	<columnHeader>
+		<band height="18" splitType="Stretch">
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="0" y="0" width="114" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[AccountId]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="114" y="0" width="114" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tag]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="228" y="0" width="82" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Branch Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="310" y="0" width="82" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Product Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="392" y="0" width="75" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[From Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="467" y="0" width="79" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[To Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="546" y="0" width="105" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Computed Interest]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="651" y="0" width="73" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Balance]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="724" y="0" width="64" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Days]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="788" y="0" width="109" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Interest Type]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="897" y="0" width="108" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Applicable Days]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="1005" y="0" width="125" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Booked Interest]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="c50618fb-f83e-4e57-8804-73d355576fbf" x="0" y="0" width="114" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="70aaef01-78c4-4a4e-906d-5a220c40f128" x="114" y="0" width="114" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{tag}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="1a8bea73-e2e8-4a6d-a86e-1a6e0f81c5f7" x="228" y="0" width="82" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{branch_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="7aec4087-7692-4c20-af3e-cbf843571243" x="310" y="0" width="82" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{product_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="3d621188-5966-4525-8bd4-a7e76d7b1c49" x="392" y="0" width="75" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{from_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="53db3618-081c-4a1a-bc07-25ee8217e305" x="467" y="0" width="79" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{to_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="54e6d656-0efe-42cb-93ac-a692aef9c736" x="546" y="0" width="105" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{interest_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="1d06419c-6084-47d2-85cb-b6a9bd9c4286" x="651" y="0" width="73" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{balance}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="96280409-bd49-4bae-9242-e628c2a8e5bf" x="724" y="0" width="64" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{tenure_days}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="c816da5c-f9d8-44b1-a3ce-7975d6fbd068" x="788" y="0" width="109" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{interest_type}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="c816da5c-f9d8-44b1-a3ce-7975d6fbd068" x="897" y="0" width="108" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{applicable_days}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;(###0.00)">
+				<reportElement uuid="052fb5da-d32b-4b9f-b65c-b211dcf33f9d" x="1005" y="0" width="125" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[($F{applicable_days}*$F{interest_magnitude})/$F{tenure_days}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

@@ -1,0 +1,29 @@
+{
+    "encoreclientApp": {
+        "bank" : {
+            "home": {
+                "title": "Banks",
+                "createLabel": "Bank-ஐ உருவாக்கு",
+                "createOrEditLabel": "Bank -ஐ மாற்று (அ) உருவாக்கு"
+            },
+            "created": "Bank புதிதாக உருவாக்கப்பட்டது, அடையாளம் {{ param }}",
+            "updated": "Bank மாற்றப்பட்டது, அடையாளம்  {{ param }}",
+            "deleted": "A Bank நீக்கப்பட்டது, அடையாளம {{ param }}",
+            "delete": {
+                "question": "நீக்குவதற்கு உறுதி செய் Bank {{ id }}?"
+            },
+            "detail": {
+                "title": "Bank"
+            },
+            "bankName": "Bank Name",
+            "registeredBankName": "Registered Bank Name",
+            "bankCode": "Bank Code",
+            "currentWorkingDate": "Current Working Date",
+            "lastArchiveDate": "Last Archive Date",
+            "weekendDay1": "Weekend Day 1",
+            "weekendDay2": "Weekend Day 2",
+            "pan": "Pan",
+            "gstin": "Gstin"
+        }
+    }
+}

@@ -1,0 +1,50 @@
+{
+    "encoreclientApp": {
+        "locations": {
+            "home": {
+                "pageTitle": "Customer Locations",
+                "createLabel": "New Location",
+                "createOrEditLabel": "Create or edit a Locations",
+                "heading": "Locations",
+                "noResultsFound": "No Location found."
+            },
+            "saveError": "An error occurred while saving your document",
+            "deleteError": "An error occurred while deleting your document",
+            "serverError": "{{ message }}",
+            "created": "Successfully created Location : {{ code }}",
+            "updated": "Successfully updated Location : {{ code }}",
+            "deleted": "Successfully deleted Location",
+            "delete": {
+                "question": "Are you sure you want to delete Locations {{ id }}?"
+            },
+            "detail": {
+                "title": "Show Location",
+                "pageTitle": "Show Customer Location"
+            },
+            "create": {
+                "title": "Create New Location",
+                "pageTitle": "Create Customer Location"
+            },
+            "edit": {
+                "title": "Update Location",
+                "pageTitle": "Update Customer Location"
+            },
+            "customerId": "Customer Id",
+            "locationCode": "Location Code",
+            "locationName": "Location Name",
+            "gstin": "GSTIN",
+            "address": "Address",
+            "address1": "Address1",
+            "address2": "Address2",
+            "address3": "Address3",
+            "country": "Country",
+            "state": "State",
+            "district": "District",
+            "city": "City",
+            "pinCode": "Pin Code",
+            "phone1": "Phone 1",
+            "phone2": "Phone 2",
+            "email": "Email"
+        }
+    }
+}

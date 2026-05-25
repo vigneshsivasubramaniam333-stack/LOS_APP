@@ -1,0 +1,1186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.6.0.final using JasperReports Library version 6.6.0  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CollectionFeedReport" pageWidth="6400" pageHeight="842" columnWidth="6380" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10" isIgnorePagination="true" uuid="74545910-6fb1-489a-95f7-6f952f2d48ed">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encore3944"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<queryString language="SQL">
+		<![CDATA[select b.bank_name,lp.account_id,ah.customer_id, REPLACE(REPLACE(REPLACE(ap.product_code, "-", ""),"(",""),")","") as product_code, ap.account_name,ap.operational_status,la.associate_id,
+'' as relationship_manager,w.last_repayment_date,lp.udf_text8,cs.sector,ci.city_name,si.state_name,
+concat(COALESCE(cs.address1,''),COALESCE(cs.address2,''),COALESCE(cs.address3,'')) as GuarantorAddress,
+concat(COALESCE(la.first_name,''),(case when COALESCE(la.middle_name,'')='' then '' else (concat(' ',COALESCE(la.middle_name,''))) end),' ',COALESCE(la.last_name,'')) as guarantorName,cs.phone1,
+concat(COALESCE(ah.address1,''),COALESCE(ah.address2,''),COALESCE(ah.address3,'')) as Address, 
+ah.country_code,ah.pin_code,ah.phone1,ah.phone2,ah.email, br.branch_name,
+concat(COALESCE(ah.first_name,''),(case when COALESCE(ah.middle_name,'')='' then '' else (concat(' ',COALESCE(ah.middle_name,''))) end),' ',COALESCE(ah.last_name,'')) as customerName,
+w.first_disbursement_date, LEFT(b.bank_name , 1) as ledger, lp.amount_magnitude, ap.opened_on_value_date, lp.tenure_days, 
+w.installment_amount_magnitude, w.total_principal_due_magnitude, w.total_normal_interest_due_magnitude,w.total_penal_interest_due_magnitude,'' as OtherChargesOverdue,
+w.booked_not_due_normal_interest_magnitude,w.booked_not_due_penal_interest_magnitude, 
+(-ab.balance_magnitude+w.total_normal_interest_due_magnitude+w.total_penal_interest_due_magnitude+w.booked_not_due_normal_interest_magnitude+w.booked_not_due_penal_interest_magnitude) as payOffAmountWithDue, 
+w.total_demand_due_magnitude,case when w.oldest_due_demand_num = 0 then 0 else datediff(b.current_working_date, d.demand_date) end as dpd,-ab.balance_magnitude,
+case when c.customer_type=0 then 'Individual' when c.customer_type=1 then 'Organisation' when c.customer_type=2 then 'Public Limited' 
+when c.customer_type=3 then 'Private Limited' when c.customer_type=4 then 'Partnership' when c.customer_type=5 then 'Society' 
+when c.customer_type=6 then 'Trust' when c.customer_type=7 then 'Government' when c.customer_type=8 then 'HUF' when c.customer_type=9 then 'FII' 
+when c.customer_type=10 then 'AOPBOI' when c.customer_type=11 then 'NRI'  when c.customer_type=12 then 'SHG or JLG' else 'Others' end as CustomerType, w.next_demand_run_date,
+case when w.oldest_due_demand_num = 0 then 0 else case when ht.effective_date is null then datediff(b.current_working_date, d.demand_date) 
+when  datediff(d.demand_date, ht.effective_date) > 0 then datediff(b.current_working_date, d.demand_date) 
+else datediff(b.current_working_date, d.demand_date) - least(datediff(b.current_working_date, ht.effective_date), (datediff( ht.expiry_date, ht.effective_date)+1)) end end as effective_dpd 
+from loan_od_products p, account_profiles ap,account_balances ab, cities ci,states si,
+loan_od_profiles lp left join loan_od_associates la on (la.tenant_code=lp.tenant_code and la.account_id=lp.account_id and la.associate_type=1 and la.sequence_num=1) 
+left join customers cs on (la.tenant_code=cs.tenant_code and la.associate_id=cs.customer_id), 
+loan_od_working_registers w left join loan_od_demands d on ( w.tenant_code = d.tenant_code
+and w.account_id = d.account_id and w.oldest_due_demand_num = d.demand_num) left join loan_od_tags lt on (w.tenant_code = lt.tenant_code and w.account_id = lt.account_id) 
+left join loan_od_history_tags ht on (w.tenant_code=ht.tenant_code and w.account_id=ht.account_id and ht.classifier='Moratorium'), account_holders ah, customers c, branches br, banks b
+where b.tenant_code=br.tenant_code and ap.tenant_code=br.tenant_code and p.tenant_code=ap.tenant_code and ap.tenant_code=ab.tenant_code and ap.tenant_code=lp.tenant_code and 
+lp.tenant_code=w.tenant_code and lp.tenant_code=ah.tenant_code and ah.tenant_code=c.tenant_code and
+ p.product_code=ap.product_code and ap.account_id=lp.account_id and ap.account_id=ab.account_id and ap.operational_status=0 and lp.account_id=ah.account_id and ap.branch_code=br.branch_code 
+ and lp.account_id=w.account_id and ah.customer_id=c.customer_id and ah.state_code=si.state_code and ah.city_code=ci.city_code and ah.holder_num=1 and lp.tenant_code=$P{tenant_code}]]>
+	</queryString>
+	<field name="bank_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="bank_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="banks"/>
+	</field>
+	<field name="account_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="account_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_profiles"/>
+	</field>
+	<field name="customer_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="customer_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="product_code" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="product_code"/>
+	</field>
+	<field name="account_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="account_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_profiles"/>
+	</field>
+	<field name="operational_status" class="java.lang.Integer">
+		<property name="com.jaspersoft.studio.field.label" value="operational_status"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_profiles"/>
+	</field>
+	<field name="associate_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="guarantor_customer_id1"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_profiles"/>
+	</field>
+	<field name="relationship_manager" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="relationship_manager"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="customers"/>
+	</field>
+	<field name="last_repayment_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="last_repayment_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="udf_text8" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="udf_text8"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_profiles"/>
+	</field>
+	<field name="sector" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="sector"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="customers"/>
+	</field>
+	<field name="city_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="city_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="cities"/>
+	</field>
+	<field name="state_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="state_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="states"/>
+	</field>
+	<field name="GuarantorAddress" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="GuarantorAddress"/>
+	</field>
+	<field name="guarantorName" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="guarantorName"/>
+	</field>
+	<field name="phone1" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="phone1"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="customers"/>
+	</field>
+	<field name="Address" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="Address"/>
+	</field>
+	<field name="country_code" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="country_code"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="pin_code" class="java.lang.Integer">
+		<property name="com.jaspersoft.studio.field.label" value="pin_code"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="COLUMN_20" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="phone1"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="phone2" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="phone2"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="email" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="email"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+	</field>
+	<field name="branch_name" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="branch_name"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="branches"/>
+	</field>
+	<field name="customerName" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="customerName"/>
+	</field>
+	<field name="first_disbursement_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="first_disbursement_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="ledger" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="ledger"/>
+	</field>
+	<field name="amount_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="amount_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_profiles"/>
+	</field>
+	<field name="opened_on_value_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="opened_on_value_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_profiles"/>
+	</field>
+	<field name="tenure_days" class="java.lang.Integer">
+		<property name="com.jaspersoft.studio.field.label" value="tenure_days"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_profiles"/>
+	</field>
+	<field name="installment_amount_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="installment_amount_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="total_principal_due_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="total_principal_due_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="total_normal_interest_due_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="total_normal_interest_due_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="total_penal_interest_due_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="total_penal_interest_due_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="OtherChargesOverdue" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="OtherChargesOverdue"/>
+	</field>
+	<field name="booked_not_due_normal_interest_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="booked_not_due_normal_interest_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="booked_not_due_penal_interest_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="booked_not_due_penal_interest_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="payOffAmountWithDue" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="payOffAmountWithDue"/>
+	</field>
+	<field name="total_demand_due_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="total_demand_due_magnitude"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="dpd" class="java.lang.Long">
+		<property name="com.jaspersoft.studio.field.label" value="dpd"/>
+	</field>
+	<field name="-ab.balance_magnitude" class="java.math.BigDecimal">
+		<property name="com.jaspersoft.studio.field.label" value="-ab.balance_magnitude"/>
+	</field>
+	<field name="CustomerType" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.label" value="CustomerType"/>
+	</field>
+	<field name="next_demand_run_date" class="java.sql.Date">
+		<property name="com.jaspersoft.studio.field.label" value="next_demand_run_date"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="loan_od_working_registers"/>
+	</field>
+	<field name="effective_dpd" class="java.lang.Long">
+		<property name="com.jaspersoft.studio.field.label" value="effective_dpd"/>
+	</field>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="190" height="15" uuid="7e5e457f-1f07-4393-b3da-33af3b0296f9"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[AGREEMENTNO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="190" y="0" width="200" height="15" uuid="434dbcc9-70b5-4d9e-94b8-e70d44468689"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[CUSTOMERID]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="390" y="0" width="200" height="15" uuid="4eb3a6d9-ea0a-4508-a578-21fd4c3e6a43"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Product Group]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="590" y="0" width="200" height="15" uuid="4bc1549d-563c-4bcc-99e2-7842a73a3910"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Product Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="790" y="0" width="200" height="15" uuid="0977a0af-ef1c-47e7-9daa-970a737295d0"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Product]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="990" y="0" width="140" height="15" uuid="49f87b4c-606e-4118-b4b7-bddebf23ef28"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[STATUS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1130" y="0" width="200" height="15" uuid="42865d51-a87f-4107-bb10-a05ec1ace778"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[MAILINGADDRESS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1330" y="0" width="120" height="15" uuid="6ed7c6b2-cd33-46fd-8b28-dd48cf874a36"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[CITY]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1450" y="0" width="120" height="15" uuid="bc1f424d-a3b1-4635-96cb-515b157cef61"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[STATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1570" y="0" width="120" height="15" uuid="b3265c02-daf5-4650-88a1-357f246201a4"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[COUNTRY]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1690" y="0" width="120" height="15" uuid="9608b2d3-b515-45a8-9e5b-3c47d4f38174"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ZIPCODE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1810" y="0" width="120" height="15" uuid="032e9c95-bf27-4ad8-8c58-59efedd743e7"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[PHONE1]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1930" y="0" width="110" height="15" uuid="858ef3b3-f503-4616-909d-ae0e865f2f17"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[PHONE2]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2040" y="0" width="150" height="15" uuid="96ba7d67-2a84-4e28-bd7c-18d1a1c38cc6"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[MAILINGMOBILE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2190" y="0" width="160" height="15" uuid="2ef6a6b6-c027-4572-a5e6-8944c54cd26e"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[EMAIL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2350" y="0" width="140" height="15" uuid="d2df83a1-8165-43a3-ac23-6340054e4bdb"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Branch Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2490" y="0" width="190" height="15" uuid="0aa24fa8-2809-4e32-ae29-828edd29d977"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[CUSTOMER_NAME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2680" y="0" width="130" height="15" uuid="41c77d06-9faa-401b-adfd-d72ed1aa7162"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[DISBURSALDATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2810" y="0" width="110" height="15" uuid="24354f66-2afe-4b63-8dfb-951351e57195"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[LEDGER]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2920" y="0" width="150" height="15" uuid="2988b511-9a96-4da7-8a98-1fb8bdaee9ec"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ASSET_LOAN_AMOUNT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3070" y="0" width="150" height="15" uuid="304d1291-4483-4886-a5e6-9876c756ed2c"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Sanction Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3220" y="0" width="110" height="15" uuid="c6ce9244-4d47-4497-891a-88541fffacb6"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Loan Period in Days]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3330" y="0" width="110" height="15" uuid="9b899155-cca3-426f-b4ac-8cd57ec7317f"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[EMI]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3440" y="0" width="250" height="15" uuid="a2b3652f-e330-47a6-886a-2a4d77239631"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[OS_PRIN_AMT or OVERDUE_PRIN_AMOUNT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3690" y="0" width="110" height="15" uuid="584550dd-5d97-4ef5-9a38-0c7b8a6e0d5d"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[OS_INT_AMT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3800" y="0" width="150" height="15" uuid="de7b36e1-ee1e-4f7d-9b64-5f55c57da288"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Penal interest overdue]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3950" y="0" width="120" height="15" uuid="67074ba5-9f1f-4f11-bf3f-0277532156e8"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Other charges overdue]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4070" y="0" width="110" height="15" uuid="50aa050a-0ee0-401c-a38f-059cb8cf8ee0"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Int. Accrued ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4180" y="0" width="110" height="15" uuid="01836de8-c661-4865-a188-41e29908f3da"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[PENAL_PENDING ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4290" y="0" width="140" height="15" uuid="d3f984af-8963-4490-bfb1-9544cba0a98e"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Loan Liability (Outstanding)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4430" y="0" width="110" height="15" uuid="409c3d8e-1910-44e1-a1ca-a927619de2f5"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Over due amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4540" y="0" width="110" height="15" uuid="84c6048f-8511-4b00-a58e-3ddce841da19"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Current DPD]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4650" y="0" width="110" height="15" uuid="39d9c79c-b4b1-4a10-ad9b-c2d21e2c1941"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[CURRENT_POS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4760" y="0" width="110" height="15" uuid="e24a1bf2-47b9-4d8e-be18-2d14bf00e414"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[APPLICANT_TYPE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4870" y="0" width="110" height="15" uuid="6cb4d2ec-ecab-4bf4-b62f-79f8d9da5cb4"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[NEXT_DUEDATE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4980" y="0" width="130" height="15" uuid="1a717f44-76bc-4824-987a-d4b7bec6ba01"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Sourcing Agent Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5110" y="0" width="130" height="15" uuid="c68ad66e-dde0-4843-8960-51adbc0a0857"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Last Payment Received]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5240" y="0" width="130" height="15" uuid="e4a5acce-06a0-4c95-92f4-acc0d093f56c"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[GuarantorName]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5370" y="0" width="150" height="15" uuid="98a93294-fe99-463f-8b73-b82f97ba74d5"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Guarantor Contact Details]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5520" y="0" width="370" height="15" uuid="24780c5d-74f0-4688-8ef6-ffb443f7a501"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Guarantor Address ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5890" y="0" width="300" height="15" uuid="dd4a381f-f8d7-4f4a-abe7-f0662956f065"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[SECURED / UNSECURED LOAN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6190" y="0" width="190" height="15" uuid="b42d59ff-63e0-43c9-9ff0-a19d74019b6f"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Effective DPD]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="190" height="13" uuid="faa04088-cf2f-48af-82b5-e6648568975c"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{bank_name}.equals("ERFL-SAMFIN"))?"E"+$F{account_id}: $F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="190" y="0" width="200" height="13" uuid="a7659d0a-d464-4881-b730-bafdeae45a7b"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($F{bank_name}.equals("ERFL-SAMFIN"))?"E"+$F{customer_id}: $F{customer_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="390" y="0" width="200" height="13" uuid="0f924002-05b8-4937-8a57-5b13464a40a3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{sector}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="590" y="0" width="200" height="13" uuid="3a3e556f-c583-4ada-bbd3-dfe19d4f8068"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{product_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="790" y="0" width="200" height="13" uuid="3e8ed150-f1b6-4e4e-a480-7dd5a8df1e7d"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{product_code}.equals("T401")?"TABL MILK LOAN":$F{product_code}.equals("T402")?"Tiny Agri Business Loans TABL":$F{account_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="990" y="0" width="140" height="13" uuid="515b5f4a-1bae-49c7-abff-b373474ff2eb"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{operational_status}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1130" y="0" width="200" height="13" uuid="d9f43c6f-39de-4ee1-87d9-10ffe7250c62"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{Address}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1330" y="0" width="120" height="13" uuid="480325c7-e895-4fcf-bfe8-56a610cd24d6"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{city_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1450" y="0" width="120" height="13" uuid="8e2894c4-8e74-4fed-af45-f0f8136342d9"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{state_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1570" y="0" width="120" height="13" uuid="0302cf8b-52f5-49ad-8245-3dd9a24af75f"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{country_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1690" y="0" width="120" height="13" uuid="5212a912-ae1d-4c8e-b46a-fa50e5aabeb1"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{pin_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1810" y="0" width="120" height="13" uuid="e0de8301-d7d1-4d3d-ba5d-5e00c8239459"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{phone1}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1930" y="0" width="110" height="13" uuid="3027578d-06f5-4c35-9c48-d6ac1453422d"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{phone2}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2040" y="0" width="150" height="13" uuid="83fff0ef-e0c0-497d-9983-c75013ac8455"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{phone1}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2190" y="0" width="160" height="13" uuid="35bb9323-ee3e-4bb2-b87e-3601ee71f8ac"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{email}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2350" y="0" width="140" height="13" uuid="6c34dd66-3281-4262-be53-4eb19c16e9d3"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{branch_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2490" y="0" width="190" height="13" uuid="5ce4d530-1af3-420d-a169-a96570f46b3b"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{customerName}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2680" y="0" width="130" height="13" uuid="0620f642-89bf-46ec-a8de-4ba913923674"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{first_disbursement_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2810" y="0" width="110" height="13" uuid="6f2a53dc-edb4-407a-9d6e-7a1694780aed"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{ledger}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2920" y="0" width="150" height="13" uuid="83130f37-d683-4174-a28e-fce5a6ad4dd0"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3070" y="0" width="150" height="13" uuid="68a080fd-fb3b-4a37-b34a-9adb8043a803"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{opened_on_value_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3220" y="0" width="110" height="13" uuid="b60a27ab-7ede-4601-9d28-67849d7b06ec"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tenure_days}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3330" y="0" width="110" height="13" uuid="e9a17284-96c0-4535-a7a7-4e0cdee73d03"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{installment_amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3440" y="0" width="250" height="13" uuid="6a3a02a8-d501-4a47-8ee9-2b8fd1f88d49"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{total_principal_due_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3690" y="0" width="110" height="13" uuid="3bc1787c-1faf-4255-b09b-79b981e8bf9f"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{total_normal_interest_due_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3800" y="0" width="150" height="13" uuid="7ece7734-3c80-42cb-b9d4-8bea72e7ed21"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{total_penal_interest_due_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="3950" y="0" width="120" height="13" uuid="02a83248-9de3-49c2-ad68-44cd38065142"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{OtherChargesOverdue}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4070" y="0" width="110" height="13" uuid="9ac77fc2-f4f9-48c7-a295-e076e108c780"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{booked_not_due_normal_interest_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4180" y="0" width="110" height="13" uuid="9650cad3-13e7-4208-922a-a94e58c04f4d"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{booked_not_due_penal_interest_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4290" y="0" width="140" height="13" uuid="0e4a9444-f0e5-4e6e-ac46-151c4f9157cb"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{payOffAmountWithDue}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4430" y="0" width="110" height="13" uuid="6d655978-a733-4bfa-9189-0dc53e746649"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{total_demand_due_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4540" y="0" width="110" height="13" uuid="b82a37f0-f3eb-4f9a-abf3-992e9195d69e"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{dpd}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4650" y="0" width="110" height="13" uuid="cb413ca8-88fb-4ad7-903b-f24966acd725"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{-ab.balance_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4760" y="0" width="110" height="13" uuid="aaab1140-57fa-4ffb-b693-8fe592640bdf"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{CustomerType}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="4870" y="0" width="110" height="13" uuid="1366ea50-6609-4667-a487-ce1881b5444b"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{next_demand_run_date}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="4980" y="0" width="130" height="13" uuid="b0d09081-b455-4c36-a116-b43f332674c0"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{relationship_manager}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-mm-dd" isBlankWhenNull="true">
+				<reportElement x="5110" y="0" width="130" height="13" uuid="a77366d9-d9d1-4fb9-9700-6638e38177a1"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{last_repayment_date}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="5240" y="0" width="130" height="13" uuid="c7180520-e153-4767-aaf1-4dd27ff3009f"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{guarantorName}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="5370" y="0" width="150" height="13" uuid="29c4928a-2fe9-4311-80ce-e10da731eeff"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{phone2}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="5520" y="0" width="370" height="13" uuid="785ace02-19e7-4905-9609-42d6687eb9ec"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{GuarantorAddress}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="5890" y="0" width="300" height="13" uuid="f5d6a285-81e2-423f-9f2e-f4c0f035f746"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{udf_text8}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="6190" y="0" width="190" height="13" uuid="d92bece8-eba1-453c-afcc-ee2288c40342"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{effective_dpd}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

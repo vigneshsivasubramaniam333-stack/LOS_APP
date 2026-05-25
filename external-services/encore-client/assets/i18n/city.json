@@ -1,0 +1,48 @@
+{
+    "encoreclientApp": {
+        "city": {
+            "home": {
+                "pageTitle": "Cities",
+                "createLabel": "New City",
+                "createOrEditLabel": "Create or edit a City",
+                "uploadLabel": "Upload Cities",
+                "heading": " Cities",
+                "noResultsFound": "No City found."
+            },
+            "deleteError": "Cannot delete City: {{code}}",
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "cityUploadError": "City not Saved: '{{message}}'",
+            "uploadError": "Cities could not be saved.",
+            "fileNotPresentError": "Please select a file to upload.",
+            "created": "Successfully created city : {{ cityName }}",
+            "updated": "Successfully updated city : {{ cityName }}",
+            "deleted": "Successfully deleted city : {{ code }}",
+            "uploaded": "Successfully saved cities.",
+            "delete": {
+                "question": "Are you sure you want to delete city : {{ name }}?"
+            },
+            "detail": {
+                "title": "Show City",
+                "pageTitle": "Show City"
+            },
+            "create": {
+                "title": "Create New City",
+                "pageTitle": "Create City"
+            },
+            "edit": {
+                "title": "Update City",
+                "pageTitle": "Update City"
+            },
+            "upload": {
+                "title": "Upload New Cities",
+                "pageTitle": "Upload Cities",
+                "label": "Upload Cities : "
+            },
+            "countryCode": "Country Code",
+            "stateCode": "State Code",
+            "cityCode": "City Code",
+            "cityName": "City Name"
+        }
+    }
+}

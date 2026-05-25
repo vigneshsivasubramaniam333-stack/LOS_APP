@@ -1,0 +1,43 @@
+{
+    "encoreclientApp": {
+        "state": {
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "deleteError": "Cannot delete State: {{code}}",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "States",
+                "createLabel": "New State",
+                "createOrEditLabel": "Create or edit a State",
+                "heading": "States",
+                "noResultsFound": "No State found."
+            },
+            "created": "Successfully created state : {{ stateName }}",
+            "updated": "Successfully updated state : {{ stateName }}",
+            "deleted": "Successfully deleted state : {{code}}",
+            "delete": {
+                "question": "Are you sure you want to delete state : {{ name }}?"
+            },
+            "detail": {
+                "title": "Show State",
+                "pageTitle": "Show State"
+            },
+            "create": {
+                "title": "Create New State",
+                "pageTitle": "Create State"
+            },
+            "edit": {
+                "title": "Update State",
+                "pageTitle": "Update State"
+            },
+            "stateCode": "State Code",
+            "stateName": "State Name",
+            "countryCode": "Country Code",
+            "alt1StateCode": "Alt1 State Code",
+            "alt2StateCode": "Alt2 State Code",
+            "alt3StateCode": "Alt3 State Code",
+            "reference": "Reference"
+        }
+    }
+}

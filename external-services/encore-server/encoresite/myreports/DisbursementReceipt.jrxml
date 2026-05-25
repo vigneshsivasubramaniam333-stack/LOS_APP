@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.4.0.final using JasperReports Library version 6.4.1  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="DisbursementReceipt" pageWidth="595" pageHeight="842" columnWidth="575" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10" uuid="d4510492-baa9-472c-9a51-3b647e3b4cb4">
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="transactionId_text" class="java.lang.String">
+		<parameterDescription><![CDATA[TransactionId]]></parameterDescription>
+	</parameter>
+	<parameter name="imagePath" class="java.lang.String"/>
+	<queryString language="SQL">
+		<![CDATA[SELECT bk.bank_name,ld.account_id,ah.customer_id,concat(ah.first_name," ",middle_name," ",last_name) as customerName,
+b.branch_name,ld.value_date,ld.transaction_date,ld.amount_magnitude,
+ld.transaction_id,ld.tenant_code,ld.sequence_num, DATE_SUB(bk.current_working_date,INTERVAL 1 DAY) as currentDate
+FROM loan_od_disbursements ld ,account_profiles ap ,account_holders ah,branches b,banks bk where b.tenant_code=bk.tenant_code and b.tenant_code=ap.tenant_code and
+ld.tenant_code=ap.tenant_code and ap.tenant_code=ah.tenant_code and b.branch_code=ap.branch_code and ap.account_id=ah.account_id and ah.holder_num=1 
+and ld.account_id=ap.account_id and ap.tenant_code=$P{tenant_code} and ld.transaction_id=$P{transactionId_text}]]>
+	</queryString>
+	<field name="bank_name" class="java.lang.String"/>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="customer_id" class="java.lang.String"/>
+	<field name="customerName" class="java.lang.String"/>
+	<field name="branch_name" class="java.lang.String"/>
+	<field name="value_date" class="java.sql.Date"/>
+	<field name="transaction_date" class="java.sql.Date"/>
+	<field name="amount_magnitude" class="java.math.BigDecimal"/>
+	<field name="transaction_id" class="java.lang.String"/>
+	<field name="tenant_code" class="java.lang.String"/>
+	<field name="sequence_num" class="java.lang.Integer"/>
+	<field name="currentDate" class="java.sql.Date"/>
+	<detail>
+		<band height="206" splitType="Stretch">
+			<image>
+				<reportElement x="430" y="4" width="145" height="52" uuid="53b6860d-a198-458b-9eba-2ab333ae406e"/>
+				<imageExpression><![CDATA[$P{imagePath}+"logo.jpg"]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement x="0" y="86" width="96" height="13" uuid="9a0b3a00-6afd-46f5-a701-a3e058d2a9ca"/>
+				<text><![CDATA[Loan Account No:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="325" y="86" width="45" height="13" uuid="545ae701-468c-4d25-9520-673d543fcbbe"/>
+				<text><![CDATA[Branch:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="98" width="96" height="13" uuid="3c048b1d-8f88-4663-b979-6dfea0c6d7cb"/>
+				<text><![CDATA[Transaction ID:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="325" y="98" width="41" height="13" uuid="24722b50-d02a-4314-875f-9a8d3426d2d8"/>
+				<text><![CDATA[Date:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="135" width="575" height="13" uuid="a323fb7e-9814-4e1d-8aca-aee06a23cca5"/>
+				<text><![CDATA[towards         disbursement of Loan account No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="380" y="160" width="96" height="13" uuid="a16ab616-b66c-40eb-a1f9-f9a8b09a389b"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Paid By]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="10" y="160" width="96" height="13" uuid="f6070688-77a7-43ec-bb5d-5d8b39c16c8f"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Received by ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="325" y="186" width="250" height="13" uuid="8f5d1973-3daf-471a-af5d-eca6e1045bf0"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[(Branch Staff Name & Signature) ]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="96" y="86" width="110" height="13" uuid="749071e6-fe8b-41b2-aa67-beb49f1cec98"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="96" y="98" width="229" height="13" uuid="135886fc-8c29-4a24-922c-53baebeaa8e5"/>
+				<textFieldExpression><![CDATA[$F{transaction_id}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="366" y="98" width="110" height="13" uuid="56254f0d-1325-490d-8105-1fead6bfaeb3"/>
+				<textFieldExpression><![CDATA[$F{transaction_date}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="270" y="122" width="306" height="13" uuid="5d70520e-9a6d-4fe9-9723-7e8e7719adac"/>
+				<textFieldExpression><![CDATA[$F{customerName}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="123" width="96" height="13" uuid="f9df0fbf-e182-4b96-84cb-0957b7054798"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA["Rs. "+ $F{amount_magnitude}+ " "]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="366" y="86" width="205" height="13" uuid="d7ea1aac-2fbd-442c-a0de-43313c46c0e5"/>
+				<textFieldExpression><![CDATA[$F{branch_name}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="186" width="133" height="13" uuid="64c64d2b-82b3-4260-aee7-8916e4e28fbc"/>
+				<text><![CDATA[(Customer Signature)]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="40" y="135" width="25" height="13" uuid="65684b2f-dae0-46ec-aceb-7d5cae54a7e9"/>
+				<textFieldExpression><![CDATA[($F{sequence_num}.toString().equals("1"))?"1st" :($F{sequence_num}.toString().equals("2"))?"2nd" :($F{sequence_num}.toString().equals("3"))?"3rd": $F{sequence_num}.toString()+"th"]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="96" y="123" width="480" height="13" uuid="89741e0d-74bc-4d6a-a76c-b539e6fa0277"/>
+				<text><![CDATA[has been paid to Mr/Mrs. ]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="210" y="135" width="110" height="13" uuid="3e9f5447-1328-42d6-a789-f76692001b45"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<image>
+				<reportElement x="430" y="2" width="145" height="52" uuid="ca948f1c-579f-4f61-a7bf-6e87e889f0ef"/>
+				<imageExpression><![CDATA[$P{imagePath}+"logo.jpg"]]></imageExpression>
+			</image>
+			<textField>
+				<reportElement x="220" y="60" width="170" height="13" uuid="27fc0ba4-6c87-470a-9162-a8c855b2481c"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{bank_name}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="220" y="73" width="170" height="13" uuid="988812ad-44da-4515-af0b-c10444ca608b"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Disbursement Intimation]]></text>
+			</staticText>
+		</band>
+	</detail>
+</jasperReport>

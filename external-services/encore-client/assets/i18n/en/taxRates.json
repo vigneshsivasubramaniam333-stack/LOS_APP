@@ -1,0 +1,41 @@
+{
+    "encoreclientApp": {
+        "taxRates": {
+            "home": {
+                "pageTitle": "TaxRates",
+                "createLabel": "New Tax Rate",
+                "createOrEditLabel": "Create or edit a Tax Rates",
+                "heading": "Tax Rates",
+                "searchLabel": "Search By",
+                "noResultsFound": "No Tax Rates found."
+            },
+            "created": "Successfully created Tax Rate : {{ code }}",
+            "updated": "Successfully updated Tax Rate : {{ code }}",
+            "deleted": "Successfully deleted Tax Rate.",
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your document",
+            "delete": {
+                "question": "Are you sure you want to delete Tax Rates : {{ code }}?"
+            },
+            "detail": {
+                "title": "Show Tax Rate",
+                "pageTitle": "Show TaxRate"
+            },
+            "create": {
+                "title": "Create New Tax Rate",
+                "pageTitle": "Create TaxRate"
+            },
+            "edit": {
+                "title": "Update Tax Rate",
+                "pageTitle": "Update TaxRate"
+            },
+            "taxCode": "Tax Code",
+            "name": "Name",
+            "effectiveDate": "Effective Date",
+            "expiryDate": "Expiry Date",
+            "taxRate": "Tax Rate",
+            "classifier": "Classifier"
+        }
+    }
+}

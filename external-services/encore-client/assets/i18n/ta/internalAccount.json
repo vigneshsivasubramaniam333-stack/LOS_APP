@@ -1,0 +1,34 @@
+{
+    "encoreclientApp": {
+        "internalAccount" : {
+            "home": {
+                "title": "Internal Accounts",
+                "createLabel": "Internal Account-ஐ உருவாக்கு",
+                "createOrEditLabel": "Internal Account -ஐ மாற்று (அ) உருவாக்கு"
+            },
+            "created": "Internal Account புதிதாக உருவாக்கப்பட்டது, அடையாளம் {{ param }}",
+            "updated": "Internal Account மாற்றப்பட்டது, அடையாளம்  {{ param }}",
+            "deleted": "A Internal Account நீக்கப்பட்டது, அடையாளம {{ param }}",
+            "delete": {
+                "question": "நீக்குவதற்கு உறுதி செய் Internal Account {{ id }}?"
+            },
+            "detail": {
+                "title": "Internal Account"
+            },
+            "accountId": "Account Id",
+            "accountName": "Account Name",
+            "branchCode": "Branch Code",
+            "glSubHead": "Gl Sub Head",
+            "currencyCode": "Currency Code",
+            "productType": "Product Type",
+            "productCode": "Product Code",
+            "operationalMode": "Operational Mode",
+            "operationalStatus": "Operational Status",
+            "openedOnValueDate": "Opened On Value Date",
+            "openedOnTransactionDate": "Opened On Transaction Date",
+            "openedOnTime": "Opened On Time",
+            "lastActivatedDate": "Last Activated Date",
+            "lastFreezedDate": "Last Freezed Date"
+        }
+    }
+}

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.16.0.final using JasperReports Library version 6.16.0-48579d909b7943b64690c65c71e07e0b80981928  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="NOCMainReport" pageWidth="595" pageHeight="842" whenNoDataType="NoDataSection" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="935d45b3-ec5a-4113-864a-5a623750059b">
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="accountId_text" class="java.lang.String">
+		<parameterDescription><![CDATA[Account ID]]></parameterDescription>
+	</parameter>
+	<parameter name="imagePath" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select case when h.account_id!=null then h.account_id else '' end as account_id from account_holders h, account_profiles ap where
+h.tenant_code=$P{tenant_code} and h.tenant_code=ap.tenant_code and h.account_id=ap.account_id and 
+ap.operational_status=0 and h.customer_id = (select ah.customer_id from account_holders ah 
+where ah.holder_num=1 and ah.account_id= $P{accountId_text} and ah.tenant_code= $P{tenant_code} )]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String">
+		<property name="com.jaspersoft.studio.field.name" value="account_id"/>
+		<property name="com.jaspersoft.studio.field.label" value="account_id"/>
+		<property name="com.jaspersoft.studio.field.tree.path" value="account_holders"/>
+		<fieldDescription><![CDATA[]]></fieldDescription>
+	</field>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="79" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="555" height="79" uuid="eb205ea4-78f0-4659-9e7b-5904ff9ee3e0"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Accounts are active, Cannot generate NOC]]></text>
+			</staticText>
+		</band>
+	</title>
+	<noData>
+		<band height="79">
+			<subreport>
+				<reportElement x="0" y="0" width="550" height="40" uuid="f820e79c-47e5-4a59-b46e-da1ee8659f2a"/>
+				<subreportParameter name="accountId_text">
+					<subreportParameterExpression><![CDATA[$P{accountId_text}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="tenant_code">
+					<subreportParameterExpression><![CDATA[$P{tenant_code}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="imagePath">
+					<subreportParameterExpression><![CDATA[$P{imagePath}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{imagePath}+"../myreports/NOCReport.jasper"]]></subreportExpression>
+			</subreport>
+		</band>
+	</noData>
+</jasperReport>

@@ -1,0 +1,10 @@
+{
+    "encoreclientApp": {
+        "GlHead" : {
+            "null": "",
+            "Deposits": "Deposits",
+            "Internal": "Internal",
+            "Loans": "Loans"
+        }
+    }
+}

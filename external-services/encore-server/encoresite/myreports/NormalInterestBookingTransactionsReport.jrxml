@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="NormalInterestBookingTransactionsReport" language="groovy" pageWidth="640" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="640" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="135e4acb-b217-4b84-9397-0af3a3a1258c">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To Date]]></parameterDescription>
+	</parameter>
+	<parameter name="branchset_code_select" class="java.lang.String">
+		<parameterDescription><![CDATA[Branchset Code]]></parameterDescription>
+		<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select ic.account_id,ap.branch_code,ap.product_code,ic.computation_date,ic.interest_rate,
+sum(ic.interest_magnitude),case when ic.interest_type=0 then 'Normal Interest' end as interest_type
+FROM interest_computations ic ,account_profiles ap, branchset_branches bs
+where ic.tenant_code=ap.tenant_code and ic.tenant_code=bs.tenant_code and ic.account_id=ap.account_id and ap.branch_code=bs.branch_code and bs.branchset_code =$P{branchset_code_select}
+and ic.tenant_code=$P{tenant_code}
+and (ic.computation_date>=$P{from_date} and ic.computation_date<=$P{to_date}) and ic.interest_type=0 group by ic.account_id]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="branch_code" class="java.lang.String"/>
+	<field name="product_code" class="java.lang.String"/>
+	<field name="computation_date" class="java.sql.Date"/>
+	<field name="interest_rate" class="java.math.BigDecimal"/>
+	<field name="sum(ic.interest_magnitude)" class="java.math.BigDecimal"/>
+	<field name="interest_type" class="java.lang.String"/>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement uuid="62689bbf-b376-4c81-bcf3-6efb16cdf6f4" x="258" y="0" width="103" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Computation Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="178" y="0" width="80" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Product Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="541" y="0" width="79" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Interest Type]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="04fd5db7-4998-4994-9aa2-f18997e9bbdf" x="98" y="0" width="80" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Branch Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="85c21cac-e203-4684-bb40-1ec23b1646ae" x="0" y="0" width="98" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[ Account Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="62689bbf-b376-4c81-bcf3-6efb16cdf6f4" x="361" y="0" width="85" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Interest Rate]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="446" y="0" width="95" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Interest Amount]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="02f462d9-1526-4a0b-b346-6d79916629e3" stretchType="RelativeToBandHeight" x="258" y="0" width="103" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{computation_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="0" y="0" width="98" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="e0b882e9-1031-4a13-87a7-e36909ff63e3" stretchType="RelativeToBandHeight" x="98" y="0" width="80" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{branch_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="9128600c-e209-4aa7-9a0b-d596164193b6" stretchType="RelativeToBandHeight" x="446" y="0" width="95" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+					<paragraph rightIndent="2"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{sum(ic.interest_magnitude)}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="78fcbac0-40a0-4b2b-96ad-0134e836c8fc" stretchType="RelativeToBandHeight" x="178" y="0" width="80" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+					<paragraph rightIndent="2"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{product_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement uuid="02f462d9-1526-4a0b-b346-6d79916629e3" stretchType="RelativeToBandHeight" x="361" y="0" width="85" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[(($F{interest_rate}.doubleValue())*100)+"%"]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="9128600c-e209-4aa7-9a0b-d596164193b6" stretchType="RelativeToBandHeight" x="541" y="0" width="79" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+					<paragraph rightIndent="2"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{interest_type}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

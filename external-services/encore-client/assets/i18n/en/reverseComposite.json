@@ -1,0 +1,60 @@
+{
+  "encoreclientApp": {
+    "reverseCompositeDto": {
+      "saveError": "An error occurred while saving your document",
+      "error": "An error occurred while fetching the results",
+      "reindex": "All documents successfully reindexed",
+      "home": {
+        "title": "Fees"
+      },
+      "created": "A new  Loan Od Disbursement is created with identifier {{ param }}",
+      "updated": "A Loan Od Disbursement is updated with identifier {{ param }}",
+      "deleted": "A Loan Od Disbursement  is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete  {{ id }}?"
+      },
+      "add": "Add",
+      "detail": {
+        "title": "Loan Od Disbursement"
+      },
+      "id": "id",
+      "version": "Version",
+      "accountId": "Account Id",
+      "systemDateAndTime": "AccountName",
+      "transactionId": "Branch Code",
+      "transactionName": "Gl SubHead",
+      "transactionSummaryDto" :{
+        "transactionId": "transactionId",
+        "valueDate": "valueDate",
+        "transactionDate": "transactionDate",
+        "systemDateAndTime": "systemDateAndTime",
+        "entityId": "entityId",
+        "sequenceNum": "sequenceNum",
+        "transactionName": "transactionName",
+        "part1": "part 1",
+        "part2": "part 2",
+        "part3": "Part 3",
+        "part4": "Part 4",
+        "part5": "Part 5",
+        "part6": "Part 6",
+        "part7": "Part 7",
+        "part8": "Part 8",
+        "amount1": "Amount 1",
+        "amount2": "Amount 2",
+        "amount3": "Amount 3",
+        "description": "Description",
+        "userId": "User Id",
+        "customerName": "Customer Name",
+        "status": "Status",
+        "responseCode": "Response Code",
+        "payeeAccountId": "Payee Account Id",
+        "param1": "Param 1",
+        "param2": "Param 2",
+        "instrument": "Instrument",
+        "reference": "Reference",
+        "transactionLotId": "Transaction Lot Id"
+      }
+
+    }
+  }
+}

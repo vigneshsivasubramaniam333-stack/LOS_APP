@@ -1,0 +1,23 @@
+{
+    "encoreclientApp": {
+        "state" : {
+            "home": {
+                "title": "States",
+                "createLabel": "State-ஐ உருவாக்கு",
+                "createOrEditLabel": "State -ஐ மாற்று (அ) உருவாக்கு"
+            },
+            "created": "State புதிதாக உருவாக்கப்பட்டது, அடையாளம் {{ param }}",
+            "updated": "State மாற்றப்பட்டது, அடையாளம்  {{ param }}",
+            "deleted": "A State நீக்கப்பட்டது, அடையாளம {{ param }}",
+            "delete": {
+                "question": "நீக்குவதற்கு உறுதி செய் State {{ id }}?"
+            },
+            "detail": {
+                "title": "State"
+            },
+            "stateCode": "State Code",
+            "stateName": "State Name",
+            "countryCode": "Country Code"
+        }
+    }
+}

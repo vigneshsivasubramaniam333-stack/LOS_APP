@@ -1,0 +1,24 @@
+pipeline {
+    agent { 
+        label 'any'
+    }
+    stages {
+        stage('package') {
+            //agent {
+              //  label 'custom-dind'
+            }
+            options {
+                skipDefaultCheckout false
+            }
+            environment {
+                NEXUS_DOCKER_REGISTRY = credentials('nexus-docker-registry')
+            }
+            steps {
+                // docker build image and push the image to private registry
+                sh 'docker build -t nexus.cloud.billionloans.com/encore-server:1.0.5 .'
+                sh 'docker login -u $NEXUS_DOCKER_REGISTRY_USR -p $NEXUS_DOCKER_REGISTRY_PSW nexus.cloud.billionloans.com'
+                sh 'docker push nexus.cloud.billionloans.com/encore-server:1.0.5'
+            }
+        }
+    }
+//}

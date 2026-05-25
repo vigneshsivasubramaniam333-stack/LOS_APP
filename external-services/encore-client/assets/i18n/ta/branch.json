@@ -1,0 +1,31 @@
+{
+    "encoreclientApp": {
+        "branch" : {
+            "home": {
+                "title": "Branches",
+                "createLabel": "Branch-ஐ உருவாக்கு",
+                "createOrEditLabel": "Branch -ஐ மாற்று (அ) உருவாக்கு"
+            },
+            "created": "Branch புதிதாக உருவாக்கப்பட்டது, அடையாளம் {{ param }}",
+            "updated": "Branch மாற்றப்பட்டது, அடையாளம்  {{ param }}",
+            "deleted": "A Branch நீக்கப்பட்டது, அடையாளம {{ param }}",
+            "delete": {
+                "question": "நீக்குவதற்கு உறுதி செய் Branch {{ id }}?"
+            },
+            "detail": {
+                "title": "Branch"
+            },
+            "branchCode": "Branch Code",
+            "branchName": "Branch Name",
+            "accountIdCode": "Account Id Code",
+            "ifscCode": "Ifsc Code",
+            "micrCode": "Micr Code",
+            "gstin": "Gstin",
+            "currentWorkingDate": "Current Working Date",
+            "branchOpenDate": "Branch Open Date",
+            "weekendDay1": "Weekend Day 1",
+            "weekendDay2": "Weekend Day 2",
+            "operationalStatus": "Operational Status"
+        }
+    }
+}

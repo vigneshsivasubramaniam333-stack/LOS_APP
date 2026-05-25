@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="DemandsReport" language="groovy" pageWidth="725" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="705" leftMargin="10" rightMargin="10" topMargin="10" bottomMargin="10" uuid="d3a6bd6b-0101-42ee-9f2c-d19517077803">
+	<property name="ireport.zoom" value="2.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To Date]]></parameterDescription>
+	</parameter>
+	<parameter name="branchset_code_select" class="java.lang.String">
+		<parameterDescription><![CDATA[Branchset Code]]></parameterDescription>
+		<defaultValueExpression><![CDATA["All"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select d.account_id,d.demand_num,d.demand_date,d.scheduled_demand,d.amount_magnitude,
+d.principal_magnitude,d.normal_interest_magnitude,d.penal_interest_magnitude,
+d.demand_adjustment_magnitude, d.principal_currency from loan_od_demands d, branchset_branches b,
+account_profiles ap where d.tenant_code = ap.tenant_code and d.account_id = ap.account_id and
+ap.tenant_code = b.tenant_code and ap.branch_code = b.branch_code and
+d.tenant_code = b.tenant_code and d.tenant_code =$P{tenant_code}  and b.branchset_code=$P{branchset_code_select}
+and (d.demand_date >=$P{from_date} and d.demand_date <=$P{to_date})  order by d.demand_num]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="demand_num" class="java.lang.Integer"/>
+	<field name="demand_date" class="java.sql.Date"/>
+	<field name="scheduled_demand" class="java.lang.Integer"/>
+	<field name="amount_magnitude" class="java.math.BigDecimal"/>
+	<field name="principal_magnitude" class="java.math.BigDecimal"/>
+	<field name="normal_interest_magnitude" class="java.math.BigDecimal"/>
+	<field name="penal_interest_magnitude" class="java.math.BigDecimal"/>
+	<field name="demand_adjustment_magnitude" class="java.math.BigDecimal"/>
+	<field name="principal_currency" class="java.lang.String"/>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement uuid="62689bbf-b376-4c81-bcf3-6efb16cdf6f4" x="342" y="0" width="59" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="400" y="0" width="65" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Principal]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="85c21cac-e203-4684-bb40-1ec23b1646ae" x="0" y="0" width="96" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Account Id]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="85c21cac-e203-4684-bb40-1ec23b1646ae" x="95" y="0" width="73" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[DemandNum]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="04fd5db7-4998-4994-9aa2-f18997e9bbdf" x="167" y="0" width="77" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[DemandDate]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="243" y="0" width="100" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Scheduled Demand]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="464" y="0" width="80" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Normal Interest]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="543" y="0" width="72" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Penal Interest]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="87293db9-ad53-48d1-9740-ebf9f4b8d652" x="614" y="0" width="91" height="15"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="10"/>
+				</textElement>
+				<text><![CDATA[Demand Adjustment]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="243" y="0" width="100" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{scheduled_demand}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="0" y="0" width="96" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="95" y="0" width="73" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{demand_num}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-MM-dd" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="167" y="0" width="77" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{demand_date}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="342" y="0" width="59" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="400" y="0" width="65" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{principal_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="464" y="0" width="80" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{normal_interest_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="543" y="0" width="72" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{penal_interest_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement uuid="14c229a2-0593-4dae-a877-43a0e1a7c9de" stretchType="RelativeToBandHeight" x="614" y="0" width="91" height="13"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{demand_adjustment_magnitude}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

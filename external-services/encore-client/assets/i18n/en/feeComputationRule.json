@@ -1,0 +1,80 @@
+{
+    "encoreclientApp": {
+        "feeComputationRule": {
+            "saveError": "An error occurred while saving your document",
+            "serverError": "{{ message }}",
+            "deleteError": "An error occurred while deleting your document",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "home": {
+                "pageTitle": "Fee Computation Rules",
+                "createLabel": "New Fee Computation Rule",
+                "createOrEditLabel": "Create or edit a  Fee Computation Rule",
+                "approvals": "Approvals",
+                "heading": "Fee Computation Rules",
+                "noResultsFound": "No Fee Computation Rule found."
+            },
+            "created": "Successfully created Fee Computation Rule : {{ code }}",
+            "updated": "Successfully updated Fee Computation Rule : {{ code }}",
+            "updatedChecker": "Fee Computation Rule : {{ code }} went to Checker.",
+            "deleted": "Successfully deleted Fee Computation Rule.",
+            "delete": {
+                "question": "Are you sure you want to delete  Fee Computation Rule : {{ code }}?"
+            },
+            "add": "Add",
+            "deleteRow": "Delete",
+            "detail": {
+                "title": "Show Fee Computation Rule",
+                "pageTitle": "Show Fee Computation Rule"
+            },
+            "create": {
+                "title": "Create New Fee Computation Rule",
+                "pageTitle": "Create Fee Computation Rule"
+            },
+            "edit": {
+                "title": "Update Fee Computation Rule",
+                "pageTitle": "Update Fee Computation Rule"
+            },
+            "ruleCode": "Rule Code",
+            "description": "Description",
+            "currencyCode": "Currency Code",
+            "taxCode": "Tax Code",
+            "minimumFee": "Minimum Fee",
+            "maximumFee": "Maximum Fee",
+            "variable": "variable",
+            "isSurchargeApplicable": "Is Surcharge Applicable",
+            "isSurchargeIncluded": "Is Surcharge Included",
+            "feeComputationSlab": {
+                "id": "Id",
+                "ruleCode": "Rule Code",
+                "amountMin": "Min Amount",
+                "amountMax": "Max Amount",
+                "fixedFee": "Fixed Fee",
+                "percentFee": "Percent Fee",
+                "feeRate": "Fee Rate",
+                "feeAmount": "Fee Amount",
+                "actions": "Actions"
+            },
+            "makerChecker": {
+                "pageTitle": "Entry",
+                "executePageTitle": "Execute",
+                "diffPageTitle": "Difference",
+                "title": "Maker Checkers",
+                "noResultsFound": "No Maker Checker found."
+            },
+            "approve": "Approve",
+            "reject": "Reject",
+            "difference": "Difference",
+            "show": "Show",
+            "eventType": "Event Type",
+            "code": "Code",
+            "eventAction": "Event Action",
+            "status": "Status",
+            "execute": "Execute",
+            "remarks": "Remarks",
+            "approveSuccess": "{{ code }} user has been approved.",
+            "rejectSuccess": "{{ code }} user has been rejected.",
+            "diffRouteError": "Invalid for Create action."
+        }
+    }
+}

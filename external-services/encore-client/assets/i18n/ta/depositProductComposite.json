@@ -1,0 +1,58 @@
+{
+  "encoreclientApp": {
+    "depositProductComposite": {
+      "home": {
+        "title": "Deposit Product ",
+        "createLabel": "Deposit Product -ஐ உருவாக்கு",
+        "createOrEditLabel": "Deposit Product -ஐ மாற்று (அ) உருவாக்கு"
+      },
+      "created": "Deposit Product புதிதாக உருவாக்கப்பட்டது, அடையாளம் {{ param }}",
+      "updated": "Deposit Product மாற்றப்பட்டது, அடையாளம்  {{ param }}",
+      "deleted": "A Deposit Product நீக்கப்பட்டது, அடையாளம {{ param }}",
+      "delete": {
+        "question": "நீக்குவதற்கு உறுதி செய் Deposit Product {{ id }}?"
+      },
+      "detail": {
+        "title": "Deposit Product "
+      },
+      "productType": "Product Type",
+      "productCode": "Product Code",
+      "productDescription": "Product Description",
+      "glSubHead": "Gl Sub Head",
+      "accountIdCode": "Account Id Code",
+      "dateMin": "Date Min",
+      "dateMax": "Date Max",
+      "currencyCode": "Currency Code",
+      "branchSetCode": "Branch Set Code",
+      "accountIdGenerationRuleCode": "Account Id Generation Rule Code",
+      "category": "Category",
+      "dproductCode": "Dproduct Code",
+      "depositType": "Deposit Type",
+      "interestTableCode": "Interest Table Code",
+      "depositFrequency": "Deposit Frequency",
+      "bookingFrequency": "Booking Frequency",
+      "compoundingFrequency": "Compounding Frequency",
+      "payoutFrequency": "Payout Frequency",
+      "interestExpenseAccountCode": "Interest Expense Account Code",
+      "interestPayableAccountCode": "Interest Payable Account Code",
+      "taxDeductionPayableAccountCode": "Tax Deduction Payable Account Code",
+      "taxDeductionApplicable": "Tax Deduction Applicable",
+      "calendarBasedSchedule": "Calendar Based Schedule",
+      "latePaymentPenaltyRate": "Late Payment Penalty Rate",
+      "preclosurePenaltyRate": "Preclosure Penalty Rate",
+      "roundOffPenaltyDays": "Round Off Penalty Days",
+      "depositInterestComputationMethod": "Deposit Interest Computation Method",
+      "autoRenewalAllowed": "Auto Renewal Allowed",
+      "interestFractionDigits": "Interest Fraction Digits",
+      "interestRoundingMode": "Interest Rounding Mode",
+      "interestComputationFractionDigits": "Interest Computation Fraction Digits",
+      "interestComputationRoundingMode": "Interest Computation Rounding Mode",
+      "interestRateFractionDigits": "Interest Rate Fraction Digits",
+      "interestRateRoundingMode": "Interest Rate Rounding Mode",
+      "interestAccrualCalculationMethod": "Interest Accrual Calculation Method",
+      "minIntervalToPreclosure": "Min Interval To Preclosure",
+      "maxIntervalToPreclosureWithInterest": "Max Interval To Preclosure With Interest",
+      "carryOverInterest": "Carry Over Interest"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "encoreclientApp": {
+    "accountMandateDto": {
+      "saveError": "An error occurred while saving your document",
+      "error": "An error occurred while fetching the results",
+      "reindex": "All documents successfully reindexed",
+      "home": {
+        "title": "Account Mandate",
+        "createLabel": "Create a new Account Mandate",
+        "createOrEditLabel": "Create or edit a  Account Mandate"
+      },
+      "created": "A new  Account Mandate is created with identifier {{ param }}",
+      "updated": "A  Account Mandate is updated with identifier {{ param }}",
+      "deleted": "A Account Mandate is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete  Account Mandate {{ id }}?"
+      },
+      "add": "Add",
+      "deleteRow": "Delete",
+      "detail": {
+        "title": "Account Mandate"
+      },
+      "id": "id",
+      "version": "Version",
+      "accountId": "Account Id",
+      "accountName": "AccountName",
+      "mandateActive": "Mandate Active",
+      "accountHolderName": "Account Holder Name",
+      "sponsorAccountCode": "Sponsor Account Code",
+      "sponsorBankCode": "Sponsor Bank Code",
+      "utilityCode": "Utility Code",
+      "bankCity": "Bank City",
+      "branchName": "Branch Name",
+      "frequency": "Frequency",
+      "reference1": "reference1",
+      "reference2": "reference2",
+      "bankAccountNumber": "BankAccountNumber",
+      "ifscCode": "IfscCode",
+      "micr": "Micr",
+      "maximumAmount": "Maximum Amount",
+      "umrn": "umrn",
+      "phoneNo": "PhoneNo",
+      "achStartDate": "AchStartDate",
+      "achEndDate": "AchEndDate",
+      "mandateOpenDate": "MandateOpenDate",
+      "mandateFilePath": "MandateFilePath",
+      "registrationStatus": "Registration Status",
+      "verificationStatus": "Verification Status",
+      "remarks": "Remarks",
+      "registrationDate": "RegistrationDate",
+      "mandateApplicationId": "MandateApplicationId",
+      "mandateFileDataId": "MandateFileDataId"
+    }
+  }
+}
+
+
+
+

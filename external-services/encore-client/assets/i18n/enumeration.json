@@ -1,0 +1,43 @@
+{
+  "encoreclientApp": {
+    "enumeration": {
+      "saveError": "An error occurred while saving your document",
+      "serverError": "{{ message }}",
+      "deleteError": "An error occurred while deleting your document",
+      "error": "An error occurred while fetching the results",
+      "reindex": "All documents successfully reindexed",
+      "home": {
+        "pageTitle": "Enumerations",
+        "createLabel": "New Enumeration",
+        "createOrEditLabel": "Create or edit a Enumeration",
+        "heading": "Enumerations",
+        "noResultsFound": "No Enumeration found."
+      },
+      "created": "Successfully created enumeration : {{ code }}",
+      "updated": "Successfully updated enumeration : {{ code }}",
+      "deleted": "Successfully deleted enumeration : {{ code }}",
+      "delete": {
+        "question": "Are you sure you want to delete enumeration : {{ code }}?"
+      },
+      "detail": {
+        "title": "Show Enumerations",
+        "pageTitle": "Show Enumeration"
+      },
+      "create": {
+        "title": "Create New Enumeration",
+        "pageTitle": "Create Enumeration"
+      },
+      "edit": {
+        "title": "Update Enumerations",
+        "pageTitle": "Update Enumeration"
+      },
+      "classifier": "Classifier",
+      "code": "Code",
+      "name": "Name",
+      "sortOrder": "Sort Order",
+      "parentClassifier": "Parent Classifier",
+      "parentCode": "Parent Code",
+      "reference": "Reference"
+    }
+  }
+}

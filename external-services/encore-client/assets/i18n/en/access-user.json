@@ -1,0 +1,110 @@
+{
+    "encoreclientApp": {
+        "user": {
+            "saveError": "An error occurred while saving your document",
+            "genericError": "An error occurred",
+            "serverError": "{{ message }}",
+            "cacheClearError": "An error occurred while clearing cache",
+            "deleteError": "An error occurred while deleting your document",
+            "uploadError": "Users could not be saved.",
+            "userUploadError": "Users not Saved: '{{message}}'",
+            "fileNotPresentError": "Please select a file to upload.",
+            "error": "An error occurred while fetching the results",
+            "reindex": "All documents successfully reindexed",
+            "resetError": "An error occurred while resetting your password",
+            "home": {
+                "pageTitle": "Users",
+                "createLabel": "New User",
+                "createOrEditLabel": "Create or edit a User",
+                "uploadLabel": "Upload Users",
+                "resetLabel": "Reset Password",
+                "policyLabel": "Password Policy",
+                "approvals": "Approvals",
+                "clearCache": "Clear Cache",
+                "heading": "User Assignments",
+                "searchLabel": "Search By",
+                "noResultsFound": "No User Assignments found."
+            },
+            "created": "Successfully created user : {{ id }}",
+            "updated": "Successfully updated user : {{ id }}",
+            "updatedUser": "User : {{ code }} went to Checker.",
+            "updatedPolicy": "Successfully saved Properties",
+            "deleted": "Successfully deleted user",
+            "uploaded": "Successfully saved users.",
+            "resetSuccess": "User password updated successfully",
+            "delete": {
+                "question": "Are you sure you want to delete user : {{ id }}?"
+            },
+            "makerChecker": {
+                "pageTitle": "Entry",
+                "executePageTitle": "Execute",
+                "diffPageTitle": "Difference",
+                "title": "Maker Checkers",
+                "noResultsFound": "No Maker Checker found."
+            },
+            "detail": {
+                "title": "Show User",
+                "pageTitle": "Show User"
+            },
+            "create": {
+                "title": "Create New User",
+                "pageTitle": "Create User"
+            },
+            "edit": {
+                "title": "Update Password Policy",
+                "pageTitle": "Update User"
+            },
+            "upload": {
+                "title": "Upload New Users",
+                "pageTitle": "Upload Users",
+                "label": "Upload Users : "
+            },
+            "reset": {
+                "title": "Reset Password",
+                "pageTitle": "Reset password"
+            },
+            "userId": "User Id",
+            "roleCode": "Role Name",
+            "branchCode": "Branch Code",
+            "userName": "User Name",
+            "emailId": "Email Id",
+            "active": "Active",
+            "imei": "IMEI",
+            "phone1": "Phone1",
+            "phone2": "Phone2",
+            "locale": "Locale",
+            "branchSetCode": "BranchSet Code",
+            "virtualUser": "Virtual User",
+            "customerUser": "Customer User",
+            "customerId": "Customer Id",
+            "password": "Password",
+            "confirmPassword": "Confirm Password",
+            "currentPassword": "Current Password",
+            "newPassword": "New Password",
+            "passwordExpiredPeriodValue": "Password Expired Period",
+            "loginRetryAttemptsValue": "Login Retry Attempts",
+            "passwordMinLengthValue": "Password Min Length",
+            "passwordMaxLengthValue": "Password Max Length",
+            "passwordNumericCharacterValue": "Password Numeric Character",
+            "passwordAlphabeticCharacterValue": "Password Alphabetic Character",
+            "passwordSpecialCharacterValue": "Password Special Character",
+            "passwordUpperCaseValue": "Password Upper Case Name",
+            "lastPasswordChangeDate": "Last Password Change Date",
+            "resetPassword": "Reset Password",
+            "consecutiveFailureAttempts": "Consecutive Failure Attempts",
+            "approve": "Approve",
+            "reject": "Reject",
+            "difference": "Difference",
+            "show": "Show",
+            "eventType": "Event Type",
+            "code": "Code",
+            "eventAction": "Event Action",
+            "status": "Status",
+            "execute": "Execute",
+            "remarks": "Remarks",
+            "approveSuccess": "{{ code }} user has been approved.",
+            "rejectSuccess": "{{ code }} user has been rejected.",
+            "diffRouteError": "Invalid for Create action."
+        }
+    }
+}

@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.10.0.final using JasperReports Library version 6.10.0-unknown  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CumulativeDisbFeeReport" pageWidth="2250" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="2250" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" isIgnorePagination="true" uuid="bfa04799-adca-4104-83f0-797365554de3">
+	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="encoredb"/>
+	<property name="net.sf.jasperreports.export.xls.white.page.background" value="false"/>
+	<property name="com.jaspersoft.studio.data.sql.tables" value=""/>
+	<property name="com.jaspersoft.studio.data.sql.SQLQueryDesigner.sash.w1" value="0"/>
+	<property name="com.jaspersoft.studio.data.sql.SQLQueryDesigner.sash.w2" value="1000"/>
+	<parameter name="imagePath" class="java.lang.String"/>
+	<parameter name="from_date" class="java.util.Date">
+		<parameterDescription><![CDATA[From Date]]></parameterDescription>
+	</parameter>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<parameter name="to_date" class="java.util.Date">
+		<parameterDescription><![CDATA[To Date]]></parameterDescription>
+	</parameter>
+	<parameter name="branchset_code_select" class="java.lang.String">
+		<parameterDescription><![CDATA[BranchSet Code]]></parameterDescription>
+	</parameter>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[$P{imagePath}.split( "images" )[0]+"myreports/"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT ah.customer_id,ld.account_id,ap.product_code,ap.branch_code,b.branch_name,ld.value_date as value_date,
+sum(ld.amount_magnitude) as amount_magnitude,ld.value_date,ld.transaction_date,ld.user_id,ld.net_disbursement_magnitude,
+concat(COALESCE(ah.first_name,''),' ',COALESCE(ah.middle_name,''),' ',COALESCE(ah.last_name)) as customerName,c.sector,ap.account_name, 
+concat(COALESCE(cs.first_name,''),' ',COALESCE(cs.middle_name,''),' ',COALESCE(cs.last_name)) as guarantorName 
+FROM 
+loan_od_profiles lp left join customers cs on (lp.tenant_code=cs.tenant_code and lp.guarantor_customer_id1=cs.customer_id), 
+account_profiles ap  
+left join loan_od_products pd on (ap.tenant_code=pd.tenant_code and ap.product_code=pd.product_code and ap.currency_code=pd.currency_code )
+left join loan_od_disbursements ld on (ld.tenant_code=ap.tenant_code  and ld.account_id=ap.account_id ),
+account_holders ah,branches b,branchset_branches bs, customers c 
+where ld.tenant_code=lp.tenant_code and ah.tenant_code=c.tenant_code and ah.tenant_code=c.tenant_code and ld.tenant_code=ap.tenant_code 
+and ld.tenant_code=bs.tenant_code and ah.holder_num=1 and ld.account_id=ap.account_id and ap.tenant_code=ah.tenant_code and 
+ap.account_id=ah.account_id and ah.tenant_code=b.tenant_code and ap.branch_code=b.branch_code and ap.branch_code=bs.branch_code and 
+ah.customer_id=c.customer_id and ld.account_id=lp.account_id and bs.branchset_code =$P{branchset_code_select} and ap.tenant_code=$P{tenant_code} and 
+(ld.transaction_date>=$P{from_date} and ld.transaction_date<=$P{to_date})
+group by account_id,value_date]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="customer_id" class="java.lang.String"/>
+	<field name="branch_code" class="java.lang.String"/>
+	<field name="product_code" class="java.lang.String"/>
+	<field name="value_date" class="java.sql.Date"/>
+	<field name="amount_magnitude" class="java.math.BigDecimal"/>
+	<field name="net_disbursement_magnitude" class="java.math.BigDecimal"/>
+	<field name="customerName" class="java.lang.String"/>
+	<field name="sector" class="java.lang.String"/>
+	<field name="branch_name" class="java.lang.String"/>
+	<field name="account_name" class="java.lang.String"/>
+	<field name="guarantorName" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<columnHeader>
+		<band height="15" splitType="Stretch">
+			<staticText>
+				<reportElement mode="Opaque" x="0" y="0" width="95" height="15" uuid="b2d86b29-1dbe-4204-8181-3754ec5d6758"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Account Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="95" y="0" width="107" height="15" uuid="cc8cca5e-1605-4d2b-90db-810f63879b8b"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[URN No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="202" y="0" width="84" height="15" uuid="90e836fa-e59d-4171-8da0-dc18e1864430"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Branch Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="286" y="0" width="80" height="15" uuid="0035fe49-2876-44a7-a9d5-82f782771149"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Product Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="366" y="0" width="111" height="15" uuid="092e2009-f393-4e0b-b220-e2f7bdfd116e"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Disbursement Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="477" y="0" width="140" height="15" uuid="ec5d87e2-fcb1-45a4-aeed-636c0c67965d"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Disbursement Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="617" y="0" width="150" height="15" uuid="7fa5acbb-8e6e-4ac9-b89c-2a920b501248"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Net Disbursement Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="767" y="0" width="200" height="15" uuid="da6ba0e9-676c-4928-a496-8ce72b215a9b"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Customer Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="967" y="0" width="150" height="15" uuid="4c9f0c56-8e86-4cd5-8196-843c7b2e5b78"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Vertical]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1117" y="0" width="150" height="15" uuid="6947895f-ef1e-42bb-aa6b-77b9423745d4"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Branch Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1267" y="0" width="150" height="15" uuid="57100842-5947-43e9-80f8-ef7de0538048"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Account Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1417" y="0" width="200" height="15" uuid="be120614-f438-4057-b3e5-9ad040ddc976"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Fee1 Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1617" y="0" width="200" height="15" uuid="57fa4c6e-4d8c-4992-9078-6f9fce448084"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Fee2 Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1817" y="0" width="200" height="15" uuid="eb0e4b97-c850-4ec7-87e1-5ee8ad918e45"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Fee3 Amount]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2017" y="0" width="233" height="15" uuid="71a0db1e-d55e-4f0e-8df6-e662056b556a"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Guarantor Name]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="95" height="13" uuid="27e24b66-cf7d-45a9-97ea-36e8c2e0388d"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="95" y="0" width="107" height="13" uuid="b6b5da9c-2897-4095-bdd5-d8e3131fb1cb"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{customer_id}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="202" y="0" width="84" height="13" uuid="58b6d1cb-a57d-4929-9f5a-f0e1e866c482"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{branch_code}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="286" y="0" width="80" height="13" uuid="888fbb4a-e566-4279-a2c5-375c78b39f61"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{product_code}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="yyyy-mm-dd" isBlankWhenNull="true">
+				<reportElement x="366" y="0" width="111" height="13" uuid="146ffc9d-f961-47da-aae5-c2511e6fe0bd"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{value_date}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="477" y="0" width="140" height="13" uuid="cc452158-42c1-42ab-bf26-024879b74f67"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{amount_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="617" y="0" width="150" height="13" uuid="8a256052-1d34-4b90-ba54-44e88f28231b"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{net_disbursement_magnitude}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="767" y="0" width="200" height="13" uuid="6f8bfc76-f83a-4638-9b31-d9b8431640f7"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{customerName}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="967" y="0" width="150" height="13" uuid="5c7f32b7-d299-4289-b4a5-96c9b2d13ad5"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{sector}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1117" y="0" width="150" height="13" uuid="415c2ea8-9f63-48cf-8246-27577a7e9337"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{branch_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1267" y="0" width="150" height="13" uuid="901c3c2b-284d-43e9-98aa-bdd759615952"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{account_name}]]></textFieldExpression>
+			</textField>
+			<subreport>
+				<reportElement x="1417" y="0" width="200" height="13" uuid="a3f31a8e-ac52-46a1-b9c4-3e76da4bf532"/>
+				<subreportParameter name="account_id">
+					<subreportParameterExpression><![CDATA[$F{account_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="charged_value_date">
+					<subreportParameterExpression><![CDATA[$F{value_date}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{SUBREPORT_DIR} + "CumulativeDisbFeeSubReport1.jasper"]]></subreportExpression>
+			</subreport>
+			<subreport>
+				<reportElement x="1617" y="0" width="200" height="13" uuid="55aa4356-0157-47fc-bd55-bb7fa6f95e54"/>
+				<subreportParameter name="account_id">
+					<subreportParameterExpression><![CDATA[$F{account_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="charged_value_date">
+					<subreportParameterExpression><![CDATA[$F{value_date}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{SUBREPORT_DIR} + "CumulativeDisbFeeSubReport2.jasper"]]></subreportExpression>
+			</subreport>
+			<subreport>
+				<reportElement x="1817" y="0" width="200" height="13" uuid="b71db0cd-390b-4ba4-b74d-613b962529ef"/>
+				<subreportParameter name="account_id">
+					<subreportParameterExpression><![CDATA[$F{account_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="charged_value_date">
+					<subreportParameterExpression><![CDATA[$F{value_date}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{SUBREPORT_DIR} + "CumulativeDisbFeeSubReport3.jasper"]]></subreportExpression>
+			</subreport>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2017" y="0" width="233" height="13" uuid="e1cbe2b6-e1f7-4257-9cc7-5293e11c37d5"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA[$F{guarantorName}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

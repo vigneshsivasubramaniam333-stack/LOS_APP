@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="EodCompletionReport" language="groovy" pageWidth="400" pageHeight="842" whenNoDataType="AllSectionsNoDetail" columnWidth="400" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="c9f8c153-b998-4605-8526-69178adc1406">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="tenant_code" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select p.account_id, w.last_booking_date, w.next_demand_run_date from
+loan_od_working_registers w, account_profiles p , banks b where b.tenant_code = w.tenant_code
+and w.tenant_code = p.tenant_code and p.tenant_code = $P{tenant_code} and p.account_id=w.account_id and ( ( w.next_demand_run_date is not null and w.next_demand_run_date <= b.current_working_date ) or w.last_booking_date < subdate(b.current_working_date, 1) or w.last_booking_date is null ) and p.operational_status = 0 order by p.account_id]]>
+	</queryString>
+	<field name="account_id" class="java.lang.String"/>
+	<field name="last_booking_date" class="java.sql.Date"/>
+	<field name="next_demand_run_date" class="java.sql.Date"/>
+	<title>
+		<band height="18" splitType="Stretch">
+			<staticText>
+				<reportElement uuid="05254275-cddf-40de-babf-e136af606d62" x="257" y="0" width="143" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Next Demand Run Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="177a1b39-306e-4949-a481-4e92f23c735c" x="0" y="0" width="131" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Account Id]]></text>
+			</staticText>
+			<staticText>
+				<reportElement uuid="177a1b39-306e-4949-a481-4e92f23c735c" x="131" y="0" width="126" height="18"/>
+				<box>
+					<topPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<leftPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<bottomPen lineWidth="0.5" lineColor="#CCCCCC"/>
+					<rightPen lineWidth="0.5" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Last Booking Date]]></text>
+			</staticText>
+		</band>
+	</title>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField>
+				<reportElement uuid="421f4903-1a99-42dc-b259-25417e2ef68c" x="0" y="0" width="131" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{account_id}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement uuid="24a0dc8e-21b9-462a-a0f1-a0e6eceddfa5" x="131" y="0" width="126" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{last_booking_date}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement uuid="bb1d1088-7209-4306-a3ff-8ef7c6c2cbab" x="257" y="0" width="143" height="20"/>
+				<textElement/>
+				<textFieldExpression><![CDATA[$F{next_demand_run_date}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

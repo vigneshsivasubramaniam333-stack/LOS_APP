@@ -1,0 +1,34 @@
+{
+    "encoreclientApp": {
+        "statement" : {
+            "home": {
+                "title": "Statements",
+                "createLabel": "नया Statement बनाएँ",
+                "createOrEditLabel": "Statement बनाएँ या संपादित करें"
+            },
+            "created": "एक नया Statement [identifier: {{ param }}] तैयार है",
+            "updated": "एक Statement [identifier: {{ param }}] का अद्यतन हुआ है",
+            "deleted": "Statement [identifier: {{ param }}] हटा दिया है",
+            "delete": {
+                "question": "Statement [id: {{ id }}] हटाने की पुष्टि करें"
+            },
+            "detail": {
+                "title": "Statement"
+            },
+            "accountId": "Account Id",
+            "accountName": "Account Name",
+            "branchCode": "Branch Code",
+            "glSubHead": "Gl Sub Head",
+            "currencyCode": "Currency Code",
+            "productType": "Product Type",
+            "productCode": "Product Code",
+            "operationMode": "Operation Mode",
+            "operationStatus": "Operation Status",
+            "openedOnValueDate": "Opened On Value Date",
+            "openedOnTransactionDate": "Opened On Transaction Date",
+            "openedOnTime": "Opened On Time",
+            "lastActivatedDate": "Last Activated Date",
+            "lastFreezedDate": "Last Freezed Date"
+        }
+    }
+}
