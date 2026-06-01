@@ -10,7 +10,7 @@ On Credinnov EC2, **host nginx** owns port **80** (team LMS sandbox, reverse pro
 
 | Service | Container | Host port | Notes |
 |---------|-----------|-----------|--------|
-| **ui-service** | `los_ui` | **8080** (configurable) | Public access via nginx → `127.0.0.1:8080` |
+| **ui-service** | `los_ui` | **8080** (configurable) | App path **`/los/`** — host nginx include → `127.0.0.1:8080/los/` (see `deploy/nginx/`) |
 | discovery-service | `los_discovery` | 8761 | Ops / debugging only |
 | notification-service | `los_notification` | 8084 | Internal or ops |
 | redis | `los_redis` | 6379 | Do not expose on public SG if possible |
@@ -30,20 +30,7 @@ LOS_UI_HOST_PORT=8080
 
 ## Host nginx (team or sudo)
 
-Example location for LOS UI (paths must match how `ui-service` nginx serves assets):
-
-```nginx
-location /los/ {
-    proxy_pass http://127.0.0.1:8080/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
-
-Confirm exact path prefix (`/los/` vs `/`) with whoever maintains `/etc/nginx`.
+Use the additive snippet in `deploy/nginx/los-host-locations.conf` (`include snippets/los-host-locations.conf;` inside the existing `server` block). Do not modify `/credinnov-encore-server/` or other team locations.
 
 ## Troubleshooting `los_core` unhealthy
 
