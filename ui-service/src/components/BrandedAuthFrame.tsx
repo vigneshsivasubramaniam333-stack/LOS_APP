@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 
-const COMPANY = 'Billionloans Financial Services Private Ltd.'
+const COMPANY = 'Credinnov'
 
 type BrandedAuthFrameProps = {
   children: ReactNode

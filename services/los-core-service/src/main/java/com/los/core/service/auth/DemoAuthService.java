@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class DemoAuthService {
 
-    public static final String DEMO_INSTITUTION = "Billionloans Financial Services Pvt Ltd";
+    public static final String DEMO_INSTITUTION = "Credinnov";
 
     public static final String ROLE_BORROWER = "BORROWER";
 

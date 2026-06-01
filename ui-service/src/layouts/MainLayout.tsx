@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { canAccessAdminConfigNav } from '@/auth/types'
 
-const COMPANY_NAME = 'Billionloans Financial Services Private Ltd.'
+const COMPANY_NAME = 'Credinnov'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
