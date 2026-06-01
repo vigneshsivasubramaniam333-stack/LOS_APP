@@ -82,6 +82,8 @@ services:
       DOCUMENT_STORAGE_PATH: /data/documents
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      # Prod redis image has no requirepass; clear default from application.yml
+      SPRING_DATA_REDIS_PASSWORD: ""
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: losuser
@@ -92,6 +94,7 @@ services:
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
+      JAVA_OPTS: ${LOS_CORE_JAVA_OPTS:--XX:MaxRAMPercentage=50.0}
 
     depends_on:
       discovery-service:

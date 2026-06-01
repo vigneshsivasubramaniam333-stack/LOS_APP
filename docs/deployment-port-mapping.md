@@ -45,6 +45,14 @@ location /los/ {
 
 Confirm exact path prefix (`/los/` vs `/`) with whoever maintains `/etc/nginx`.
 
+## Troubleshooting `los_core` unhealthy
+
+1. **Stop orphan vendor Encore containers** (if still running from an old compose):  
+   `docker stop los_encore_client los_encore_server los_encore_mysql`
+2. **Redis auth:** prod compose sets `SPRING_DATA_REDIS_PASSWORD=""` because `los_redis` has no password.
+3. **Logs:** `docker logs los_core --tail 150` and  
+   `docker exec los_core wget -qO- http://localhost:8083/actuator/health`
+
 ## Verify after deploy
 
 ```bash
