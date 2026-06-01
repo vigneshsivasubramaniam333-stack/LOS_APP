@@ -68,7 +68,7 @@ public class AiLosIntegrationService {
     }
 
     public AiLosOpenResponse initiateOpen(UUID applicationId, String returnUrl, String modeRaw) {
-        log.info("AI LOS DEMO MODE ENABLED");
+        log.info("AI LOS initiateOpen: applicationId={}, returnUrl={}, mode={}", applicationId, returnUrl, modeRaw);
 
         LoanApplication app = loanApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + applicationId));
@@ -105,15 +105,15 @@ public class AiLosIntegrationService {
 
         AiLosIngestRequest payload = AiLosIngestRequest.builder()
                 .loanId(loanRef)
-                .borrowerName(borrowerName)
-                .loanAmount(loanAmount)
-                .loanPurpose(purpose)
-                .creditScore(creditScore)
-                .annualIncome(annualIncome)
+                .borrowerName(borrowerName.isBlank() ? "Borrower" : borrowerName)
+                .loanAmount(loanAmount.compareTo(BigDecimal.ZERO) > 0 ? loanAmount : BigDecimal.valueOf(100000))
+                .loanPurpose(purpose.isBlank() ? "Working Capital" : purpose)
+                .creditScore(creditScore > 0 ? creditScore : 650)
+                .annualIncome(annualIncome.compareTo(BigDecimal.ZERO) > 0 ? annualIncome : BigDecimal.valueOf(240000))
                 .employmentType(employmentType)
-                .loanTenureMonths(tenureMonths)
+                .loanTenureMonths(tenureMonths > 0 ? tenureMonths : 12)
                 .existingEmi(existingEmi)
-                .propertyValue(propertyValue)
+                .propertyValue(propertyValue.compareTo(BigDecimal.ZERO) > 0 ? propertyValue : BigDecimal.valueOf(100000))
                 .sourceLos(integrationProperties.getAiLos().getSourceLos())
                 .sourceLoanRef(loanRef)
                 .build();
@@ -201,22 +201,32 @@ public class AiLosIntegrationService {
                     Map.of("status", status, "loanRef", loanRef),
                     "AI LOS ingest succeeded"
             );
+
+            String finalUrl;
+            if (!reviewUrl.isBlank() && returnUrl != null && !returnUrl.isBlank()) {
+                finalUrl = reviewUrl + URLEncoder.encode(returnUrl, StandardCharsets.UTF_8);
+            } else if (!reviewUrl.isBlank()) {
+                finalUrl = reviewUrl;
+            } else {
+                finalUrl = DEMO_AI_LOS_URL;
+            }
+
             auditService.logEvent(
                     applicationId,
                     "AI_LOS",
                     "AI_LOS_REDIRECTED",
                     null,
                     Map.of("mode", mode),
-                    Map.of("loanRef", loanRef),
+                    Map.of("loanRef", loanRef, "finalUrl", finalUrl),
                     "AI LOS redirect URL generated"
             );
-            log.info("Returning demo AI LOS URL: {}", DEMO_AI_LOS_URL);
+            log.info("AI LOS final redirect URL: {}", finalUrl);
             return AiLosOpenResponse.builder()
                     .loanId(loanRef)
                     .status(status)
                     .message(message)
                     .reviewUrl(reviewUrl.isBlank() ? DEMO_AI_LOS_URL : reviewUrl)
-                    .finalRedirectUrl(DEMO_AI_LOS_URL)
+                    .finalRedirectUrl(finalUrl)
                     .mode(mode)
                     .build();
         } catch (BusinessRuleException e) {
@@ -229,19 +239,26 @@ public class AiLosIntegrationService {
             log.error("AI LOS HTTP status exception for app {}: status={}, headers={}, body={}, durationMs={}",
                     applicationId, e.getStatusCode().value(), e.getResponseHeaders(), e.getResponseBodyAsString(), durationMs, e);
             if (isExistingLoanConflict(e)) {
-                log.info("AI LOS existing-loan fallback activated for loanId={}", loanRef);
-                log.info("AI LOS demo mode active for existing loan. Returning demo URL");
+                log.info("AI LOS existing-loan conflict for loanId={}, building deep link", loanRef);
+                String deepLink = buildExistingLoanDeepLink(loanRef, returnUrl);
                 auditService.logEvent(
                         applicationId,
                         "AI_LOS",
                         "AI_LOS_REQUEST_SUCCESS",
                         null,
                         Map.of("mode", mode, "statusCode", String.valueOf(e.getStatusCode().value())),
-                        Map.of("loanRef", loanRef, "fallback", "EXISTING_LOAN_DEMO"),
-                        "AI LOS existing-loan conflict handled via demo fallback"
+                        Map.of("loanRef", loanRef, "fallback", "EXISTING_LOAN_DEEP_LINK"),
+                        "AI LOS existing-loan conflict — deep linking to existing review"
                 );
-                log.info("Returning demo AI LOS URL: {}", DEMO_AI_LOS_URL);
-                return buildDemoResponse(loanRef, mode);
+                log.info("AI LOS existing loan deep link: {}", deepLink);
+                return AiLosOpenResponse.builder()
+                        .loanId(loanRef)
+                        .status("existing")
+                        .message("Loan already ingested. Opening existing review.")
+                        .reviewUrl(deepLink)
+                        .finalRedirectUrl(deepLink)
+                        .mode(mode)
+                        .build();
             }
             auditService.logEvent(
                     applicationId,
@@ -324,19 +341,21 @@ public class AiLosIntegrationService {
 
     private String buildExistingLoanDeepLink(String loanRef, String returnUrl) {
         String safeReturnUrl = returnUrl != null ? returnUrl.trim() : "";
-        if (safeReturnUrl.isBlank()) {
-            throw new BusinessRuleException("Return URL is required to open AI LOS review");
-        }
         IntegrationProperties.AiLosProperties p = integrationProperties.getAiLos();
         String base = p.getUiBaseUrl() != null ? p.getUiBaseUrl().trim() : "";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base
+        if (base.isBlank()) {
+            base = "https://ai-los.billiontech.ai";
+        }
+        String url = base
                 + "/loan-review?loanId="
-                + URLEncoder.encode(loanRef, StandardCharsets.UTF_8)
-                + "&returnUrl="
-                + URLEncoder.encode(safeReturnUrl, StandardCharsets.UTF_8);
+                + URLEncoder.encode(loanRef, StandardCharsets.UTF_8);
+        if (!safeReturnUrl.isBlank()) {
+            url += "&returnUrl=" + URLEncoder.encode(safeReturnUrl, StandardCharsets.UTF_8);
+        }
+        return url;
     }
 
     private static boolean isExistingLoanConflict(HttpStatusCodeException e) {

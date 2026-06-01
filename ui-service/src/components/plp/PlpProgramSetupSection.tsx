@@ -6,6 +6,7 @@ import {
   retryPlpProgram,
   retryPlpSubProgram,
 } from '@/api/plp'
+import { getCam } from '@/api/cam'
 import { ApiError } from '@/api/http'
 import type { ApplicationResponse } from '@/types/application'
 import type { CreatePlpProgramRequest, PlpProgramSetupResponse, PlpProgramSummary } from '@/types/plp'
@@ -81,12 +82,14 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
         ? list.find((a) => a.sourceAnchorApplicationId === app.id)
         : undefined
       const resolvedAnchorId = linked ? linked.id : list.length === 1 ? list[0]!.id : ''
+      let hasExistingProgram = false
       if (resolvedAnchorId) {
         setAnchorId(resolvedAnchorId)
         try {
           const programs = await listPlpProgramsForAnchor(resolvedAnchorId)
           const existing = programs[0]
           if (existing) {
+            hasExistingProgram = true
             const hydrated = setupResponseFromSummary(existing, resolvedAnchorId)
             setSaved(hydrated)
             setProgramName(existing.programName)
@@ -108,6 +111,16 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           }
         } catch {
           /* no existing program for anchor */
+        }
+      }
+      if (!hasExistingProgram && app.id) {
+        try {
+          const cam = await getCam(app.id)
+          if (cam.recommendedAmount != null) setCreditLimit(String(cam.recommendedAmount))
+          if (cam.recommendedRate != null) setInterestRate(String(cam.recommendedRate))
+          if (cam.recommendedTenureMonths != null) setTenureDays(String(cam.recommendedTenureMonths * 30))
+        } catch {
+          /* CAM may not exist yet — leave fields empty */
         }
       }
     } catch (e) {

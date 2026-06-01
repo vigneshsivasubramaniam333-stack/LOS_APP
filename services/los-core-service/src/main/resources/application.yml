@@ -142,8 +142,8 @@ los:
       read-timeout-ms: ${HYPERVERGE_READ_TIMEOUT:30000}
 
     ai-los:
-      ingest-url: ${AI_LOS_INGEST_URL:http://178.105.49.69:8092/api/los/ingest}
-      ui-base-url: ${AI_LOS_UI_BASE_URL:http://178.105.49.69:4001}
+      ingest-url: ${AI_LOS_INGEST_URL:https://ai-los.billiontech.ai/api/los/ingest}
+      ui-base-url: ${AI_LOS_UI_BASE_URL:https://ai-los.billiontech.ai}
       jwt-secret: ${AI_LOS_JWT_SECRET:dev_secret}
       jwt-subject: ${AI_LOS_JWT_SUBJECT:java-los}
       jwt-role: ${AI_LOS_JWT_ROLE:integration}

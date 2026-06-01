@@ -82,8 +82,8 @@ public class IntegrationProperties {
 
     @Data
     public static class AiLosProperties {
-        private String ingestUrl = "http://178.105.49.69:8092/api/los/ingest";
-        private String uiBaseUrl = "http://178.105.49.69:4001";
+        private String ingestUrl = "https://ai-los.billiontech.ai/api/los/ingest";
+        private String uiBaseUrl = "https://ai-los.billiontech.ai";
         private String jwtSecret = "dev_secret";
         private String jwtSubject = "java-los";
         private String jwtRole = "integration";
