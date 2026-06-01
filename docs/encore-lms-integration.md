@@ -1,39 +1,34 @@
 # Encore LMS integration (LOS 2.0)
 
-## Vendor vs LOS-owned code
+## Architecture
 
-| Location | What it is |
-|----------|------------|
-| `external-services/encore-server` | **Official vendor Encore** server (JAR + `encoresite/`). Build/run **unchanged** — see vendor `Dockerfile`. |
-| `external-services/encore-client` | **Official vendor** web UI (static assets). Built and served by nginx (`encore-client` service in compose). |
-| `services/los-core-service` (`com.los.lms.*`, `com.los.encore.client.*`) | **LOS** integration only: REST `/api/v1/lms/**`, LMS tables on **`los_core`** DB, HTTP client to vendor Encore via `los.lms.encore.*`. This is **not** a fork of vendor Encore. |
+LOS integrates with **Encore LMS over remote HTTP**. There is no local vendor Encore server, MySQL, or static UI in the Docker stack.
 
-Import instructions: `external-services/README.md`.
+| Component | Role |
+|-----------|------|
+| `com.los.encore.client.*` in **los-core-service** | HTTP client (`EncoreHttpTransport`, `DefaultEncoreLmsApi`) |
+| Remote Encore API | Configured via `ENCORE_BASE_URL` + Basic Auth |
+
+See `external-services/README.md` for environment variables.
 
 ## Configuration
 
-### Vendor Encore (Docker / infra)
-
-- MySQL for vendor app: **`encore-mysql`** (default root password `encoreroot` unless overridden — keep healthcheck in sync).
-- Vendor API port **8090** (see vendor `encoresite/conf/application-uat.yml`).
-
-### LOS `los-core-service` → vendor HTTP
+### LOS `los-core-service` → remote HTTP
 
 | Variable | Purpose |
 |----------|---------|
-| `ENCORE_BASE_URL` | Vendor Encore base URL (e.g. `https://core.dev.billionloans.com/encore/` on Docker network, or `http://10.0.1.7:8090/encore/` when pointing at existing infra). |
-| `ENCORE_API_USERNAME` / `ENCORE_API_PASSWORD` | Basic Auth to vendor webservices. |
-| `VENDOR_ENCORE_BASE_URL` | Optional override in compose for the same value as `ENCORE_BASE_URL`. |
-| `LMS_ENCORE_SYNC_ENABLED` / `LMS_ENCORE_SYNC_CRON` | Scheduled summary sync (`EncoreSummarySyncJob` in los-core). |
-| `LMS_CALLBACK_HMAC_SECRET` | Optional HMAC for repayment callback. |
+| `ENCORE_BASE_URL` | Encore API base URL (e.g. `https://core.dev.billionloans.com/encore/`) |
+| `ENCORE_API_USERNAME` / `ENCORE_API_PASSWORD` | Basic Auth to Encore webservices |
+| `LMS_ENCORE_SYNC_ENABLED` / `LMS_ENCORE_SYNC_CRON` | Scheduled summary sync (`EncoreSummarySyncJob` in los-core) |
+| `LMS_CALLBACK_HMAC_SECRET` | Optional HMAC for repayment callback |
 
-Spring properties mirror the former adapter: `los.lms.encore.*` and `los.lms.callback.*` in `application.yml`.
+Spring properties: `los.lms.encore.*` and `los.lms.callback.*` in `application.yml`.
 
-Legacy flat `encore.*` keys are documented in `external-services/config/encore.properties.example` for mapping to `los.lms.encore.*`.
+Copy from `.env.example` into `.env.prod` for deployment.
 
 ## LOS core
 
-`los-core-service` hosts LMS controllers and calls **vendor Encore** over HTTP (`EncoreHttpTransport` / `DefaultEncoreLmsApi`). There is **no** separate LMS microservice.
+`los-core-service` hosts LMS controllers and calls Encore over HTTP. There is **no** separate LMS microservice and **no** vendor Docker containers.
 
 ## Gateway
 

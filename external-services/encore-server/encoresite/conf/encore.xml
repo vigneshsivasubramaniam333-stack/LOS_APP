@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Context antiResourceLocking="false" privileged="true" docBase="/vol/tomcat/docBase/encore.war">
-<Environment name="ENCORE_SITE_DIR" value="/vol/encoresite" type="java.lang.String" override="true"/>
-<Environment name="spring.profiles.active" value="dev" type="java.lang.String" override="true"/>
-</Context>

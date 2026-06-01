@@ -168,7 +168,7 @@ spring:
           predicates:
             - Path=/api/v1/notifications/**
 
-        # LMS / Encore integration (los-core calls vendor encore-server; REST exposed on los-core)
+        # LMS / Encore integration (los-core calls remote Encore API; REST exposed on los-core)
         - id: encore-lms
           uri: lb://los-core-service
           predicates:

@@ -114,10 +114,8 @@ npm run dev
 | API Gateway | 8080 | Request routing, JWT validation, rate limiting, security headers |
 | IAM Service | 8081 | Authentication, RBAC (5 roles), TOTP 2FA, API keys, IP whitelist, session limits |
 | Enrollment Service | 8082 | Customer registration, OTP, assisted registration, DigiLocker |
-| LOS Core Service | 8083 | Full loan lifecycle — applications, KYC orchestration, workflow engine, credit decision, documents, eSign, KFS, Account Aggregator, NACH, co-lending, collateral, OCR, reports; **LMS integration** (`/api/v1/lms/**`) calls vendor Encore over HTTP (`ENCORE_BASE_URL`) |
+| LOS Core Service | 8083 | Full loan lifecycle — applications, KYC orchestration, workflow engine, credit decision, documents, eSign, KFS, Account Aggregator, NACH, co-lending, collateral, OCR, reports; **LMS integration** (`/api/v1/lms/**`) calls remote Encore over HTTP (`ENCORE_BASE_URL`, `ENCORE_API_USERNAME`, `ENCORE_API_PASSWORD`) |
 | Notification Service | 8084 | SMS, email, WhatsApp (9 templates), in-app alerts, bulk SMS |
-| Vendor Encore UI (Docker: `encore-client`) | 9080 | Official static client — nginx image from `external-services/encore-client` |
-| Vendor Encore API (Docker: `encore-server`) | 8090 | Official vendor Encore Spring Boot server — `external-services/encore-server` |
 
 ## Frontend Routes (20 Pages)
 

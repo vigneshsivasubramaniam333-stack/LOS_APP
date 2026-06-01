@@ -31,7 +31,7 @@
 | API Gateway | 8080 | Check: `lsof -i :8080` |
 | IAM Service | 8081 | Unlikely |
 | Enrollment Service | 8082 | Unlikely |
-| LOS Core Service | 8083 | Unlikely — includes LMS `/api/v1/lms/**` → vendor Encore (`ENCORE_BASE_URL`) |
+| LOS Core Service | 8083 | Unlikely — includes LMS `/api/v1/lms/**` → remote Encore (`ENCORE_BASE_URL`) |
 | Notification Service | 8084 | Unlikely |
 
 > **If any port conflicts:** See "Troubleshooting" at the bottom.
@@ -167,7 +167,7 @@ cd los-platform
 java -jar services/notification-service/target/*.jar --server.port=8084
 ```
 
-Vendor Encore **server** and **client** are started via Docker (`encore-server`, `encore-client`, plus `encore-mysql`); see `external-services/README.md`.
+Encore LMS is **remote HTTP only**. Set `ENCORE_BASE_URL`, `ENCORE_API_USERNAME`, and `ENCORE_API_PASSWORD` in `.env.prod` (see `external-services/README.md` and `docs/encore-lms-integration.md`). There are no local Encore vendor containers.
 
 ### Step 5: Verify Backend Services
 
@@ -380,3 +380,29 @@ pkill -f "los-.*\.jar"
 # Stop infrastructure
 docker compose -f docker-compose.infra.yml down
 ```
+
+---
+
+## Production EC2: redeploy after removing vendor Encore containers
+
+On the server (e.g. `/vol/LOS_APP`):
+
+```bash
+git pull origin los_plp_integration
+
+docker compose -f docker-compose.prod.yml down
+docker volume rm los_app_encore_vendor_mysql_data 2>/dev/null || true
+
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Verify:
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}"
+# Should NOT list: los_encore_mysql, los_encore_server, los_encore_client
+
+curl -s http://localhost:8083/actuator/health
+```
+
+Ensure `.env.prod` sets `ENCORE_BASE_URL`, `ENCORE_API_USERNAME`, and `ENCORE_API_PASSWORD`. Trigger a small LMS flow in the UI and confirm `los_core` logs show HTTP to your remote Encore host (not `encore-server:8090`).

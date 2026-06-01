@@ -117,10 +117,10 @@ Notification Service
 8084
 Spring Boot + RabbitMQ
 SMS, Email, WhatsApp via event-driven queue; template management; delivery tracking
-Vendor Encore LMS (official)
-8090 / 9080
-Docker images
-Black-box vendor apps; LOS Core calls vendor HTTP only (ENCORE_BASE_URL) � EMI schedule, repayment status, loan account creation, NPA flags
+Encore LMS (remote API)
+HTTPS (ENCORE_BASE_URL)
+Remote HTTP
+LOS Core calls remote Encore over HTTP (ENCORE_BASE_URL + Basic Auth) � EMI schedule, repayment status, loan account creation, NPA flags
 UI Service (React + Nginx)
 3000
 React 18 + Nginx
@@ -867,10 +867,10 @@ Notification Service
 los/notification
 PostgreSQL, RabbitMQ
 SMS � Email � WhatsApp � In-App
-Vendor Encore LMS
-8090 / 9080
-encore-server / encore-client
-MySQL (vendor)
+Encore LMS (remote)
+HTTPS
+Remote API (ENCORE_BASE_URL)
+Vendor-managed
 EMI � repayment � NPA � NACH
 UI Service
 3000

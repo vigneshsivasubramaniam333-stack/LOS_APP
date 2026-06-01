@@ -65,7 +65,7 @@ services:
       - .env.dev
     environment:
       LOS_NOTIFICATION_URL: http://notification-service:8084
-      ENCORE_BASE_URL: ${VENDOR_ENCORE_BASE_URL:-https://core.dev.billionloans.com/encore/}
+      ENCORE_BASE_URL: ${ENCORE_BASE_URL:-https://core.dev.billionloans.com/encore/}
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-billiontech}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-billionTech@encore25}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
@@ -75,7 +75,6 @@ services:
       - redis
       - rabbitmq
       - notification-service
-      - encore-server
 
   notification-service:
     build:
@@ -121,56 +120,6 @@ services:
       - discovery-service
       - postgres
       - rabbitmq
-
-  encore-mysql:
-    image: mysql:8.0
-    container_name: los_encore_mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${ENCORE_MYSQL_ROOT_PASSWORD:-encoreroot}
-      MYSQL_DATABASE: encoredb
-    ports:
-      - "3307:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pencoreroot"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 60s
-
-  encore-server:
-    build:
-      context: ./external-services/encore-server
-    container_name: los_encore_server
-    working_dir: /home/encoresite
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://encore-mysql:3306/encoredb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&zeroDateTimeBehavior=convertToNull
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${ENCORE_MYSQL_ROOT_PASSWORD:-encoreroot}
-    depends_on:
-      encore-mysql:
-        condition: service_healthy
-    ports:
-      - "8090:8090"
-    command:
-      - "-jar"
-      - "/home/encoresite/encore-boot-server-2026.05.01-mysql-local-nokafka-native.jar"
-      - "--server.port=8090"
-      - "--spring.profiles.active=uat"
-
-  encore-client:
-    build:
-      context: ./external-services/encore-client
-    container_name: los_encore_client
-    ports:
-      - "9080:80"
-    depends_on:
-      - encore-server
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
 
   # 🔥 UI (HOT RELOAD)
   ui-service:

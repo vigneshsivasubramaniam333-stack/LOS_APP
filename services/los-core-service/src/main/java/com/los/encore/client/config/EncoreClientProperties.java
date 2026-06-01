@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Binds {@code los.lms.encore.*} — maps to legacy {@code encore.properties} keys (see {@code external-services/config/encore.properties.example}).
+ * Binds {@code los.lms.encore.*} — remote Encore LMS HTTP API (see {@code ENCORE_BASE_URL} / {@code application.yml}).
  * <p>
  * After binding, timeouts are clamped to positive values so {@link java.net.http.HttpClient}
  * never receives a negative {@link java.time.Duration} (e.g. {@code PT-10S}).
@@ -19,10 +19,10 @@ public class EncoreClientProperties {
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
 
-    private String baseUrl = "http://localhost:8090/encore/";
+    private String baseUrl = "https://core.dev.billionloans.com/encore/";
     private String schema = "http";
-    private String hostname = "localhost";
-    private int port = 8090;
+    private String hostname = "encore.bl-internal.com";
+    private int port = 8080;
 
     private String apiUsername = "";
     private String apiPassword = "";
@@ -70,8 +70,8 @@ public class EncoreClientProperties {
             retryBackoffMs = 0;
         }
         if (port <= 0 || port > 65535) {
-            log.warn("los.lms.encore.port was invalid ({}); using 8090", port);
-            port = 8090;
+            log.warn("los.lms.encore.port was invalid ({}); using 8080", port);
+            port = 8080;
         }
     }
 

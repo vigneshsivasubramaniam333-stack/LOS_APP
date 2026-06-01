@@ -1,5 +1,0 @@
-{
-  "ENCORE_BASE_URL": "https://core.dev.billionloans.com/encore/",
-  "authStrategy": "native",
-  "samlLoginUrl": "saml2/authenticate/okta"
-}

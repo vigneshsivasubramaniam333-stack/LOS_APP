@@ -7,8 +7,7 @@ This pack is designed for the current LOS codebase structure:
 - `services/discovery-service/`
 - `services/enrollment-service/`
 - `services/iam-service/`
-- `external-services/encore-server/` (vendor — import from your Docker project)
-- `external-services/encore-client/` (vendor UI — import)
+- Encore LMS: configure `ENCORE_BASE_URL`, `ENCORE_API_USERNAME`, `ENCORE_API_PASSWORD` (remote API only)
 - `services/los-core-service/` (LMS integration lives here)
 - `services/los-core-service/`
 - `services/notification-service/`

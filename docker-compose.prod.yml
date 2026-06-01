@@ -88,7 +88,7 @@ services:
       SPRING_RABBITMQ_PASSWORD: lospassword
       LOS_NOTIFICATION_URL: http://notification-service:8084
 
-      ENCORE_BASE_URL: ${VENDOR_ENCORE_BASE_URL:-https://core.dev.billionloans.com/encore/}
+      ENCORE_BASE_URL: ${ENCORE_BASE_URL:-https://core.dev.billionloans.com/encore/}
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
@@ -103,8 +103,6 @@ services:
       rabbitmq:
         condition: service_healthy
       notification-service:
-        condition: service_started
-      encore-server:
         condition: service_started
     volumes:
       - los_documents:/data/documents
@@ -172,61 +170,6 @@ services:
       retries: 10
       start_period: 60s
 
-  encore-mysql:
-    image: mysql:8.0
-    container_name: los_encore_mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${ENCORE_MYSQL_ROOT_PASSWORD:-encoreroot}
-      MYSQL_DATABASE: encoredb
-    ports:
-      - "3307:3306"
-    volumes:
-      - encore_vendor_mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pencoreroot"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 60s
-
-  encore-server:
-    build:
-      context: ./external-services/encore-server
-    container_name: los_encore_server
-    restart: unless-stopped
-    working_dir: /home/encoresite
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://encore-mysql:3306/encoredb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&zeroDateTimeBehavior=convertToNull
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${ENCORE_MYSQL_ROOT_PASSWORD:-encoreroot}
-    depends_on:
-      encore-mysql:
-        condition: service_healthy
-    expose:
-      - "8090"
-    command:
-      - "-jar"
-      - "/home/encoresite/encore-boot-server-2026.05.01-mysql-local-nokafka-native.jar"
-      - "--server.port=8090"
-      - "--spring.profiles.active=uat"
-
-  encore-client:
-    build:
-      context: ./external-services/encore-client
-    container_name: los_encore_client
-    restart: unless-stopped
-    depends_on:
-      - encore-server
-    expose:
-      - "80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
   ui-service:
     build:
       context: ./ui-service
@@ -246,4 +189,3 @@ services:
 volumes:
   los_postgres_data:
   los_documents:
-  encore_vendor_mysql_data:

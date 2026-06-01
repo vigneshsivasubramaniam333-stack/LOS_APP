@@ -14,8 +14,7 @@ This repository implements a Loan Origination System (LOS) with a Next.js fronte
 - `services/iam-service/`
 - `services/notification-service/`
 - `services/enrollment-service/`
-- `external-services/encore-server/`
-- `external-services/encore-client/`
+- Encore LMS: remote HTTP via `ENCORE_BASE_URL` (see `docs/encore-lms-integration.md`)
 - `services/los-core-service/` (includes LMS → vendor Encore HTTP client)
 
 ### Core business service

@@ -153,7 +153,7 @@ los:
       connect-timeout-ms: ${AI_LOS_CONNECT_TIMEOUT:8000}
       read-timeout-ms: ${AI_LOS_READ_TIMEOUT:15000}
 
-  # Encore vendor LMS — HTTP from los-core to vendor encore-server only (no replacement Encore implementation).
+  # Encore LMS — HTTP from los-core to remote Encore API (ENCORE_BASE_URL + Basic Auth).
   lms:
     encore:
       # Spring ${key:default} uses the first ':' only — never use ':-' here (e.g. :-10000 parses as -10000 → PT-10S).
