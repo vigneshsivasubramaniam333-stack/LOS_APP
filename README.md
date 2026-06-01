@@ -55,9 +55,12 @@ Modernized, API-first Loan Origination System built with Spring Boot 3.3, **Java
 
 ### Option 2: Docker Compose (Full Stack)
 
+Production UI listens on **host port 8080** by default (`LOS_UI_HOST_PORT`) so it does not conflict with system nginx on port 80. See [docs/deployment-port-mapping.md](docs/deployment-port-mapping.md).
+
 ```bash
 # Build and start everything in Docker containers
 docker compose up --build -d
+# UI: http://localhost:8080  |  prod: docker compose -f docker-compose.prod.yml up -d --build
 
 # View logs
 docker compose logs -f

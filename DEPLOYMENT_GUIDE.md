@@ -383,7 +383,7 @@ docker compose -f docker-compose.infra.yml down
 
 ---
 
-## Production EC2: redeploy after removing vendor Encore containers
+## Production EC2: redeploy
 
 On the server (e.g. `/vol/LOS_APP`):
 
@@ -396,13 +396,16 @@ docker volume rm los_app_encore_vendor_mysql_data 2>/dev/null || true
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+**UI port:** `los_ui` binds **8080→80** by default (`LOS_UI_HOST_PORT=8080` in `.env.prod`). Host nginx keeps port **80**; proxy `/los/` (or your path) to `http://127.0.0.1:8080/`. Full table: [docs/deployment-port-mapping.md](docs/deployment-port-mapping.md).
+
 Verify:
 
 ```bash
 docker ps --format "table {{.Names}}\t{{.Status}}"
 # Should NOT list: los_encore_mysql, los_encore_server, los_encore_client
 
-curl -s http://localhost:8083/actuator/health
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/
+curl -s http://127.0.0.1:8080/api/actuator/health 2>/dev/null || true
 ```
 
-Ensure `.env.prod` sets `ENCORE_BASE_URL`, `ENCORE_API_USERNAME`, and `ENCORE_API_PASSWORD`. Trigger a small LMS flow in the UI and confirm `los_core` logs show HTTP to your remote Encore host (not `encore-server:8090`).
+Ensure `.env.prod` sets `ENCORE_BASE_URL`, `ENCORE_API_USERNAME`, and `ENCORE_API_PASSWORD`. Trigger a small LMS flow in the UI and confirm `los_core` logs show HTTP to your remote Encore host.

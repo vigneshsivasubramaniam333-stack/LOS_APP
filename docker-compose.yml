@@ -212,7 +212,7 @@ services:
       notification-service:
         condition: service_healthy
     ports:
-      - "80:80"
+      - "${LOS_UI_HOST_PORT:-8080}:80"
 
 # ─── Volumes ─────────────────────────────────────────────
 # WARNING: 'docker compose down -v' destroys ALL named volumes below.

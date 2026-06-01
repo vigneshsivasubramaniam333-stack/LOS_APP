@@ -9,3 +9,5 @@ Configure via environment variables (see `.env.example`):
 - `ENCORE_API_PASSWORD`
 
 Local vendor Encore Docker images (`encore-server`, `encore-client`, `encore-mysql`) are **not** part of this stack.
+
+LOS UI in production uses host port **8080** by default (see `docs/deployment-port-mapping.md`).

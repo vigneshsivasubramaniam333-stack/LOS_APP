@@ -103,7 +103,7 @@ services:
       los-core:
         condition: service_healthy
     ports:
-      - "80:80"
+      - "${LOS_UI_HOST_PORT:-8080}:80"
 
 volumes:
   los_postgres_data:

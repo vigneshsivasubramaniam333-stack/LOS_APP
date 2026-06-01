@@ -183,8 +183,9 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+    # Host 80 is reserved for system nginx on shared EC2; override via LOS_UI_HOST_PORT in .env.prod
     ports:
-      - "80:80"
+      - "${LOS_UI_HOST_PORT:-8080}:80"
 
 volumes:
   los_postgres_data:
