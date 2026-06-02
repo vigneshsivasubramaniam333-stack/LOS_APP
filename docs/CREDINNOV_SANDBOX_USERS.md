@@ -6,7 +6,7 @@
 **PLP platform:** `http://credinnov-sandbox.senseitech.com/plp/`  
 **PLP anchor:** `http://credinnov-sandbox.senseitech.com/plp-anchor/`  
 **PLP borrower:** `http://credinnov-sandbox.senseitech.com/plp-borrower/`  
-**Encore LMS UI:** `http://credinnov-sandbox.senseitech.com/encore-client/` (same `vuser` / `vuser` as `.env.prod`)
+**Encore LMS UI:** `http://credinnov-sandbox.senseitech.com/encore-client/` (`admin` / `password1` — same as `.env.prod`)
 
 Billionloans demo users are **deactivated** when migration `V57__seed_credinnov_los_auth_users.sql` (LOS) / `V3__seed_credinnov_users.sql` (PLP) runs.
 
@@ -113,8 +113,8 @@ In `/vol/LOS_APP/.env.prod` (credentials unchanged):
 
 ```bash
 ENCORE_BASE_URL=http://host.docker.internal:8091/credinnov-encore-server/encore/
-ENCORE_API_USERNAME=vuser
-ENCORE_API_PASSWORD=vuser
+ENCORE_API_USERNAME=admin
+ENCORE_API_PASSWORD=password1
 ```
 
 Restart after edit: `docker compose -f docker-compose.prod.yml up -d --no-deps los-core`
@@ -122,7 +122,7 @@ Restart after edit: `docker compose -f docker-compose.prod.yml up -d --no-deps l
 Smoke test from `los_core`:
 
 ```bash
-docker exec los_core wget -qO- --user=vuser --password=vuser \
+docker exec los_core wget -qO- --user=admin --password=password1 \
   "http://host.docker.internal:8091/credinnov-encore-server/encore/webservices/loans/accounts/findBankWorkingDate"
 ```
 

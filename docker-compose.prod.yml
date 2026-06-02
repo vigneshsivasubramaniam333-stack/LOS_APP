@@ -91,8 +91,8 @@ services:
       LOS_NOTIFICATION_URL: http://notification-service:8084
 
       ENCORE_BASE_URL: ${ENCORE_BASE_URL:-http://host.docker.internal:8091/credinnov-encore-server/encore/}
-      ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-}
-      ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-}
+      ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-admin}
+      ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-password1}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
       JAVA_OPTS: ${LOS_CORE_JAVA_OPTS:--XX:MaxRAMPercentage=50.0}
 
