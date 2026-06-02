@@ -104,3 +104,26 @@ docker exec los_core wget -qO- http://api-gateway:8080/actuator/health
 
 # If plp_plp-net is missing: cd /vol/PLP-APP && docker compose up -d first, then docker network ls | grep plp
 ```
+
+## Encore LMS (LOS → remote API)
+
+LOS calls the Encore **webservices** API (`/encore/...`), not the browser UI at `/encore-client/`. On Credinnov EC2 the team server is proxied as `/credinnov-encore-server/` → `127.0.0.1:8091`.
+
+In `/vol/LOS_APP/.env.prod` (credentials unchanged):
+
+```bash
+ENCORE_BASE_URL=http://host.docker.internal:8091/encore/
+ENCORE_API_USERNAME=vuser
+ENCORE_API_PASSWORD=vuser
+```
+
+Restart after edit: `docker compose -f docker-compose.prod.yml up -d --no-deps los-core`
+
+Smoke test from `los_core`:
+
+```bash
+docker exec los_core wget -qO- --user=vuser --password=vuser \
+  "http://host.docker.internal:8091/encore/webservices/loans/accounts/findBankWorkingDate"
+```
+
+Public equivalent: `http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/`
