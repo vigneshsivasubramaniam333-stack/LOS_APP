@@ -34,6 +34,25 @@ Billionloans demo users are **deactivated** when migration `V57__seed_credinnov_
 | Anchor Admin | anchor@credinnov.com | ANCHOR_ADMIN | `/plp-anchor/` |
 | Borrower | borrower@credinnov.com | BORROWER | `/plp-borrower/` |
 
+## PLP login / network error
+
+Browsers must **not** call `http://localhost:8180` from the public site. Docker UIs mount `frontend/packages/*/docker/env-config.js`, which must use **`/plp-api`** when the hostname is `credinnov-sandbox.senseitech.com` (requires nginx `location /plp-api/`).
+
+After updating env-config, restart PLP UI containers (no rebuild required):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ui.yml up -d platform-ui anchor-portal borrower-portal
+```
+
+Test API via nginx:
+
+```bash
+curl -s -X POST http://127.0.0.1/plp-api/api/v1/auth/login \
+  -H 'Host: credinnov-sandbox.senseitech.com' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@credinnov.com","password":"Bltest@123"}'
+```
+
 ## Deploy on EC2
 
 ```bash
