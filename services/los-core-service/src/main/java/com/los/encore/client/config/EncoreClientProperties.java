@@ -73,6 +73,10 @@ public class EncoreClientProperties {
             log.warn("los.lms.encore.port was invalid ({}); using 8080", port);
             port = 8080;
         }
+        log.info("LOS Encore LMS client configured: baseUrl={} apiUsername={} apiPasswordConfigured={} "
+                        + "openAccountEndpoint={} connectTimeoutMs={} readTimeoutMs={}",
+                baseUrl, apiUsername, apiPassword != null && !apiPassword.isBlank(),
+                api != null ? api.getCreateLoanAccount() : "-", connectTimeoutMs, readTimeoutMs);
     }
 
     @Data
