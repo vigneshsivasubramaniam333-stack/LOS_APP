@@ -67,3 +67,34 @@ docker compose -f docker-compose.yml -f docker-compose.ui.yml up -d platform-ui 
 ```
 
 Flyway runs migrations on service startup. To re-run on existing DB, restart `los_core` and `plp-iam` (or run SQL manually if migrations already applied).
+
+## LOS → PLP anchor sync (503 on `/integrations/los/anchors`)
+
+LOS logs in to PLP, then calls **`POST /api/v1/integrations/los/anchors`**, which the gateway routes to **`program-service`**.
+
+| Symptom | Cause |
+|---------|--------|
+| Login 200, anchor sync **503** | `plp-program` not registered in Eureka or still starting |
+| LOS uses `admin@plp.com` | Set `PLP_INTEGRATION_EMAIL=admin@credinnov.com` in `.env.prod` and restart `los_core` |
+
+On EC2:
+
+```bash
+# PLP program service must be up
+docker ps --filter name=plp-program
+docker logs plp-program --tail 80
+curl -s http://127.0.0.1:8182/actuator/health
+
+# Direct anchor API test (after PLP login token)
+TOKEN=$(curl -s -X POST http://127.0.0.1:8180/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@credinnov.com","password":"Bltest@123"}' | jq -r .accessToken)
+curl -s -X POST http://127.0.0.1:8180/api/v1/integrations/los/anchors \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"sourceSystem":"LOS","losAnchorId":"00000000-0000-0000-0000-000000000099","anchor":{"name":"Test","code":"T-ANC-01","pan":"AAAAA0000A"}}'
+
+# LOS must reach PLP gateway (from los_core container network)
+cd /vol/LOS_APP
+# .env.prod: PLP_BASE_URL=http://host.docker.internal:8180
+docker compose -f docker-compose.prod.yml up -d --build los-core
+```

@@ -96,6 +96,15 @@ services:
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
       JAVA_OPTS: ${LOS_CORE_JAVA_OPTS:--XX:MaxRAMPercentage=50.0}
 
+      PLP_SYNC_ENABLED: ${PLP_SYNC_ENABLED:-true}
+      PLP_BASE_URL: ${PLP_BASE_URL:-http://host.docker.internal:8180}
+      PLP_INTEGRATION_EMAIL: ${PLP_INTEGRATION_EMAIL:-admin@credinnov.com}
+      PLP_INTEGRATION_PASSWORD: ${PLP_INTEGRATION_PASSWORD:-Bltest@123}
+      PLP_LENDER_ID: ${PLP_LENDER_ID:-2d6e05e3-423f-4946-8027-8cbb4f01aefa}
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     depends_on:
       discovery-service:
         condition: service_healthy
