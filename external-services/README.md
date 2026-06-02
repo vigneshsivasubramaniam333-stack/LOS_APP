@@ -4,7 +4,7 @@ LOS integrates with **Encore LMS over remote HTTP** from `los-core-service` (`co
 
 Configure via environment variables (see `.env.example`):
 
-- `ENCORE_BASE_URL` — Encore API base URL (Credinnov sandbox: `http://host.docker.internal:8091/encore/` from `los_core`; UI at `/encore-client/`)
+- `ENCORE_BASE_URL` — Encore API base URL (Credinnov sandbox: `http://host.docker.internal:8091/credinnov-encore-server/encore/` from `los_core`; UI at `/encore-client/`)
 - `ENCORE_API_USERNAME`
 - `ENCORE_API_PASSWORD`
 

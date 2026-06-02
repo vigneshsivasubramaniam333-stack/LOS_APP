@@ -17,7 +17,7 @@ See `external-services/README.md` for environment variables.
 
 | Variable | Purpose |
 |----------|---------|
-| `ENCORE_BASE_URL` | Encore API base URL (Credinnov sandbox: `http://host.docker.internal:8091/encore/` from Docker, or `http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/` via nginx) |
+| `ENCORE_BASE_URL` | Encore API base URL (Credinnov sandbox: `http://host.docker.internal:8091/credinnov-encore-server/encore/` — matches nginx `proxy_pass http://127.0.0.1:8091/credinnov-encore-server/`) |
 | `ENCORE_API_USERNAME` / `ENCORE_API_PASSWORD` | Basic Auth to Encore webservices |
 | `LMS_ENCORE_SYNC_ENABLED` / `LMS_ENCORE_SYNC_CRON` | Scheduled summary sync (`EncoreSummarySyncJob` in los-core) |
 | `LMS_CALLBACK_HMAC_SECRET` | Optional HMAC for repayment callback |

@@ -19,7 +19,7 @@ public class EncoreClientProperties {
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
 
-    private String baseUrl = "http://host.docker.internal:8091/encore/";
+    private String baseUrl = "http://host.docker.internal:8091/credinnov-encore-server/encore/";
     private String schema = "http";
     private String hostname = "encore.bl-internal.com";
     private int port = 8080;
