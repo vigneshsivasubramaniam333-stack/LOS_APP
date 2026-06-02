@@ -93,8 +93,13 @@ curl -s -X POST http://127.0.0.1:8180/api/v1/integrations/los/anchors \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"sourceSystem":"LOS","losAnchorId":"00000000-0000-0000-0000-000000000099","anchor":{"name":"Test","code":"T-ANC-01","pan":"AAAAA0000A"}}'
 
-# LOS must reach PLP gateway (from los_core container network)
+# LOS must reach PLP gateway from inside the los_core container.
 cd /vol/LOS_APP
-# .env.prod: PLP_BASE_URL=http://host.docker.internal:8180
-docker compose -f docker-compose.prod.yml up -d --build los-core
+# Preferred on EC2 (same Docker host as PLP):
+docker compose -f docker-compose.prod.yml -f docker-compose.plp-integration.yml up -d --build los-core
+
+# Verify from inside los_core (should return {"status":"UP"}):
+docker exec los_core wget -qO- http://api-gateway:8080/actuator/health
+
+# If plp_plp-net is missing: cd /vol/PLP-APP && docker compose up -d first, then docker network ls | grep plp
 ```

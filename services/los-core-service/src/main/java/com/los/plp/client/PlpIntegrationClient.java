@@ -106,7 +106,14 @@ public class PlpIntegrationClient {
         return postAuthenticated(path, body, type, false);
     }
 
+    private static final int MAX_UNAVAILABLE_RETRIES = 4;
+    private static final long UNAVAILABLE_RETRY_DELAY_MS = 2_000;
+
     private <T> PlpApiResponse<T> postAuthenticated(String path, Object body, TypeReference<PlpApiResponse<T>> type, boolean retried401AfterRefresh) {
+        return postAuthenticated(path, body, type, retried401AfterRefresh, 0);
+    }
+
+    private <T> PlpApiResponse<T> postAuthenticated(String path, Object body, TypeReference<PlpApiResponse<T>> type, boolean retried401AfterRefresh, int unavailableRetries) {
         String bodyJson;
         try {
             bodyJson = objectMapper.writeValueAsString(body);
@@ -148,7 +155,13 @@ public class PlpIntegrationClient {
                     truncateForLog(e.getResponseBodyAsString()));
             if (shouldRetryUnauthorized(e, retried401AfterRefresh)) {
                 clearCachedAccessToken();
-                return postAuthenticated(path, body, type, true);
+                return postAuthenticated(path, body, type, true, unavailableRetries);
+            }
+            if (shouldRetryUnavailable(e, unavailableRetries)) {
+                log.warn("[PLP] {} {} — retry {}/{} after {}ms (Eureka/program-service may still be registering)",
+                        e.getStatusCode(), path, unavailableRetries + 1, MAX_UNAVAILABLE_RETRIES, UNAVAILABLE_RETRY_DELAY_MS);
+                sleepQuietly(UNAVAILABLE_RETRY_DELAY_MS);
+                return postAuthenticated(path, body, type, retried401AfterRefresh, unavailableRetries + 1);
             }
             throw new PlpIntegrationException(
                     "PLP HTTP " + e.getStatusCode() + ": " + safeBody(e.getResponseBodyAsString()));
@@ -161,6 +174,22 @@ public class PlpIntegrationClient {
     private static boolean shouldRetryUnauthorized(RestClientResponseException e, boolean alreadyRetried) {
         HttpStatus resolved = HttpStatus.resolve(e.getStatusCode().value());
         return resolved == HttpStatus.UNAUTHORIZED && !alreadyRetried;
+    }
+
+    private static boolean shouldRetryUnavailable(RestClientResponseException e, int attemptsSoFar) {
+        if (attemptsSoFar >= MAX_UNAVAILABLE_RETRIES) {
+            return false;
+        }
+        HttpStatus resolved = HttpStatus.resolve(e.getStatusCode().value());
+        return resolved == HttpStatus.SERVICE_UNAVAILABLE || resolved == HttpStatus.BAD_GATEWAY;
+    }
+
+    private static void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String summarizeHeadersForLog(HttpHeaders headers) {
