@@ -90,7 +90,7 @@ services:
       SPRING_RABBITMQ_PASSWORD: lospassword
       LOS_NOTIFICATION_URL: http://notification-service:8084
 
-      ENCORE_BASE_URL: ${ENCORE_BASE_URL:-https://core.dev.billionloans.com/encore/}
+      ENCORE_BASE_URL: ${ENCORE_BASE_URL:-http://host.docker.internal:8091/encore/}
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}

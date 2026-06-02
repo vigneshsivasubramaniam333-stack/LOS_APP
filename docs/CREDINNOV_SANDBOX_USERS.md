@@ -5,7 +5,8 @@
 **LOS URL:** `http://credinnov-sandbox.senseitech.com/los/`  
 **PLP platform:** `http://credinnov-sandbox.senseitech.com/plp/`  
 **PLP anchor:** `http://credinnov-sandbox.senseitech.com/plp-anchor/`  
-**PLP borrower:** `http://credinnov-sandbox.senseitech.com/plp-borrower/`
+**PLP borrower:** `http://credinnov-sandbox.senseitech.com/plp-borrower/`  
+**Encore LMS UI:** `http://credinnov-sandbox.senseitech.com/encore-client/` (same `vuser` / `vuser` as `.env.prod`)
 
 Billionloans demo users are **deactivated** when migration `V57__seed_credinnov_los_auth_users.sql` (LOS) / `V3__seed_credinnov_users.sql` (PLP) runs.
 
