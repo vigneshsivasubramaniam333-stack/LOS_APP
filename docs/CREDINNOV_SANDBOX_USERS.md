@@ -112,7 +112,7 @@ LOS calls the Encore **webservices** API (`/encore/...`), not the browser UI at 
 In `/vol/LOS_APP/.env.prod` (credentials unchanged):
 
 ```bash
-ENCORE_BASE_URL=http://host.docker.internal:8091/credinnov-encore-server/encore/
+ENCORE_BASE_URL=http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/
 ENCORE_API_USERNAME=admin
 ENCORE_API_PASSWORD=password1
 ```
@@ -123,7 +123,7 @@ Smoke test from `los_core`:
 
 ```bash
 docker exec los_core wget -qO- --user=admin --password=password1 \
-  "http://host.docker.internal:8091/credinnov-encore-server/encore/webservices/loans/accounts/findBankWorkingDate"
+  "http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/webservices/loans/accounts/findBankWorkingDate"
 ```
 
 Public equivalent: `http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/`
