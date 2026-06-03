@@ -65,7 +65,7 @@ services:
       - .env.dev
     environment:
       LOS_NOTIFICATION_URL: http://notification-service:8084
-      ENCORE_BASE_URL: ${ENCORE_BASE_URL:-http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/}
+      ENCORE_BASE_URL: ${ENCORE_BASE_URL:-http://credinnov-sandbox.senseitech.com/credinnov-encore-server/}
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-admin}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-password1}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}

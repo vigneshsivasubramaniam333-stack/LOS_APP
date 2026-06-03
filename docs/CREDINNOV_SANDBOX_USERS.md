@@ -107,12 +107,12 @@ docker exec los_core wget -qO- http://api-gateway:8080/actuator/health
 
 ## Encore LMS (LOS → remote API)
 
-LOS calls the Encore **webservices** API (`/encore/...`), not the browser UI at `/encore-client/`. On Credinnov EC2 the team server is proxied as `/credinnov-encore-server/` → `127.0.0.1:8091`.
+LOS calls the Encore **webservices** API under `/credinnov-encore-server/...`, not the browser UI at `/encore-client/`. On Credinnov EC2 the team server is proxied as `/credinnov-encore-server/` → `127.0.0.1:8091`.
 
 In `/vol/LOS_APP/.env.prod` (credentials unchanged):
 
 ```bash
-ENCORE_BASE_URL=http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/
+ENCORE_BASE_URL=http://credinnov-sandbox.senseitech.com/credinnov-encore-server/
 ENCORE_API_USERNAME=admin
 ENCORE_API_PASSWORD=password1
 ```
@@ -123,7 +123,7 @@ Smoke test from `los_core`:
 
 ```bash
 docker exec los_core wget -qO- --user=admin --password=password1 \
-  "http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/webservices/loans/accounts/findBankWorkingDate"
+  "http://credinnov-sandbox.senseitech.com/credinnov-encore-server/webservices/loans/accounts/findBankWorkingDate"
 ```
 
-Public equivalent: `http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/`
+Public equivalent: `http://credinnov-sandbox.senseitech.com/credinnov-encore-server/`

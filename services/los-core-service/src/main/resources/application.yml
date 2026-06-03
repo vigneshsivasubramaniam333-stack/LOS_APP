@@ -157,7 +157,7 @@ los:
   lms:
     encore:
       # Spring ${key:default} uses the first ':' only — never use ':-' here (e.g. :-10000 parses as -10000 → PT-10S).
-      base-url: ${ENCORE_BASE_URL:http://credinnov-sandbox.senseitech.com/credinnov-encore-server/encore/}
+      base-url: ${ENCORE_BASE_URL:http://credinnov-sandbox.senseitech.com/credinnov-encore-server/}
       schema: ${ENCORE_SCHEMA:http}
       hostname: ${ENCORE_HOSTNAME:encore.bl-internal.com}
       port: ${ENCORE_PORT:8080}
