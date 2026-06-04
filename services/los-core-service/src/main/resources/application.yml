@@ -161,8 +161,8 @@ los:
       schema: ${ENCORE_SCHEMA:http}
       hostname: ${ENCORE_HOSTNAME:encore.bl-internal.com}
       port: ${ENCORE_PORT:8080}
-      api-username: ${ENCORE_API_USERNAME:}
-      api-password: ${ENCORE_API_PASSWORD:}
+      api-username: ${ENCORE_API_USERNAME:admin}
+      api-password: ${ENCORE_API_PASSWORD:password1}
       api:
         create-loan-account: webservices/loans/accounts/openAccount
         post-transactions: webservices/loans/accounts/postTransactions

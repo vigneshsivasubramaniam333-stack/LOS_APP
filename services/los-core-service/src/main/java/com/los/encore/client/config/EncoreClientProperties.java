@@ -24,8 +24,8 @@ public class EncoreClientProperties {
     private String hostname = "encore.bl-internal.com";
     private int port = 8080;
 
-    private String apiUsername = "";
-    private String apiPassword = "";
+    private String apiUsername = "admin";
+    private String apiPassword = "password1";
 
     private EncoreApiEndpoints api = new EncoreApiEndpoints();
 

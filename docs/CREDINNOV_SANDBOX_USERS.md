@@ -117,7 +117,17 @@ ENCORE_API_USERNAME=admin
 ENCORE_API_PASSWORD=password1
 ```
 
-Restart after edit: `docker compose -f docker-compose.prod.yml up -d --no-deps los-core`
+Restart after edit (recreate container so env is reloaded):
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps los-core
+docker exec los_core printenv | grep ENCORE
+docker logs los_core 2>&1 | grep "LOS Encore LMS client configured"
+```
+
+Expect `ENCORE_API_USERNAME=admin`, `ENCORE_API_PASSWORD=password1`, and startup log `apiUsername=admin`.
+
+If LOS gets **401 Bad credentials** but PLP works, `los_core` is almost always still on old env (`vuser`) or an old image — PLP was rebuilt; LOS must be **force-recreated** too.
 
 Smoke test from `los_core`:
 
