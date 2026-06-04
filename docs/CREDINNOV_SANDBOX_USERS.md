@@ -127,7 +127,19 @@ docker logs los_core 2>&1 | grep "LOS Encore LMS client configured"
 
 Expect `ENCORE_API_USERNAME=admin`, `ENCORE_API_PASSWORD=password1`, and startup log `apiUsername=admin`.
 
-If LOS gets **401 Bad credentials** but PLP works, `los_core` is almost always still on old env (`vuser`) or an old image — PLP was rebuilt; LOS must be **force-recreated** too.
+If LOS gets **401 Bad credentials** but PLP works, check `docker exec los_core printenv | grep ENCORE`. If you still see **`vuser`**, fix `.env.prod` on the server and recreate:
+
+```bash
+cd /vol/LOS_APP
+sed -i 's/^ENCORE_API_USERNAME=.*/ENCORE_API_USERNAME=admin/' .env.prod
+sed -i 's/^ENCORE_API_PASSWORD=.*/ENCORE_API_PASSWORD=password1/' .env.prod
+grep ENCORE .env.prod
+git pull origin credinnov   # compose now hardcodes admin/password1 in environment:
+docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps los-core
+docker exec los_core printenv | grep ENCORE
+```
+
+`docker-compose.prod.yml` sets `ENCORE_API_USERNAME=admin` in the `environment:` block so it overrides `.env.prod` even when that file still has `vuser`.
 
 Smoke test from `los_core`:
 
