@@ -451,6 +451,60 @@ public class LmsService {
     }
 
     /**
+     * Borrower-initiated repayment from the borrower portal. Posts the amount to Encore as a
+     * {@code ScheduledRepayment} when Encore is active and an account exists, always persists the
+     * repayment, and updates the local account summary. Returns the refreshed account summary.
+     */
+    @Transactional
+    public LoanAccountSummary recordBorrowerRepayment(String applicationNumber, BigDecimal amount) {
+        if (applicationNumber == null || applicationNumber.isBlank()) {
+            throw new IllegalArgumentException("applicationNumber is required");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Repayment amount must be positive");
+        }
+
+        Optional<LmsLoanHandover> handoverOpt = handoverRepository.findByApplicationNumber(applicationNumber);
+        String encoreAccountId = handoverOpt.map(LmsLoanHandover::getEncoreAccountId).orElse(null);
+        String encoreTxnId = null;
+        if (encoreLmsApi.isActive() && encoreAccountId != null) {
+            try {
+                encoreTxnId = encoreLmsApi.repay(encoreAccountId, amount, "ScheduledRepayment");
+            } catch (Exception e) {
+                log.error("Encore borrower repayment failed for {}: {}", applicationNumber, e.getMessage());
+            }
+        }
+
+        LmsRepaymentCallback entity = LmsRepaymentCallback.builder()
+                .applicationNumber(applicationNumber)
+                .encoreAccountId(encoreAccountId)
+                .transactionId(encoreTxnId)
+                .repaymentType("BORROWER_PORTAL")
+                .amount(amount)
+                .paymentDate(LocalDate.now())
+                .paymentMode("BORROWER_PORTAL")
+                .status("PROCESSED")
+                .build();
+        repaymentRepository.save(entity);
+
+        summaryRepository.findByApplicationNumber(applicationNumber).ifPresent(summary -> {
+            summary.setPaidEmis((summary.getPaidEmis() != null ? summary.getPaidEmis() : 0) + 1);
+            summary.setTotalPaid((summary.getTotalPaid() != null ? summary.getTotalPaid() : BigDecimal.ZERO).add(amount));
+            BigDecimal outstanding = summary.getOutstandingPrincipal() != null
+                    ? summary.getOutstandingPrincipal() : BigDecimal.ZERO;
+            summary.setOutstandingPrincipal(outstanding.subtract(amount).max(BigDecimal.ZERO));
+            summary.setLastPaymentDate(LocalDate.now());
+            if (summary.getNextEmiDate() != null) {
+                summary.setNextEmiDate(summary.getNextEmiDate().plusMonths(1));
+            }
+            summaryRepository.save(summary);
+        });
+
+        log.info("Borrower repayment recorded for {}: amount={}, encoreTxn={}", applicationNumber, amount, encoreTxnId);
+        return getAccountSummary(applicationNumber);
+    }
+
+    /**
      * Get payment history for a loan (from database).
      */
     public List<RepaymentCallbackRequest> getPaymentHistory(String applicationNumber) {

@@ -33,6 +33,7 @@ import com.los.core.service.kfs.KfsService;
 import com.los.lms.service.LmsService;
 import com.los.plp.service.PlpAnchorSanctionHookService;
 import com.los.plp.service.PlpSanctionSyncOrchestrator;
+import com.los.plp.support.PlpApplicationSyncFieldMerge;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.vkyc.VkycWorkflowService;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +83,8 @@ public class LoanApplicationFlowService {
     private final CreditControlService creditControlService;
     private final UnderwritingEvaluationService underwritingEvaluationService;
     private final AssignmentRuleApplicationService assignmentRuleApplicationService;
+    private final com.los.core.service.auth.BorrowerAccountProvisioningService borrowerAccountProvisioningService;
+    private final com.los.core.service.loan.intake.ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
      * disbursement) until VKYC is auditor-approved when VKYC is configured and applicable
@@ -130,6 +133,14 @@ public class LoanApplicationFlowService {
         }
         validateSubmitEmail(app);
 
+        // Borrower portal access: ensure the applicant has a LosUser (auto-provision if new) and link the
+        // application to it, so admin/staff-created applications are visible to the borrower. Anchor-segment
+        // applications are skipped (their downstream borrowers are handled via the PLP flow).
+        provisionAndLinkBorrowerIfApplicable(app);
+
+        // Reject re-used email / PAN / GSTN that belong to a different borrower.
+        applicationSubmitIdentityValidator.validateNoDuplicateIdentity(app);
+
         app.setStatus(ApplicationStatus.KYC_IN_PROGRESS);
         app.setSubmittedAt(Instant.now());
         app.setCurrentStepStartedAt(Instant.now());
@@ -174,6 +185,32 @@ public class LoanApplicationFlowService {
                     "SUBMIT_APPLICATION",
                     Map.of("field", "personalInfo.email"));
         }
+    }
+
+    /**
+     * Finds or creates the borrower {@link com.los.core.model.entity.LosUser} for a non-anchor application
+     * from its email/mobile/name and links the application to it (so it appears in the borrower portal).
+     * No-op for anchor-segment applications and when no email is present. Never overwrites an existing
+     * user's credentials; newly created borrowers must reset their temporary password on first login.
+     */
+    private void provisionAndLinkBorrowerIfApplicable(LoanApplication app) {
+        if (app.getIntakeSegment() == IntakeSegment.ANCHOR) {
+            return;
+        }
+        String email = ApplicationPartyResolver.resolveEmail(app);
+        if (email.isBlank()) {
+            return;
+        }
+        String mobile = ApplicationPartyResolver.resolveMobile(app);
+        String name = ApplicationPartyResolver.resolveDisplayName(app);
+        borrowerAccountProvisioningService.findOrCreateBorrower(name, email, mobile)
+                .ifPresent(user -> {
+                    app.setCustomerId(user.getId());
+                    Map<String, Object> pi = app.getPersonalInfo() != null
+                            ? new HashMap<>(app.getPersonalInfo()) : new HashMap<>();
+                    pi.put("borrowerUserId", user.getId().toString());
+                    app.setPersonalInfo(pi);
+                });
     }
 
     // ========================== STEP 2: KYC WORKFLOW ==========================
@@ -829,7 +866,9 @@ public class LoanApplicationFlowService {
         }
 
         try {
-            plpSanctionSyncOrchestrator.syncAfterSanction(applicationId);
+            LoanApplication plpSynced = plpSanctionSyncOrchestrator.syncAfterSanction(applicationId);
+            // PLP sync runs REQUIRES_NEW; merge back so this transaction commit does not wipe synced columns.
+            PlpApplicationSyncFieldMerge.mergeInto(app, plpSynced);
         } catch (Exception plpEx) {
             log.error("[PLP-SANCTION] PLP integration failed for {} — sanction is preserved: {}",
                     app.getApplicationNumber(), plpEx.getMessage(), plpEx);

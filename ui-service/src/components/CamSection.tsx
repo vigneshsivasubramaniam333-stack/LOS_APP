@@ -37,6 +37,43 @@ function asRecord(v: unknown): Record<string, string> {
   return out
 }
 
+/** Pre-fill sanctioning basis from application intake when CAM fields are still empty. */
+function resolveSanctioningDefaults(
+  cam: CamResponse,
+  app: ApplicationResponse,
+): {
+  amount: string
+  tenure: string
+  rate: string
+  decision: string
+  fromApplication: boolean
+} {
+  const amount =
+    cam.recommendedAmount != null
+      ? String(cam.recommendedAmount)
+      : app.requestedAmount != null
+        ? String(app.requestedAmount)
+        : ''
+  const tenure =
+    cam.recommendedTenureMonths != null
+      ? String(cam.recommendedTenureMonths)
+      : app.tenureMonths != null
+        ? String(app.tenureMonths)
+        : ''
+  const rate =
+    cam.recommendedRate != null
+      ? String(cam.recommendedRate)
+      : app.interestRate != null
+        ? String(app.interestRate)
+        : ''
+  const decision = cam.section6RecommendedDecision ?? ''
+  const fromApplication =
+    (cam.recommendedAmount == null && app.requestedAmount != null) ||
+    (cam.recommendedTenureMonths == null && app.tenureMonths != null) ||
+    (cam.recommendedRate == null && app.interestRate != null)
+  return { amount, tenure, rate, decision, fromApplication }
+}
+
 export function CamSection({
   applicationId,
   app,
@@ -64,6 +101,7 @@ export function CamSection({
   const [condSub, setCondSub] = useState('')
   const [officerRem, setOfficerRem] = useState('')
   const [managerRem, setManagerRem] = useState('')
+  const [prefilledFromApplication, setPrefilledFromApplication] = useState(false)
 
   const sectionOrder = useMemo(() => {
     const profileLabel = applicationPartyLabels(app.intakeSegment).camProfileSection
@@ -81,10 +119,12 @@ export function CamSection({
       setObservations(c.section5Observations ?? '')
       setRiskAssessment(c.section5RiskAssessment ?? '')
       setMitigants(c.section5Mitigants ?? '')
-      setRecommendedDecision(c.section6RecommendedDecision ?? '')
-      setRecAmt(c.recommendedAmount != null ? String(c.recommendedAmount) : '')
-      setRecTen(c.recommendedTenureMonths != null ? String(c.recommendedTenureMonths) : '')
-      setRecRate(c.recommendedRate != null ? String(c.recommendedRate) : '')
+      const sanctionDefaults = resolveSanctioningDefaults(c, app)
+      setRecommendedDecision(sanctionDefaults.decision)
+      setRecAmt(sanctionDefaults.amount)
+      setRecTen(sanctionDefaults.tenure)
+      setRecRate(sanctionDefaults.rate)
+      setPrefilledFromApplication(sanctionDefaults.fromApplication)
       setCondPre((c.conditionsPrecedent ?? []).join('\n'))
       setCondSub((c.conditionsSubsequent ?? []).join('\n'))
       setOfficerRem(c.creditOfficerRemarks ?? '')
@@ -116,7 +156,7 @@ export function CamSection({
     } finally {
       setLoading(false)
     }
-  }, [applicationId])
+  }, [applicationId, app])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async CAM load on mount
@@ -352,6 +392,12 @@ export function CamSection({
         <div className="space-y-4">
           <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-4">
             <h3 className="text-sm font-semibold text-amber-950">Credit officer recommendation (sanctioning basis)</h3>
+            {prefilledFromApplication ? (
+              <p className="mt-1 text-xs text-amber-900/80">
+                Pre-filled from the {applicationPartyLabels(app.intakeSegment).partyLower} application
+                request where available. Adjust before submitting for manager review.
+              </p>
+            ) : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="block text-xs text-slate-600">
                 Proposed amount (INR)

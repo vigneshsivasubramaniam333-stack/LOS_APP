@@ -1,19 +1,38 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { getBorrowerDashboard, getBorrowerNotifications } from '@/api/borrowerPortal'
 import { useAuth } from '@/auth/useAuth'
 import { isBorrowerRole } from '@/auth/types'
+import { BrandLogo } from '@/components/BrandLogo'
+
+const COMPANY_NAME = 'Credinnov'
 
 const nav = [
   { to: '/borrower/dashboard', label: 'Dashboard' },
   { to: '/borrower/apply', label: 'Apply for loan' },
   { to: '/borrower/applications', label: 'Loan applications' },
+  { to: '/borrower/invoice-discounting', label: 'Invoice discounting' },
   { to: '/borrower/documents', label: 'Signed documents' },
   { to: '/borrower/profile', label: 'Profile' },
 ] as const
 
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  [
+    'block rounded-md px-3 py-2 text-sm font-medium transition-colors',
+    isActive
+      ? 'bg-bl-primary text-white shadow-sm'
+      : 'text-white/80 hover:bg-white/10 hover:text-white',
+  ].join(' ')
+
+function userInitials(name: string) {
+  const p = name.trim().split(/\s+/)
+  if (p.length >= 2) return (p[0]![0]! + p[1]![0]!).toUpperCase()
+  return name.slice(0, 2).toUpperCase() || '—'
+}
+
 export function BorrowerPortalLayout() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [hasDisbursedLoan, setHasDisbursedLoan] = useState(false)
   const [loanId, setLoanId] = useState<string | null>(null)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -45,149 +64,133 @@ export function BorrowerPortalLayout() {
   if (!user || !isBorrowerRole(user.role)) {
     return null
   }
+  if (user.passwordResetRequired) {
+    return <Navigate to="/borrower/change-password" replace />
+  }
+
   return (
-    <div className="flex min-h-screen flex-col bg-bl-canvas">
-      <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <img
-              src="/brand/BillionLoans_Logo_Final_noBG.png"
-              alt="Billionloans"
-              className="h-7 w-auto max-w-[140px] shrink-0 object-contain drop-shadow-sm"
-            />
-            <span className="truncate text-sm font-semibold text-bl-navy">Borrower portal</span>
+    <div className="min-h-screen bg-bl-canvas">
+      <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-white/5 bg-bl-navy">
+        <div className="shrink-0 border-b border-white/10 px-3 py-4">
+          <div className="w-full">
+            <div className="flex min-h-[2.25rem] w-full items-center" title="Billionloans">
+              <BrandLogo variant="billionloans" tone="light" className="text-lg" />
+            </div>
+            <div className="mt-2 text-xs font-medium leading-tight text-white/50">Borrower portal</div>
           </div>
-          {user ? (
-            <span className="text-sm text-slate-600">
-              {user.name} · {user.email}
-            </span>
-          ) : null}
-          <div className="relative flex flex-wrap items-center gap-3 text-sm">
-            {notifs.length > 0 ? (
-              <div>
-                <button
-                  type="button"
-                  className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-800"
-                  onClick={() => setNotifOpen((o) => !o)}
-                  aria-expanded={notifOpen}
-                >
-                  Notifications ({notifs.length})
-                </button>
-                {notifOpen ? (
-                  <div className="absolute right-0 z-20 mt-1 w-80 max-w-[90vw] rounded border border-slate-200 bg-white p-2 shadow-lg">
-                    <ul className="max-h-64 space-y-2 overflow-y-auto text-xs text-slate-800">
-                      {notifs.map((n) => (
-                        <li key={n.id} className="rounded border border-slate-100 p-2">
-                          <div className="font-medium">{n.title}</div>
-                          <div className="text-slate-600">{n.message}</div>
-                          {n.applicationId ? (
-                            <Link
-                              to={`/borrower/applications/${n.applicationId}`}
-                              className="mt-1 inline-block text-slate-800 underline"
-                              onClick={() => setNotifOpen(false)}
-                            >
-                              Open application
-                            </Link>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <Link to="/" className="text-slate-500 underline">
-              Staff sign-in
-            </Link>
-            <button
-              type="button"
-              className="text-slate-700 underline"
-              onClick={() => {
-                logout()
-                window.location.href = '/borrower/login'
-              }}
+        </div>
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2" aria-label="Borrower">
+          {nav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={linkClass}
+              end={item.to === '/borrower/dashboard'}
             >
-              Log out
-            </button>
-          </div>
-        </div>
-        <nav className="border-t border-slate-100 bg-white">
-          <ul className="mx-auto flex max-w-5xl flex-wrap gap-1 px-2 py-2 text-sm">
-            {nav.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) =>
-                    [
-                      'block rounded-md px-3 py-1.5',
-                      isActive ? 'bg-bl-primary text-white' : 'text-slate-700 hover:bg-slate-100',
-                    ].join(' ')
-                  }
-                  end={item.to === '/borrower/dashboard'}
-                >
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
-            {hasDisbursedLoan && loanId ? (
-              <>
-                <li>
-                  <span className="px-2 text-xs font-medium uppercase text-slate-400">After disbursement</span>
-                </li>
-                <li>
-                  <NavLink
-                    to={`/borrower/loans/${loanId}/repayment`}
-                    className={({ isActive }) =>
-                      isActive
-                        ? 'block rounded-md bg-bl-primary px-3 py-1.5 text-white'
-                        : 'block rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-100'
-                    }
-                  >
-                    Repayment schedule
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink
-                    to={`/borrower/loans/${loanId}/statement`}
-                    className={({ isActive }) =>
-                      isActive
-                        ? 'block rounded-md bg-bl-primary px-3 py-1.5 text-white'
-                        : 'block rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-100'
-                    }
-                  >
-                    Statement
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink
-                    to={`/borrower/loans/${loanId}/transactions`}
-                    className={({ isActive }) =>
-                      isActive
-                        ? 'block rounded-md bg-bl-primary px-3 py-1.5 text-white'
-                        : 'block rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-100'
-                    }
-                  >
-                    Transactions
-                  </NavLink>
-                </li>
-              </>
-            ) : null}
-          </ul>
+              {item.label}
+            </NavLink>
+          ))}
+          {hasDisbursedLoan && loanId ? (
+            <>
+              <div className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-white/40">
+                After disbursement
+              </div>
+              <NavLink to={`/borrower/loans/${loanId}/repayment`} className={linkClass}>
+                Repayment schedule
+              </NavLink>
+              <NavLink to={`/borrower/loans/${loanId}/statement`} className={linkClass}>
+                Statement
+              </NavLink>
+              <NavLink to={`/borrower/loans/${loanId}/transactions`} className={linkClass}>
+                Transactions
+              </NavLink>
+            </>
+          ) : null}
         </nav>
-      </header>
-      <main className="mx-auto max-w-5xl flex-1 px-4 py-8">
-        <Outlet />
-      </main>
-      <footer className="mt-auto border-t border-slate-200/90 bg-white py-1.5">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-1.5 px-4">
-          <span className="text-[11px] text-slate-500">Powered by</span>
-          <img
-            src="/brand/BillionTech_Logo_Final.png"
-            alt="BillionTech"
-            className="h-[18px] w-auto object-contain"
-          />
+        <div className="shrink-0 border-t border-white/10 p-2">
+          <Link
+            to="/"
+            className="block rounded-md px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Staff sign-in
+          </Link>
         </div>
-      </footer>
+      </aside>
+      <div className="flex min-h-screen flex-col pl-60">
+        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur">
+          <div className="mx-auto flex min-h-14 w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-2 sm:px-8">
+            <div className="order-2 min-w-0 flex-1 text-center sm:flex-[2]">
+              <p className="truncate text-sm font-medium text-slate-800">{COMPANY_NAME}</p>
+            </div>
+            <div className="order-1 flex items-center gap-2 sm:flex-1">
+              {notifs.length > 0 ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-50"
+                    onClick={() => setNotifOpen((o) => !o)}
+                    aria-expanded={notifOpen}
+                  >
+                    Notifications ({notifs.length})
+                  </button>
+                  {notifOpen ? (
+                    <div className="absolute left-0 z-20 mt-1 w-80 max-w-[90vw] rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+                      <ul className="max-h-64 space-y-2 overflow-y-auto text-xs text-slate-800">
+                        {notifs.map((n) => (
+                          <li key={n.id} className="rounded border border-slate-100 p-2">
+                            <div className="font-medium">{n.title}</div>
+                            <div className="text-slate-600">{n.message}</div>
+                            {n.applicationId ? (
+                              <Link
+                                to={`/borrower/applications/${n.applicationId}`}
+                                className="mt-1 inline-block text-slate-800 underline"
+                                onClick={() => setNotifOpen(false)}
+                              >
+                                Open application
+                              </Link>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            <div className="order-3 flex items-center justify-end gap-2 sm:flex-1">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bl-primary text-xs font-semibold text-white"
+                title={user.name}
+              >
+                {userInitials(user.name)}
+              </div>
+              <div className="hidden text-right sm:block">
+                <div className="text-sm font-medium text-slate-900">{user.name}</div>
+                <div className="text-xs text-slate-500">{user.email}</div>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-50"
+                onClick={() => {
+                  logout()
+                  navigate('/borrower/login', { replace: true })
+                }}
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-6 sm:px-8 sm:py-8">
+          <Outlet />
+        </main>
+        <footer className="mt-auto border-t border-slate-200/90 bg-white py-1.5">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-1.5 px-5 sm:px-8">
+            <span className="text-[11px] text-slate-500">Powered by</span>
+            <BrandLogo variant="billiontech" tone="dark" className="text-xs" />
+          </div>
+        </footer>
+      </div>
     </div>
   )
 }

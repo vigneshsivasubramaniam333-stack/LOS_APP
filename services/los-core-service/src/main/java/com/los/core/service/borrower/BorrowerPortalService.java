@@ -9,10 +9,17 @@ import com.los.core.model.dto.response.BorrowerLabelValueItem;
 import com.los.core.model.dto.response.BorrowerDashboardResponse;
 import com.los.core.model.dto.response.BorrowerDocumentItemResponse;
 import com.los.core.model.dto.response.BorrowerKfsSummaryResponse;
+import com.los.core.model.dto.response.BorrowerLoanAccountResponse;
 import com.los.core.model.dto.response.BorrowerNotificationItemResponse;
 import com.los.core.model.dto.response.BorrowerRepaymentScheduleItemResponse;
+import com.los.core.model.dto.response.BorrowerServicingDataResponse;
 import com.los.core.model.dto.response.BorrowerStatementLineResponse;
 import com.los.core.model.dto.response.BorrowerTransactionItemResponse;
+import com.los.lms.dto.LoanAccountSummary;
+import com.los.lms.dto.RepaymentCallbackRequest;
+import com.los.lms.dto.RepaymentScheduleEntry;
+import com.los.lms.dto.RepaymentScheduleResponse;
+import com.los.lms.service.LmsService;
 import com.los.core.model.dto.response.DocumentResponse;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
@@ -56,6 +63,7 @@ public class BorrowerPortalService {
     private final IDocumentService documentService;
     private final KfsService kfsService;
     private final DemoApplicationPurgeService demoApplicationPurgeService;
+    private final LmsService lmsService;
 
     public void requireBorrower(String role) {
         if (role == null || !ROLE.equalsIgnoreCase(role.trim())) {
@@ -352,6 +360,244 @@ public class BorrowerPortalService {
                 .createdAt(t)
                 .applicationId(appId)
                 .build();
+    }
+
+    // ===================== Post-disbursement loan servicing (LMS-backed) =====================
+    // These read from the LMS (Encore via LmsService) when available and fall back to the safe
+    // synthetic demo data so the borrower portal keeps working in environments without Encore.
+
+    /** Loan account summary for a disbursed loan (LMS account summary with local fallback). */
+    public BorrowerLoanAccountResponse loanAccount(UUID borrowerUserId, UUID loanId) {
+        LoanApplication app = loadOwned(borrowerUserId, loanId);
+        if (app.getStatus() != ApplicationStatus.DISBURSED) {
+            throw new ForbiddenException("Loan account is available after disbursement.");
+        }
+        LoanAccountSummary s = lmsService.getAccountSummary(app.getApplicationNumber());
+        String acct = s.getLmsReferenceId() != null ? s.getLmsReferenceId()
+                : (app.getLmsReferenceId() != null ? app.getLmsReferenceId() : app.getApplicationNumber());
+        return BorrowerLoanAccountResponse.builder()
+                .loanAccountNumber(acct)
+                .loanStatus(s.getLoanStatus() != null ? s.getLoanStatus() : "ACTIVE")
+                .sanctionedAmount(s.getSanctionedAmount() != null ? s.getSanctionedAmount() : app.getSanctionedAmount())
+                .disbursedAmount(s.getDisbursedAmount() != null ? s.getDisbursedAmount() : app.getDisbursedAmount())
+                .outstandingPrincipal(s.getOutstandingPrincipal())
+                .totalPaid(s.getTotalPaid())
+                .overdueAmount(s.getOverdueAmount())
+                .totalEmis(s.getTotalEmis())
+                .paidEmis(s.getPaidEmis())
+                .overdueEmis(s.getOverdueEmis())
+                .nextEmiDate(s.getNextEmiDate())
+                .nextEmiAmount(s.getNextEmiAmount())
+                .lastPaymentDate(s.getLastPaymentDate())
+                .dpd(s.getDpd())
+                .servicingActive(true)
+                .build();
+    }
+
+    /** Repayment schedule for a disbursed loan (LMS schedule; indicative amortization fallback). */
+    public BorrowerServicingDataResponse<BorrowerRepaymentScheduleItemResponse> repaymentSchedule(
+            UUID borrowerUserId, UUID loanId) {
+        LoanApplication app = loadOwned(borrowerUserId, loanId);
+        if (app.getStatus() != ApplicationStatus.DISBURSED) {
+            throw new ForbiddenException("Repayment schedule is available after disbursement.");
+        }
+        try {
+            RepaymentScheduleResponse resp = lmsService.getRepaymentSchedule(app.getApplicationNumber());
+            if (resp != null && resp.getSchedule() != null && !resp.getSchedule().isEmpty()
+                    && isEncoreSchedule(resp)) {
+                List<BorrowerRepaymentScheduleItemResponse> rows = new ArrayList<>();
+                for (RepaymentScheduleEntry e : resp.getSchedule()) {
+                    rows.add(BorrowerRepaymentScheduleItemResponse.builder()
+                            .installmentNo(e.getInstallmentNumber())
+                            .dueDate(e.getDueDate())
+                            .emi(e.getEmiAmount())
+                            .principal(e.getPrincipalComponent())
+                            .interest(e.getInterestComponent())
+                            .outstandingPrincipal(e.getOutstandingPrincipal())
+                            .build());
+                }
+                return lmsData(rows);
+            }
+        } catch (RuntimeException ex) {
+            // fall through to indicative
+        }
+        return localData(repaymentScheduleDemo(borrowerUserId, loanId));
+    }
+
+    /**
+     * Account statement for a disbursed loan. Prefers the Encore LMS ledger; otherwise builds an honest
+     * statement from the actual disbursal credit plus recorded repayment debits (no fabricated EMI rows).
+     */
+    public BorrowerServicingDataResponse<BorrowerStatementLineResponse> statement(UUID borrowerUserId, UUID loanId) {
+        LoanApplication app = loadOwned(borrowerUserId, loanId);
+        if (app.getStatus() != ApplicationStatus.DISBURSED) {
+            throw new ForbiddenException("Statement is available after disbursement.");
+        }
+        try {
+            List<Map<String, Object>> entries =
+                    lmsService.getEncoreAccountStatement(app.getApplicationNumber(), null, null);
+            if (entries != null && !entries.isEmpty()) {
+                List<BorrowerStatementLineResponse> lines = new ArrayList<>();
+                for (Map<String, Object> e : entries) {
+                    BigDecimal amount = parseBig(e.get("amount"));
+                    String type = String.valueOf(e.getOrDefault("accountEntryType", e.getOrDefault("type", "")));
+                    boolean credit = type.toUpperCase().contains("CREDIT");
+                    lines.add(BorrowerStatementLineResponse.builder()
+                            .valueDate(parseDate(e.get("valueDateStr") != null ? e.get("valueDateStr") : e.get("valueDate")))
+                            .description(String.valueOf(e.getOrDefault("description", e.getOrDefault("transactionName", "Transaction"))))
+                            .credit(credit ? amount : null)
+                            .debit(credit ? null : amount)
+                            .balance(parseBig(e.get("balance")))
+                            .build());
+                }
+                return lmsData(lines);
+            }
+        } catch (RuntimeException ex) {
+            // fall through to a real, locally-derived statement
+        }
+        return localData(statementFromActuals(app));
+    }
+
+    /** Transactions for a disbursed loan (real disbursal + recorded LMS repayments). */
+    public BorrowerServicingDataResponse<BorrowerTransactionItemResponse> transactions(
+            UUID borrowerUserId, UUID loanId) {
+        LoanApplication app = loadOwned(borrowerUserId, loanId);
+        if (app.getStatus() != ApplicationStatus.DISBURSED) {
+            throw new ForbiddenException("Transactions are available after disbursement.");
+        }
+        List<BorrowerTransactionItemResponse> out = new ArrayList<>();
+        out.add(BorrowerTransactionItemResponse.builder()
+                .postedAt(app.getDisbursedAt() != null ? app.getDisbursedAt() : app.getUpdatedAt())
+                .description("Loan disbursal")
+                .reference("DISB-" + app.getApplicationNumber())
+                .amount(app.getDisbursedAmount() != null ? app.getDisbursedAmount() : app.getRequestedAmount())
+                .type("CREDIT")
+                .build());
+        boolean fromLms = false;
+        try {
+            List<RepaymentCallbackRequest> history = lmsService.getPaymentHistory(app.getApplicationNumber());
+            if (history != null && !history.isEmpty()) {
+                fromLms = true;
+                for (RepaymentCallbackRequest r : history) {
+                    out.add(BorrowerTransactionItemResponse.builder()
+                            .postedAt(r.getPaymentDate() != null
+                                    ? r.getPaymentDate().atStartOfDay(ZoneId.systemDefault()).toInstant()
+                                    : app.getUpdatedAt())
+                            .description("Repayment" + (r.getInstallmentNumber() > 0 ? " (installment " + r.getInstallmentNumber() + ")" : ""))
+                            .reference(r.getUtrNumber() != null ? r.getUtrNumber() : "REPAY")
+                            .amount(r.getPaidAmount())
+                            .type("DEBIT")
+                            .build());
+                }
+            }
+        } catch (RuntimeException ex) {
+            // disbursal-only is still real data
+        }
+        return BorrowerServicingDataResponse.<BorrowerTransactionItemResponse>builder()
+                .source(fromLms ? "LMS" : "LOCAL")
+                .rows(out)
+                .build();
+    }
+
+    /** True when the schedule entries originated from Encore (tagged FROM_ENCORE by {@code LmsService}). */
+    private static boolean isEncoreSchedule(RepaymentScheduleResponse resp) {
+        return resp.getSchedule().stream()
+                .anyMatch(e -> "FROM_ENCORE".equalsIgnoreCase(e.getStatus()));
+    }
+
+    /** Real statement built from the actual disbursal credit and recorded repayment debits. */
+    private List<BorrowerStatementLineResponse> statementFromActuals(LoanApplication app) {
+        BigDecimal disbursed = app.getDisbursedAmount() != null ? app.getDisbursedAmount() : principalFor(app);
+        List<BorrowerStatementLineResponse> lines = new ArrayList<>();
+        BigDecimal balance = disbursed;
+        lines.add(BorrowerStatementLineResponse.builder()
+                .valueDate(app.getDisbursedAt() != null
+                        ? LocalDate.ofInstant(app.getDisbursedAt(), ZoneId.systemDefault())
+                        : LocalDate.now())
+                .description("Loan disbursal")
+                .credit(disbursed)
+                .debit(null)
+                .balance(balance)
+                .build());
+        try {
+            List<RepaymentCallbackRequest> history = lmsService.getPaymentHistory(app.getApplicationNumber());
+            if (history != null) {
+                List<RepaymentCallbackRequest> ordered = new ArrayList<>(history);
+                ordered.sort((a, b) -> {
+                    LocalDate da = a.getPaymentDate();
+                    LocalDate db = b.getPaymentDate();
+                    if (da == null && db == null) return 0;
+                    if (da == null) return -1;
+                    if (db == null) return 1;
+                    return da.compareTo(db);
+                });
+                for (RepaymentCallbackRequest r : ordered) {
+                    BigDecimal paid = r.getPaidAmount() != null ? r.getPaidAmount() : BigDecimal.ZERO;
+                    balance = balance.subtract(paid).max(BigDecimal.ZERO);
+                    lines.add(BorrowerStatementLineResponse.builder()
+                            .valueDate(r.getPaymentDate() != null ? r.getPaymentDate() : LocalDate.now())
+                            .description("Repayment received")
+                            .credit(null)
+                            .debit(paid)
+                            .balance(balance)
+                            .build());
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // disbursal line alone is still accurate
+        }
+        return lines;
+    }
+
+    private static <T> BorrowerServicingDataResponse<T> lmsData(List<T> rows) {
+        return BorrowerServicingDataResponse.<T>builder().source("LMS").rows(rows).build();
+    }
+
+    private static <T> BorrowerServicingDataResponse<T> localData(List<T> rows) {
+        return BorrowerServicingDataResponse.<T>builder().source("LOCAL").rows(rows).build();
+    }
+
+    /** Borrower-initiated repayment; posts to the LMS and returns the refreshed loan account. */
+    public BorrowerLoanAccountResponse makeRepayment(UUID borrowerUserId, UUID loanId, BigDecimal amount) {
+        LoanApplication app = loadOwned(borrowerUserId, loanId);
+        if (app.getStatus() != ApplicationStatus.DISBURSED) {
+            throw new ForbiddenException("Repayments are available after disbursement.");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessRuleException("Enter a valid repayment amount.");
+        }
+        lmsService.recordBorrowerRepayment(app.getApplicationNumber(), amount);
+        return loanAccount(borrowerUserId, loanId);
+    }
+
+    private static BigDecimal parseBig(Object o) {
+        if (o == null) {
+            return null;
+        }
+        try {
+            String s = String.valueOf(o).trim();
+            return s.isEmpty() ? null : new BigDecimal(s);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static LocalDate parseDate(Object o) {
+        if (o == null) {
+            return null;
+        }
+        String s = String.valueOf(o).trim();
+        if (s.isEmpty()) {
+            return null;
+        }
+        try {
+            if (s.length() >= 10 && s.charAt(4) == '-') {
+                return LocalDate.parse(s.substring(0, 10));
+            }
+        } catch (RuntimeException ignored) {
+            // ignore
+        }
+        return null;
     }
 
     /** Demo repayment schedule: safe synthetic rows when the loan is disbursed. */

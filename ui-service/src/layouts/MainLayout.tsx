@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { canAccessAdminConfigNav } from '@/auth/types'
+import { BrandLogo } from '@/components/BrandLogo'
 
 const COMPANY_NAME = 'Credinnov'
 
@@ -27,13 +28,9 @@ export function MainLayout() {
     <div className="min-h-screen bg-bl-canvas">
       <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-white/5 bg-bl-navy">
         <div className="shrink-0 border-b border-white/10 px-3 py-4">
-          <div className="w-full max-w-[150px]">
-            <div className="flex min-h-[2.25rem] max-h-11 w-full items-center" title="Billionloans">
-              <img
-                src="/brand/BillionLoans_Logo_Final_noBG.png"
-                alt="Billionloans"
-                className="h-auto max-h-9 w-full object-contain object-left drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
-              />
+          <div className="w-full">
+            <div className="flex min-h-[2.25rem] w-full items-center" title="Billionloans">
+              <BrandLogo variant="billionloans" tone="light" className="text-lg" />
             </div>
             <div className="mt-2 text-xs font-medium leading-tight text-white/50">Operations</div>
           </div>
@@ -133,11 +130,7 @@ export function MainLayout() {
         <footer className="mt-auto border-t border-slate-200/90 bg-white py-1.5">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-1.5 px-4 sm:px-6">
             <span className="text-[11px] text-slate-500">Powered by</span>
-            <img
-              src="/brand/BillionTech_Logo_Final.png"
-              alt="BillionTech"
-              className="h-[18px] w-auto object-contain"
-            />
+            <BrandLogo variant="billiontech" tone="dark" className="text-xs" />
           </div>
         </footer>
       </div>

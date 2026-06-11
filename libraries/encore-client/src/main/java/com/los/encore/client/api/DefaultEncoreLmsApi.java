@@ -155,18 +155,39 @@ public class DefaultEncoreLmsApi implements EncoreLmsApi {
             return "SIM-RPY-" + UUID.randomUUID().toString().substring(0, 8);
         }
         try {
+            // Mirror the proven-working disburse() transaction shape exactly (bl-core
+            // SanctionedInvoiceLoanServiceFacadeImpl.recordPaymentToEncore parity): Encore resolves the
+            // account period from the epoch-millis `valueDate`, so we must send `valueDate` (NOT a
+            // `valueDateStr` string). Repayments use an empty description, CASH instrument and a
+            // transactionLotId, matching the legacy ScheduledRepayment payload Encore accepts.
+            long nowMillis = System.currentTimeMillis();
             String transactionId = "BL-RPY-" + UUID.randomUUID().toString().substring(0, 8);
+            String txnName = repaymentType != null && !repaymentType.isBlank() ? repaymentType : "ScheduledRepayment";
             ArrayNode transactions = objectMapper.createArrayNode();
             ObjectNode txn = objectMapper.createObjectNode();
-            txn.put("accountId", encoreAccountId);
-            txn.put("amount1", amount.toPlainString());
-            txn.put("description", repaymentType != null ? repaymentType : "ScheduledRepayment");
-            txn.put("valueDateStr", LocalDate.now().format(DATE_FORMAT));
+
             txn.put("transactionId", transactionId);
-            txn.put("transactionName", repaymentType != null ? repaymentType : "ScheduledRepayment");
-            txn.put("instrument", "NEFT");
+            txn.put("valueDate", nowMillis);
+            txn.put("transactionDate", nowMillis);
+            txn.put("accountId", encoreAccountId);
+            txn.put("transactionName", txnName);
+            txn.put("amount1", amount.toPlainString());
+            txn.put("description", "");
             txn.put("userId", "los-adapter");
+            txn.put("instrument", "CASH");
+            txn.put("transactionLotId", String.valueOf(nowMillis));
+            txn.putNull("param1");
+            txn.putNull("param2");
+            txn.putNull("param2Str");
+            txn.putNull("sequenceNum");
+            txn.putNull("param3");
+
             transactions.add(txn);
+
+            log.info("[LMS-REPAY-FINAL-PAYLOAD] endpoint={} | accountId={} | transactionId={} | txnName={} | payload={}",
+                    properties.getApi().getPostTransactions(), encoreAccountId, transactionId, txnName,
+                    objectMapper.writeValueAsString(transactions));
+
             postTransactionsArray(transactions);
             return transactionId;
         } catch (Exception e) {

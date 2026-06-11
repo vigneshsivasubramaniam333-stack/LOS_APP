@@ -63,6 +63,9 @@ public class CreditAppraisalService {
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + applicationId));
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not generated yet for: " + applicationId));
+        if (applyRequestedSanctionDefaultsIfMissing(cam, app)) {
+            cam = camRepository.save(cam);
+        }
         return toResponse(cam, app);
     }
 
@@ -201,10 +204,34 @@ public class CreditAppraisalService {
         if (cam.getCamStatus() == null) {
             cam.setCamStatus("DRAFT");
         }
+        applyRequestedSanctionDefaultsIfMissing(cam, app);
+        return camRepository.save(cam);
+    }
+
+    /**
+     * Pre-populates credit-officer sanctioning fields from anchor/borrower intake when not yet entered.
+     *
+     * @return {@code true} if any field was updated
+     */
+    private static boolean applyRequestedSanctionDefaultsIfMissing(CreditAppraisalMemo cam, LoanApplication app) {
+        boolean changed = false;
         if (cam.getRecommendedDecision() == null) {
             cam.setRecommendedDecision(suggestDecision(app));
+            changed = true;
         }
-        return camRepository.save(cam);
+        if (cam.getRecommendedAmount() == null && app.getRequestedAmount() != null) {
+            cam.setRecommendedAmount(app.getRequestedAmount());
+            changed = true;
+        }
+        if (cam.getRecommendedTenureMonths() == null && app.getTenureMonths() != null) {
+            cam.setRecommendedTenureMonths(app.getTenureMonths());
+            changed = true;
+        }
+        if (cam.getRecommendedRate() == null && app.getInterestRate() != null) {
+            cam.setRecommendedRate(app.getInterestRate());
+            changed = true;
+        }
+        return changed;
     }
 
     @Transactional
@@ -716,9 +743,12 @@ public class CreditAppraisalService {
                 .camReviewed(cam.isCamReviewed())
                 .camVersion(cam.getCamVersion() != null ? cam.getCamVersion() : 1)
                 .camStatus(cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT")
-                .recommendedAmount(cam.getRecommendedAmount())
-                .recommendedTenureMonths(cam.getRecommendedTenureMonths())
-                .recommendedRate(cam.getRecommendedRate())
+                .recommendedAmount(
+                        cam.getRecommendedAmount() != null ? cam.getRecommendedAmount() : app.getRequestedAmount())
+                .recommendedTenureMonths(
+                        cam.getRecommendedTenureMonths() != null ? cam.getRecommendedTenureMonths() : app.getTenureMonths())
+                .recommendedRate(
+                        cam.getRecommendedRate() != null ? cam.getRecommendedRate() : app.getInterestRate())
                 .conditionsPrecedent(cam.getConditionsPrecedentJson())
                 .conditionsSubsequent(cam.getConditionsSubsequentJson())
                 .creditOfficerRemarks(cam.getCreditOfficerRemarks())

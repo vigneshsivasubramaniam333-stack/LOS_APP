@@ -11,10 +11,13 @@ import { BorrowerDashboardPage } from '@/pages/borrower/BorrowerDashboardPage'
 import { BorrowerApplicationsListPage } from '@/pages/borrower/BorrowerApplicationsListPage'
 import { BorrowerLoginPage } from '@/pages/borrower/BorrowerLoginPage'
 import { BorrowerRegisterPage } from '@/pages/borrower/BorrowerRegisterPage'
+import { BorrowerChangePasswordPage } from '@/pages/borrower/BorrowerChangePasswordPage'
 import { BorrowerForgotPasswordPage } from '@/pages/borrower/BorrowerForgotPasswordPage'
 import { BorrowerProfilePage } from '@/pages/borrower/BorrowerProfilePage'
 import { BorrowerSignedDocumentsPage } from '@/pages/borrower/BorrowerSignedDocumentsPage'
 import { BorrowerLoanSubPage } from '@/pages/borrower/BorrowerLoanSubPage'
+import { BorrowerLoanAccountPage } from '@/pages/borrower/BorrowerLoanAccountPage'
+import { BorrowerInvoiceDiscountingPage } from '@/pages/borrower/BorrowerInvoiceDiscountingPage'
 import { BorrowerStatusRedirectPage } from '@/pages/borrower/BorrowerStatusRedirectPage'
 import { SalesNewApplicationPage } from '@/pages/sales/SalesNewApplicationPage'
 import { ApplicationDetailPage } from '@/pages/ApplicationDetailPage'
@@ -46,6 +49,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/borrower/login" element={<BorrowerLoginPage />} />
+      <Route path="/borrower/change-password" element={<BorrowerChangePasswordPage />} />
       <Route path="/borrower/register" element={<BorrowerRegisterPage />} />
       <Route path="/borrower/forgot-password" element={<BorrowerForgotPasswordPage />} />
       <Route path="/borrower/status/:applicationId" element={<BorrowerStatusRedirectPage />} />
@@ -62,8 +66,10 @@ export default function App() {
         <Route path="apply" element={<BorrowerApplyPage />} />
         <Route path="applications" element={<BorrowerApplicationsListPage />} />
         <Route path="applications/:id" element={<BorrowerApplicationDetailPage />} />
+        <Route path="invoice-discounting" element={<BorrowerInvoiceDiscountingPage />} />
         <Route path="documents" element={<BorrowerSignedDocumentsPage />} />
         <Route path="profile" element={<BorrowerProfilePage />} />
+        <Route path="loans/:loanId/account" element={<BorrowerLoanAccountPage />} />
         <Route path="loans/:loanId/repayment" element={<BorrowerLoanSubPage mode="repayment" />} />
         <Route path="loans/:loanId/statement" element={<BorrowerLoanSubPage mode="statement" />} />
         <Route path="loans/:loanId/transactions" element={<BorrowerLoanSubPage mode="transactions" />} />

@@ -139,17 +139,59 @@ export interface TransactionRow {
   type: string
 }
 
-export async function getRepaymentScheduleDemo(loanId: string): Promise<RepaymentRow[]> {
-  const { data } = await http.get<RepaymentRow[]>(`/borrower/loans/${loanId}/repayment-schedule`)
+export interface BorrowerLoanAccount {
+  loanAccountNumber: string
+  loanStatus: string
+  sanctionedAmount: number | null
+  disbursedAmount: number | null
+  outstandingPrincipal: number | null
+  totalPaid: number | null
+  overdueAmount: number | null
+  totalEmis: number
+  paidEmis: number
+  overdueEmis: number
+  nextEmiDate: string | null
+  nextEmiAmount: number | null
+  lastPaymentDate: string | null
+  dpd: number
+  servicingActive: boolean
+}
+
+/** Loan account summary after disbursement (LMS-backed with local fallback). */
+export async function getLoanAccount(loanId: string): Promise<BorrowerLoanAccount> {
+  const { data } = await http.get<BorrowerLoanAccount>(`/borrower/loans/${loanId}/account`)
   return data
 }
 
-export async function getStatementDemo(loanId: string): Promise<StatementRow[]> {
-  const { data } = await http.get<StatementRow[]>(`/borrower/loans/${loanId}/statement`)
+/** Make a repayment against a disbursed loan; returns the refreshed account. */
+export async function postRepayment(loanId: string, amount: number): Promise<BorrowerLoanAccount> {
+  const { data } = await http.post<BorrowerLoanAccount>(`/borrower/loans/${loanId}/repay`, { amount })
   return data
 }
 
-export async function getTransactionsDemo(loanId: string): Promise<TransactionRow[]> {
-  const { data } = await http.get<TransactionRow[]>(`/borrower/loans/${loanId}/transactions`)
+/** Provenance of post-disbursement servicing data. */
+export type ServicingSource = 'LMS' | 'LOCAL'
+
+export interface ServicingData<T> {
+  source: ServicingSource
+  rows: T[]
+}
+
+export async function getRepaymentSchedule(loanId: string): Promise<ServicingData<RepaymentRow>> {
+  const { data } = await http.get<ServicingData<RepaymentRow>>(
+    `/borrower/loans/${loanId}/repayment-schedule`,
+  )
+  return data
+}
+
+export async function getStatement(loanId: string): Promise<ServicingData<StatementRow>> {
+  const { data } = await http.get<ServicingData<StatementRow>>(`/borrower/loans/${loanId}/statement`)
+  return data
+}
+
+export async function getTransactions(loanId: string): Promise<ServicingData<TransactionRow>> {
+  const { data } = await http.get<ServicingData<TransactionRow>>(
+    `/borrower/loans/${loanId}/transactions`,
+  )
   return data
 }

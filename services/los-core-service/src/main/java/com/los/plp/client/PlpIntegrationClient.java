@@ -99,6 +99,18 @@ public class PlpIntegrationClient {
         return plpProperties.isEnabled();
     }
 
+    /**
+     * Returns a valid bearer access token (refreshing via IAM login when stale) for sibling clients that need
+     * to call other PLP gateway routes (e.g. borrower-scoped invoice/loan endpoints) with the same machine
+     * identity. Throws {@link PlpIntegrationException} when PLP is disabled or login fails.
+     */
+    public String currentBearerToken() {
+        if (!plpProperties.isEnabled()) {
+            throw new PlpIntegrationException("PLP integration is disabled (los.plp.enabled=false)");
+        }
+        return currentAccessToken();
+    }
+
     private <T> PlpApiResponse<T> post(String path, Object body, TypeReference<PlpApiResponse<T>> type) {
         if (!plpProperties.isEnabled()) {
             throw new PlpIntegrationException("PLP sync is disabled (los.plp.enabled=false)");

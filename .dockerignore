@@ -4,6 +4,7 @@
 **/target
 **/*.class
 **/logs
+**/uploads
 *.md
 .env
 .env.example

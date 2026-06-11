@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteBorrowerDraftApplication, listBorrowerApplications, type BorrowerAppSummary } from '@/api/borrowerPortal'
 import { ApiError } from '@/api/http'
+import { PageHeader } from '@/components/PageHeader'
 import { isBorrowerDeletableApplicationStatus } from '@/lib/borrowerApplicationDeletable'
+import { loanProductLabel } from '@/catalog/loanProducts'
+import { formatInstant } from '@/lib/format'
 
 export function BorrowerApplicationsListPage() {
   const [list, setList] = useState<BorrowerAppSummary[]>([])
@@ -38,40 +41,65 @@ export function BorrowerApplicationsListPage() {
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-bl-navy">Loan applications</h1>
+    <div className="space-y-6">
+      <PageHeader title="Loan applications" description="View your submitted and draft loan applications." />
       {err ? (
-        <p className="mt-2 text-sm text-rose-700" role="alert">
+        <p className="text-sm text-rose-700" role="alert">
           {err}
         </p>
       ) : null}
       {list.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-600">No applications found.</p>
+        <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-sm text-slate-600 shadow-sm">
+          No applications found.
+        </div>
       ) : (
-        <ul className="mt-4 space-y-2 text-sm">
-          {list.map((a) => (
-            <li key={a.applicationId} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-white p-3 shadow-sm">
-              <span>
-                {a.applicationNumber} — {a.friendlyStatus}
-              </span>
-              <span className="flex flex-wrap items-center gap-2">
-                {isBorrowerDeletableApplicationStatus(a.status) ? (
-                  <button
-                    type="button"
-                    className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-900"
-                    onClick={() => void onDeleteDraft(a.applicationId)}
-                    disabled={busyId === a.applicationId}
-                  >
-                    {busyId === a.applicationId ? 'Deleting…' : 'Delete draft'}
-                  </button>
-                ) : null}
-                <Link to={`/borrower/applications/${a.applicationId}`} className="text-bl-navy/90 underline">
-                  Open
-                </Link>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-600">
+              <tr>
+                <th className="whitespace-nowrap px-5 py-3.5">Application</th>
+                <th className="whitespace-nowrap px-5 py-3.5">Product</th>
+                <th className="whitespace-nowrap px-5 py-3.5">Status</th>
+                <th className="whitespace-nowrap px-5 py-3.5">Updated</th>
+                <th className="whitespace-nowrap px-5 py-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {list.map((a) => (
+                <tr key={a.applicationId} className="hover:bg-slate-50/80">
+                  <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">{a.applicationNumber}</td>
+                  <td className="px-5 py-4 text-slate-700">{loanProductLabel(a.product)}</td>
+                  <td className="px-5 py-4">
+                    <span className="inline-flex rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-800">
+                      {a.friendlyStatus}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 text-slate-600 tabular-nums">{formatInstant(a.updatedAt)}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-4">
+                      {isBorrowerDeletableApplicationStatus(a.status) ? (
+                        <button
+                          type="button"
+                          className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
+                          onClick={() => void onDeleteDraft(a.applicationId)}
+                          disabled={busyId === a.applicationId}
+                        >
+                          {busyId === a.applicationId ? 'Deleting…' : 'Delete draft'}
+                        </button>
+                      ) : null}
+                      <Link
+                        to={`/borrower/applications/${a.applicationId}`}
+                        className="text-sm font-medium text-slate-800 underline-offset-2 hover:underline"
+                      >
+                        Open
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

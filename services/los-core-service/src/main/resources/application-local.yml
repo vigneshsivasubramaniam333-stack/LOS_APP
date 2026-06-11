@@ -14,8 +14,9 @@ los:
     # Local PLP gateway on host :8180 (no /plp-api). In Docker use host.docker.internal; on host IDE use localhost.
     base-url: ${PLP_BASE_URL:http://host.docker.internal:8180}
     lender-id: ${PLP_LENDER_ID:2d6e05e3-423f-4946-8027-8cbb4f01aefa}
-    integration-email: ${PLP_INTEGRATION_EMAIL:admin@plp.com}
-    integration-password: ${PLP_INTEGRATION_PASSWORD:Admin@PLP2026}
+    integration-email: ${PLP_INTEGRATION_EMAIL:admin@credinnov.com}
+    integration-password: ${PLP_INTEGRATION_PASSWORD:Bltest@123}
+    read-timeout-ms: ${PLP_READ_TIMEOUT_MS:120000}
   security:
     local-dev-permit-all: true
   demo:

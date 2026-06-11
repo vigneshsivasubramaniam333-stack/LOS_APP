@@ -49,6 +49,10 @@ export function BorrowerLoginPage() {
         return
       }
       login(u)
+      if (u.passwordResetRequired) {
+        navigate('/borrower/change-password', { replace: true })
+        return
+      }
       navigate(from.startsWith('/borrower') ? from : '/borrower/dashboard', { replace: true })
     } catch (ex) {
       setErr(ex instanceof ApiError ? ex.message : 'Sign-in failed.')

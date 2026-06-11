@@ -82,6 +82,66 @@ class CreditAppraisalServiceTest {
     }
 
     @Test
+    void ensureCam_populatesSanctioningDefaultsFromApplicationRequest() {
+        UUID id = UUID.randomUUID();
+        LoanApplication app = LoanApplication.builder()
+                .id(id)
+                .applicationNumber("T-1002")
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("PERSONAL_LOAN")
+                .requestedAmount(new BigDecimal("750000"))
+                .tenureMonths(24)
+                .interestRate(new BigDecimal("12.5"))
+                .creditDecision("APPROVED")
+                .status(ApplicationStatus.CAM_READY)
+                .personalInfo(Map.of("fullName", "Test User"))
+                .build();
+        when(underwritingEvaluationRepository.findTopByApplicationIdOrderByEvaluatedAtDesc(id))
+                .thenReturn(Optional.empty());
+        when(kycOrchestrationService.computeKycOutcome(id))
+                .thenReturn(Map.of("outcome", "PASS", "exceptions", List.of()));
+        when(creditControlService.buildReadView(any(LoanApplication.class))).thenReturn(Map.of("effective", Map.of()));
+        when(camRepository.findByApplicationId(id)).thenReturn(Optional.empty());
+        when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
+
+        CreditAppraisalMemo saved = service.ensureCamForApplication(app);
+
+        assertThat(saved.getRecommendedAmount()).isEqualByComparingTo("750000");
+        assertThat(saved.getRecommendedTenureMonths()).isEqualTo(24);
+        assertThat(saved.getRecommendedRate()).isEqualByComparingTo("12.5");
+        assertThat(saved.getRecommendedDecision()).isEqualTo("APPROVE");
+    }
+
+    @Test
+    void getCam_backfillsMissingSanctioningDefaultsOnRead() {
+        UUID id = UUID.randomUUID();
+        LoanApplication app = LoanApplication.builder()
+                .id(id)
+                .applicationNumber("T-1003")
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("PERSONAL_LOAN")
+                .requestedAmount(new BigDecimal("500000"))
+                .tenureMonths(36)
+                .interestRate(new BigDecimal("11.0"))
+                .status(ApplicationStatus.CAM_READY)
+                .build();
+        CreditAppraisalMemo cam = CreditAppraisalMemo.builder()
+                .applicationId(id)
+                .camStatus("DRAFT")
+                .camJson(Map.of("sectionExtended", Map.of()))
+                .build();
+        when(applicationRepository.findById(id)).thenReturn(Optional.of(app));
+        when(camRepository.findByApplicationId(id)).thenReturn(Optional.of(cam));
+        when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
+
+        CamResponse res = service.getCam(id);
+
+        assertThat(res.getRecommendedAmount()).isEqualByComparingTo("500000");
+        assertThat(res.getRecommendedTenureMonths()).isEqualTo(36);
+        assertThat(res.getRecommendedRate()).isEqualByComparingTo("11.0");
+    }
+
+    @Test
     void updateCam_persistsEditableSections() {
         UUID id = UUID.randomUUID();
         CreditAppraisalMemo cam = CreditAppraisalMemo.builder()

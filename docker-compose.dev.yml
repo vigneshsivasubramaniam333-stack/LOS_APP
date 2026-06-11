@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: services/discovery-service/Dockerfile
     container_name: los_discovery
+    init: true
     command: sh -c "java -jar app.jar"
     ports:
       - "8761:8761"
@@ -12,6 +13,11 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       SERVER_PORT: 8761
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
 
   postgres:
@@ -55,32 +61,45 @@ services:
       context: .
       dockerfile: services/los-core-service/Dockerfile.dev
     container_name: los_core
+    init: true
     working_dir: /app/services/los-core-service
-    command: mvn spring-boot:run
+    command: sh -c "if ls target/los-core-service-*.jar >/dev/null 2>&1; then exec java -jar target/los-core-service-*.jar; else exec mvn -Daether.connector.connectTimeout=10000 -Daether.connector.requestTimeout=30000 spring-boot:run; fi"
     volumes:
       - .:/app
+      - los_maven_repo:/root/.m2
     ports:
       - "8083:8083"
     env_file:
       - .env.dev
     environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/los_core
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       LOS_NOTIFICATION_URL: http://notification-service:8084
       ENCORE_BASE_URL: ${ENCORE_BASE_URL:-http://credinnov-sandbox.senseitech.com/credinnov-encore-server/}
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-admin}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-password1}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
     depends_on:
-      - discovery-service
-      - postgres
-      - redis
-      - rabbitmq
-      - notification-service
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+      notification-service:
+        condition: service_started
 
   notification-service:
     build:
       context: .
       dockerfile: services/notification-service/Dockerfile
     container_name: los_notification
+    init: true
     command: sh -c "java -jar app.jar"
     ports:
       - "8084:8084"
@@ -88,6 +107,7 @@ services:
       - .env.dev
     environment:
       SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8084
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/los_notification
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
@@ -117,21 +137,35 @@ services:
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-LOS Platform}
       EMAIL_SIMULATION_ENABLED: ${EMAIL_SIMULATION_ENABLED:-false}
     depends_on:
-      - discovery-service
-      - postgres
-      - rabbitmq
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
 
   # 🔥 UI (HOT RELOAD)
   ui-service:
     image: node:20-alpine
     container_name: los_ui
+    init: true
     working_dir: /app
     volumes:
       - ./ui-service:/app
       - /app/node_modules
     command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      # Inside the compose network the backend is reachable by its service name, not localhost.
+      VITE_API_PROXY_TARGET: http://los-core:8083
+      # Windows/Docker bind mounts don't emit native FS events; force polling so Vite HMR sees edits.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
     ports:
       - "5173:5173"
+    depends_on:
+      los-core:
+        condition: service_started
 
 volumes:
   los_postgres_data:
+  los_maven_repo:

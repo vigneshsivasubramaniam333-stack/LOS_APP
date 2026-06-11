@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteBorrowerDraftApplication, getBorrowerDashboard, getBorrowerNotifications } from '@/api/borrowerPortal'
 import { ApiError } from '@/api/http'
+import { PageHeader } from '@/components/PageHeader'
 import { isBorrowerDeletableApplicationStatus } from '@/lib/borrowerApplicationDeletable'
 import { hasLocalDraft } from '@/lib/borrowerWizardDraft'
 
@@ -57,8 +58,8 @@ export function BorrowerDashboardPage() {
   const draft = hasLocalDraft()
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Welcome, {data.fullName}</h1>
+    <div className="space-y-6">
+      <PageHeader title={`Welcome, ${data.fullName}`} description="Track your loan applications and account activity." />
       {actionErr ? <p className="mt-2 text-sm text-rose-700">{actionErr}</p> : null}
       {data.secondLoanWarning ? (
         <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{data.secondLoanWarning}</p>
@@ -80,25 +81,25 @@ export function BorrowerDashboardPage() {
           </ul>
         </div>
       ) : null}
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-900">Loan accounts</h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
             {data.activeLoanCount > 0
               ? `You have ${data.activeLoanCount} disbursed loan(s). Use the menu for repayment details.`
               : 'No active loans yet.'}
           </p>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-900">Recent applications</h2>
           {hasApps ? (
-            <ul className="mt-2 space-y-2 text-sm">
+            <ul className="mt-4 space-y-3 text-sm">
               {data.recentApplications.map((a) => (
-                <li key={a.applicationId} className="flex flex-wrap items-center justify-between gap-2">
+                <li key={a.applicationId} className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                   <span>
                     {a.applicationNumber} · {a.friendlyStatus}
                   </span>
-                  <span className="flex flex-wrap items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-3">
                     {isBorrowerDeletableApplicationStatus(a.status) ? (
                       <button
                         type="button"
@@ -132,7 +133,7 @@ export function BorrowerDashboardPage() {
       <div className="mt-8">
         <Link
           to="/borrower/apply"
-          className="inline-block rounded-md bg-slate-900 px-5 py-2.5 text-sm font-medium text-white"
+          className="inline-block rounded-md bg-bl-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:brightness-110"
         >
           Apply for a loan
         </Link>

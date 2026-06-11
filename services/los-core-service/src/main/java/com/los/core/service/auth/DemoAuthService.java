@@ -2,6 +2,7 @@ package com.los.core.service.auth;
 
 import com.los.core.exception.BusinessRuleException;
 import com.los.core.exception.UnauthorizedException;
+import com.los.core.model.dto.auth.ChangePasswordRequest;
 import com.los.core.model.dto.auth.ForgotPasswordRequest;
 import com.los.core.model.dto.auth.ForgotPasswordResponse;
 import com.los.core.model.dto.auth.LoginRequest;
@@ -101,6 +102,7 @@ public class DemoAuthService {
                 .email(u.getEmail())
                 .role(role)
                 .institution(DEMO_INSTITUTION)
+                .passwordResetRequired(u.isPasswordResetRequired())
                 .build();
     }
 
@@ -129,6 +131,47 @@ public class DemoAuthService {
                 .resetPath(resetPath)
                 .resetLink(resetPath)
                 .expiresAt(exp)
+                .build();
+    }
+
+    /**
+     * Authenticated password change for a signed-in user. Verifies the current/temporary password,
+     * enforces the same strength policy as registration, and clears the forced-reset flag on success.
+     */
+    @Transactional
+    public LoginResponse changePassword(java.util.UUID userId, ChangePasswordRequest req) {
+        if (userId == null) {
+            throw new UnauthorizedException("Sign-in is required");
+        }
+        if (!req.getNewPassword().equals(req.getConfirmPassword())) {
+            throw new BusinessRuleException("Passwords do not match", "VALIDATION", "Re-enter the same password", Map.of());
+        }
+        if (!STRONG_PASSWORD.matcher(req.getNewPassword()).matches()) {
+            throw new BusinessRuleException(
+                    "Password must be at least 8 characters and include a number and a special character",
+                    "VALIDATION",
+                    "Choose a stronger password",
+                    Map.of());
+        }
+        LosUser u = losUserRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("Invalid session"));
+        String hash = u.getPasswordHash();
+        if (hash == null || hash.isBlank() || !passwordEncoder.matches(req.getCurrentPassword(), hash)) {
+            throw new UnauthorizedException("Current password is incorrect");
+        }
+        u.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+        u.setPasswordResetRequired(false);
+        u.setPasswordResetToken(null);
+        u.setPasswordResetTokenExpiresAt(null);
+        u = losUserRepository.save(u);
+        String role = u.getPrimaryLosRole() != null ? u.getPrimaryLosRole() : "OPERATIONS";
+        return LoginResponse.builder()
+                .userId(u.getId())
+                .name(u.getName())
+                .email(u.getEmail())
+                .role(role)
+                .institution(DEMO_INSTITUTION)
+                .passwordResetRequired(false)
                 .build();
     }
 

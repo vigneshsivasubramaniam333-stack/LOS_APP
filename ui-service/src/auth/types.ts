@@ -5,6 +5,8 @@ export interface SessionUser {
   email: string
   role: string
   institution: string
+  /** True when the account uses a temporary password and must set a new one before continuing. */
+  passwordResetRequired?: boolean
 }
 
 const STORAGE_KEY = 'los_demo_session_v1'
