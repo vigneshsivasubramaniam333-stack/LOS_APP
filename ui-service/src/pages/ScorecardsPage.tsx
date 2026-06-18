@@ -251,7 +251,7 @@ export function ScorecardsPage() {
 
       {rows && !loading && (
         <div className="mb-4 overflow-x-auto rounded border border-slate-200">
-          <table className="min-w-full text-left text-sm">
+          <table className="bt-table min-w-full">
             <thead className="bg-slate-50 text-xs text-slate-500">
               <tr>
                 <th className="p-2">Name</th>
@@ -272,7 +272,7 @@ export function ScorecardsPage() {
                   className={
                     r.id === selected?.id
                       ? 'cursor-pointer bg-indigo-50/80'
-                      : 'cursor-pointer border-t border-slate-100 hover:bg-slate-50/80'
+                      : 'cursor-pointer border-t border-slate-100 '
                   }
                 >
                   <td className="p-2 font-medium text-slate-900">{r.name}</td>
@@ -295,14 +295,14 @@ export function ScorecardsPage() {
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="block">
               <span className="text-xs text-slate-500">Name</span>
-              <input className="mt-0.5 w-full border px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className="mt-0.5 bt-input w-full" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
                 <span className="text-xs text-slate-500">Version</span>
                 <input
                   type="number"
-                  className="mt-0.5 w-full border px-2 py-1"
+                  className="mt-0.5 bt-input w-full"
                   value={version}
                   onChange={(e) => setVersion(Number(e.target.value) || 1)}
                 />
@@ -311,7 +311,7 @@ export function ScorecardsPage() {
                 <span className="text-xs text-slate-500">Priority</span>
                 <input
                   type="number"
-                  className="mt-0.5 w-full border px-2 py-1"
+                  className="mt-0.5 bt-input w-full"
                   value={priority}
                   onChange={(e) => setPriority(Number(e.target.value) || 0)}
                 />
@@ -320,7 +320,7 @@ export function ScorecardsPage() {
             <label className="block">
               <span className="text-xs text-slate-500">Borrower</span>
               <select
-                className="mt-0.5 w-full border px-2 py-1"
+                className="mt-0.5 bt-input w-full"
                 value={borrowerType}
                 onChange={(e) => setBorrowerType(e.target.value as BorrowerType)}
               >
@@ -350,11 +350,11 @@ export function ScorecardsPage() {
             </label>
             <label className="block">
               <span className="text-xs text-slate-500">Min amount</span>
-              <input className="mt-0.5 w-full border px-2 py-1" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} />
+              <input className="mt-0.5 bt-input w-full" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} />
             </label>
             <label className="block">
               <span className="text-xs text-slate-500">Max amount</span>
-              <input className="mt-0.5 w-full border px-2 py-1" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} />
+              <input className="mt-0.5 bt-input w-full" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} />
             </label>
             <label className="block sm:col-span-2">
               <span className="text-xs text-slate-500">Geography (optional)</span>
@@ -370,7 +370,7 @@ export function ScorecardsPage() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Thresholds (% of max points, 0–100)</h3>
+            <h3 className="bt-card-title">Thresholds (% of max points, 0–100)</h3>
             <div className="mt-2 flex flex-wrap gap-4">
               <label>
                 <span className="text-xs text-slate-500">Approve at ≥</span>
@@ -395,7 +395,7 @@ export function ScorecardsPage() {
 
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Parameters</h3>
+              <h3 className="bt-card-title">Parameters</h3>
               <button
                 type="button"
                 className="text-xs text-indigo-800 underline"
@@ -525,7 +525,7 @@ export function ScorecardsPage() {
 
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Hard rules (override first)</h3>
+              <h3 className="bt-card-title">Hard rules (override first)</h3>
               <button
                 type="button"
                 className="text-xs text-indigo-800 underline"
@@ -599,7 +599,7 @@ export function ScorecardsPage() {
               type="button"
               onClick={() => void onSave()}
               disabled={saving}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="bt-btn bt-btn-primary disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>

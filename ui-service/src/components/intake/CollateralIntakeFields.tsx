@@ -23,14 +23,14 @@ export function CollateralIntakeFields({
   return (
     <div className="space-y-4">
       {documentWarning ? (
-        <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{documentWarning}</p>
+        <p className="bt-alert bt-alert-warning">{documentWarning}</p>
       ) : null}
       {kind === 'PROPERTY' ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm text-slate-700 sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-500">Property type *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralPropertyType}
               onChange={(e) => setForm((f) => ({ ...f, collateralPropertyType: e.target.value }))}
               placeholder="e.g. residential flat, land, commercial"
@@ -39,7 +39,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700 sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-500">Property address *</span>
             <textarea
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               rows={3}
               value={form.collateralPropertyAddress}
               onChange={(e) => setForm((f) => ({ ...f, collateralPropertyAddress: e.target.value }))}
@@ -48,7 +48,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">Ownership type *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralOwnershipType}
               onChange={(e) => setForm((f) => ({ ...f, collateralOwnershipType: e.target.value }))}
               placeholder="e.g. sole, joint, leasehold"
@@ -60,7 +60,7 @@ export function CollateralIntakeFields({
               type="number"
               min={0}
               step="1"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums"
+              className="bt-input w-full tabular-nums"
               value={form.collateralEstimatedMarketValue}
               onChange={(e) => setForm((f) => ({ ...f, collateralEstimatedMarketValue: e.target.value }))}
             />
@@ -95,7 +95,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">Security type *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralSecurityType}
               onChange={(e) => setForm((f) => ({ ...f, collateralSecurityType: e.target.value }))}
               placeholder="e.g. equity, debt MF"
@@ -104,7 +104,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">ISIN *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono uppercase"
+              className="bt-input w-full font-mono uppercase"
               value={form.collateralIsin}
               onChange={(e) => setForm((f) => ({ ...f, collateralIsin: e.target.value.toUpperCase() }))}
             />
@@ -112,7 +112,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700 sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-500">Company / mutual fund name *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralCompanyOrFundName}
               onChange={(e) => setForm((f) => ({ ...f, collateralCompanyOrFundName: e.target.value }))}
             />
@@ -120,7 +120,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">Quantity *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralShareQuantity}
               onChange={(e) => setForm((f) => ({ ...f, collateralShareQuantity: e.target.value }))}
             />
@@ -131,7 +131,7 @@ export function CollateralIntakeFields({
               type="number"
               min={0}
               step="1"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums"
+              className="bt-input w-full tabular-nums"
               value={form.collateralShareMarketValue}
               onChange={(e) => setForm((f) => ({ ...f, collateralShareMarketValue: e.target.value }))}
             />
@@ -139,7 +139,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700 sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-500">Demat account number *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
+              className="bt-input w-full font-mono"
               value={form.collateralDematAccountNumber}
               onChange={(e) => setForm((f) => ({ ...f, collateralDematAccountNumber: e.target.value }))}
             />
@@ -160,7 +160,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">Gold / item type *</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralGoldType}
               onChange={(e) => setForm((f) => ({ ...f, collateralGoldType: e.target.value }))}
               placeholder="e.g. jewellery, bar, coin"
@@ -172,7 +172,7 @@ export function CollateralIntakeFields({
               type="number"
               min={0}
               step="1"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums"
+              className="bt-input w-full tabular-nums"
               value={form.collateralGoldEstimatedValue}
               onChange={(e) => setForm((f) => ({ ...f, collateralGoldEstimatedValue: e.target.value }))}
             />
@@ -180,7 +180,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">Approx. gross weight (g)</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralGoldGrossWeight}
               onChange={(e) => setForm((f) => ({ ...f, collateralGoldGrossWeight: e.target.value }))}
             />
@@ -188,7 +188,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700">
             <span className="mb-1 block text-xs font-medium text-slate-500">Approx. net weight (g)</span>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               value={form.collateralGoldNetWeight}
               onChange={(e) => setForm((f) => ({ ...f, collateralGoldNetWeight: e.target.value }))}
             />
@@ -196,7 +196,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700 sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-500">Purity / karat *</span>
             <input
-              className="w-full max-w-md rounded-md border border-slate-300 px-3 py-2"
+              className="w-full max-w-md bt-input"
               value={form.collateralGoldPurityKarat}
               onChange={(e) => setForm((f) => ({ ...f, collateralGoldPurityKarat: e.target.value }))}
               placeholder="e.g. 22K"
@@ -205,7 +205,7 @@ export function CollateralIntakeFields({
           <label className="block text-sm text-slate-700 sm:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-500">Description of ornament / item(s) *</span>
             <textarea
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="bt-input w-full"
               rows={2}
               value={form.collateralGoldOrnamentDescription}
               onChange={(e) => setForm((f) => ({ ...f, collateralGoldOrnamentDescription: e.target.value }))}

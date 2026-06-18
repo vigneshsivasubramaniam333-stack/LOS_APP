@@ -37,8 +37,8 @@ export function PlpProgramsPage() {
       {loading ? <p className="text-sm text-slate-600">Loading…</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {!loading && !error ? (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
+        <div className="bt-card overflow-x-auto">
+          <table className="bt-table min-w-full">
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-4 py-3 font-medium">Program</th>

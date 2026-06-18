@@ -5,6 +5,7 @@ import com.los.core.exception.ResourceNotFoundException;
 import com.los.core.model.dto.request.CreateApplicationRequest;
 import com.los.core.model.dto.request.ManualCreditInputsRequest;
 import com.los.core.model.dto.request.UpdateApplicationRequest;
+import com.los.core.model.dto.request.ValidateIdentityRequest;
 import com.los.core.model.dto.response.ApplicationResponse;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
@@ -13,6 +14,7 @@ import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.service.credit.CreditControlService;
+import com.los.core.service.loan.intake.ApplicationSubmitIdentityValidator;
 import com.los.core.service.loan.intake.ApplicationCustomerIdResolver;
 import com.los.core.service.loan.intake.AnchorIntakeValidation;
 import com.los.core.service.loan.intake.IntakeMetadataEnricher;
@@ -42,6 +44,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
     private final UnderwritingEvaluationService underwritingEvaluationService;
     private final ApplicationCustomerIdResolver applicationCustomerIdResolver;
     private final IntakeMetadataEnricher intakeMetadataEnricher;
+    private final ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
 
     private static final AtomicLong SEQUENCE = new AtomicLong(System.currentTimeMillis() % 100000);
     private static final Pattern EMAIL_RE = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
@@ -268,6 +271,24 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
         log.info("Application updated: {}", app.getApplicationNumber());
 
         return enrich(toResponse(app), app);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateIdentity(ValidateIdentityRequest request) {
+        UUID selfId = request.applicationId();
+        UUID customerId = null;
+        if (selfId != null) {
+            LoanApplication app = findApplicationOrThrow(selfId);
+            customerId = app.getCustomerId();
+        }
+        applicationSubmitIdentityValidator.validateFields(
+                selfId,
+                customerId,
+                request.email(),
+                request.mobile(),
+                request.panNumber(),
+                request.gstin());
     }
 
     @Override

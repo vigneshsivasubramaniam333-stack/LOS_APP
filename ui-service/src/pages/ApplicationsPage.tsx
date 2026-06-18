@@ -49,14 +49,8 @@ function parseIntakeSegment(s: string | null): string | undefined {
 
 export function ApplicationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const status = useMemo(
-    () => parseStatus(searchParams.get('status')),
-    [searchParams],
-  )
-  const intakeSegment = useMemo(
-    () => parseIntakeSegment(searchParams.get('intakeSegment')),
-    [searchParams],
-  )
+  const status = useMemo(() => parseStatus(searchParams.get('status')), [searchParams])
+  const intakeSegment = useMemo(() => parseIntakeSegment(searchParams.get('intakeSegment')), [searchParams])
   const { data, loading, error, refetch } = useApplications({ status, intakeSegment, page: 0, size: 30 })
 
   function setParam(key: string, value: string) {
@@ -66,35 +60,41 @@ export function ApplicationsPage() {
     setSearchParams(next)
   }
 
+  const countLabel =
+    data != null
+      ? `${data.numberOfElements} of ${data.totalElements} (page ${data.number + 1} / ${Math.max(1, data.totalPages)})`
+      : null
+
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Applications"
         description="Browse the loan application queue. Filter by processing status to find what to work on next."
+        actions={
+          <>
+            <ClearDemoDataButton onCleared={refetch} />
+            <Link to="/applications/new" className="bt-btn bt-btn-primary">
+              New application
+            </Link>
+          </>
+        }
       />
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="block text-sm text-slate-600">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Status filter</span>
-            <select
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900"
-              value={searchParams.get('status') ?? ''}
-              onChange={(e) => setParam('status', e.target.value)}
-            >
+
+      <div className="bt-toolbar-card">
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="min-w-[11rem] flex-1">
+            <span className="bt-label">Status</span>
+            <select className="bt-input w-full" value={searchParams.get('status') ?? ''} onChange={(e) => setParam('status', e.target.value)}>
               {STATUS_OPTIONS.map((s) => (
                 <option key={s || 'ALL'} value={s}>
-                  {s || 'All'}
+                  {s || 'All statuses'}
                 </option>
               ))}
             </select>
           </label>
-          <label className="block text-sm text-slate-600">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Intake</span>
-            <select
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900"
-              value={searchParams.get('intakeSegment') ?? ''}
-              onChange={(e) => setParam('intakeSegment', e.target.value)}
-            >
+          <label className="min-w-[11rem] flex-1">
+            <span className="bt-label">Intake</span>
+            <select className="bt-input w-full" value={searchParams.get('intakeSegment') ?? ''} onChange={(e) => setParam('intakeSegment', e.target.value)}>
               {INTAKE_OPTIONS.map((o) => (
                 <option key={o.value || 'ALL'} value={o.value}>
                   {o.label}
@@ -102,22 +102,10 @@ export function ApplicationsPage() {
               ))}
             </select>
           </label>
-          <span className="text-sm text-slate-500">
-            {data != null
-              ? `${data.numberOfElements} of ${data.totalElements} (page ${data.number + 1} / ${Math.max(1, data.totalPages)})`
-              : null}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ClearDemoDataButton onCleared={refetch} />
-          <Link
-            to="/applications/new"
-            className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            New application
-          </Link>
+          {countLabel ? <div className="pb-2 text-sm text-[var(--bt-gray-500)]">{countLabel}</div> : null}
         </div>
       </div>
+
       {loading && <LoadingState label="Loading applications…" />}
       {error && <ErrorState message={error} />}
       {data && !loading && <ApplicationTable rows={data.content} />}

@@ -38,6 +38,15 @@ public interface EncoreLmsApi {
 
     List<Map<String, Object>> getAccountStatement(String encoreAccountId, String fromDate, String toDate);
 
+    /**
+     * Composite statement lines from Encore loan OD account details
+     * ({@code GET api/loan-od-accounts/{accountId}} → {@code compositeStatement}).
+     */
+    List<Map<String, Object>> getCompositeStatement(String encoreAccountId);
+
+    /** Raw loan OD account JSON (includes compositeStatement, accountStatement, etc.). */
+    JsonNode getLoanOdAccountDetails(String encoreAccountId);
+
     /** Bank working date as returned by Encore (raw body). */
     String findBankWorkingDateRaw();
 

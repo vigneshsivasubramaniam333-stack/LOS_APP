@@ -14,6 +14,7 @@ import { messageForKycAction } from '@/api/kycErrorMessage'
 import { ErrorState } from '@/components/ErrorState'
 import { ManualCreditInputsSection } from '@/components/ManualCreditInputsSection'
 import { ProcessOverrideCard } from '@/components/ProcessOverrideCard'
+import { AppSectionCard } from '@/components/ui/AppSectionCard'
 import { formatMoney } from '@/lib/format'
 import { manualCreditHashForScorecardParameter } from '@/lib/manualCreditParameterAnchors'
 import { helpForParameter } from '@/lib/scorecardParameterSources'
@@ -101,8 +102,19 @@ export function UnderwritingSection({
         : null
   const hasBureau = effectiveBureau != null && effectiveBureau > 0
   const canStartUw = inKyc && kycPass && hasBureau
-  const decisionDone = app.status === 'APPROVED' || app.status === 'REJECTED'
   const pendingManualReview = app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW'
+  const decisionDone =
+    Boolean(app.creditDecision) &&
+    !(app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW')
+  const manualOverridesRaw = (app.financialInfo as Record<string, unknown> | null)?.manualOverrides
+  const underwritingOverrides = Array.isArray(manualOverridesRaw)
+    ? (manualOverridesRaw as Array<Record<string, unknown>>).filter(
+        (row) => String(row.processCode ?? '').toUpperCase() === 'UNDERWRITING',
+      )
+    : []
+  const hasUnderwritingOverride =
+    String((app.financialInfo as Record<string, unknown> | null)?.manualOverrideFlag ?? '').toUpperCase() ===
+      'MANUALLY_OVERRIDDEN' && underwritingOverrides.length > 0
   useEffect(() => {
     if (!(inKyc && kycPass && !hasBureau)) {
       return
@@ -316,7 +328,36 @@ export function UnderwritingSection({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-3 rounded-lg border border-slate-300 bg-slate-50/90 p-4 text-sm text-slate-800 shadow-sm">
+      {hasUnderwritingOverride ? (
+        <AppSectionCard
+          tone="override"
+          title="Manual underwriting override applied"
+          subtitle="This case was credit-approved via controlled override after an automated rejection. Original policy outcome remains in workflow history."
+          badge={<span className="bt-section-card__chip bt-section-card__chip--override">Manually overridden</span>}
+        >
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+            {underwritingOverrides.map((row, idx) => (
+              <div key={idx} className="sm:col-span-2 rounded-lg border border-indigo-100 bg-white/80 p-3">
+                <div className="font-semibold text-indigo-950">
+                  Override {idx + 1} · {String(row.previousStatus ?? '—')} → {String(row.newStatus ?? '—')}
+                </div>
+                <div className="mt-1 text-indigo-900/90">{String(row.reason ?? '—')}</div>
+                {row.remarks ? <div className="mt-1 text-indigo-800/80">Remarks: {String(row.remarks)}</div> : null}
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-indigo-700">
+                  {row.manualBureauScore != null ? (
+                    <span>Updated score: {String(row.manualBureauScore)}</span>
+                  ) : null}
+                  {row.creditRiskScore != null ? (
+                    <span>Risk score: {String(row.creditRiskScore)}</span>
+                  ) : null}
+                  {row.timestamp ? <span>{String(row.timestamp)}</span> : null}
+                </div>
+              </div>
+            ))}
+          </dl>
+        </AppSectionCard>
+      ) : null}
+      <div className="bt-section-card bt-section-card--hero space-y-3 p-4 text-sm text-slate-800">
         <h2 className="text-base font-semibold text-slate-900">Credit decision header</h2>
         <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
           <div>
@@ -364,8 +405,8 @@ export function UnderwritingSection({
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-800">
-          <h3 className="text-sm font-semibold text-slate-900">{partyLabels.snapshotHeading}</h3>
+        <div className="bt-section-card bt-section-card--default p-4 text-xs text-slate-800">
+          <h3 className="bt-card-title">{partyLabels.snapshotHeading}</h3>
           <dl className="mt-2 space-y-1">
             {Object.entries(creditSum.borrowerSnapshot).map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2">
@@ -375,8 +416,8 @@ export function UnderwritingSection({
             ))}
           </dl>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-800">
-          <h3 className="text-sm font-semibold text-slate-900">KYC and compliance (summary)</h3>
+        <div className="bt-section-card bt-section-card--default p-4 text-xs text-slate-800">
+          <h3 className="bt-card-title">KYC and compliance (summary)</h3>
           <dl className="mt-2 space-y-1">
             {Object.entries(creditSum.kycSummary).map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2">
@@ -386,8 +427,8 @@ export function UnderwritingSection({
             ))}
           </dl>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-800">
-          <h3 className="text-sm font-semibold text-slate-900">Bureau and credit (summary)</h3>
+        <div className="bt-section-card bt-section-card--default p-4 text-xs text-slate-800">
+          <h3 className="bt-card-title">Bureau and credit (summary)</h3>
           <dl className="mt-2 space-y-1">
             {Object.entries(creditSum.bureauSummary).map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2">
@@ -397,8 +438,8 @@ export function UnderwritingSection({
             ))}
           </dl>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-800">
-          <h3 className="text-sm font-semibold text-slate-900">Income and cashflow (summary)</h3>
+        <div className="bt-section-card bt-section-card--default p-4 text-xs text-slate-800">
+          <h3 className="bt-card-title">Income and cashflow (summary)</h3>
           <dl className="mt-2 space-y-1">
             {Object.entries(creditSum.incomeSummary).map(([k, v]) => (
               <div key={k} className="flex justify-between gap-2">
@@ -411,7 +452,7 @@ export function UnderwritingSection({
       </div>
 
       {creditSum.collateralSummary ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 text-xs text-slate-800">
+        <div className="bt-section-card bt-section-card--success p-4 text-xs text-slate-800">
           <h3 className="text-sm font-semibold text-emerald-950">Collateral (secured product)</h3>
           <dl className="mt-2 space-y-1">
             {Object.entries(creditSum.collateralSummary).map(([k, v]) => (
@@ -425,7 +466,7 @@ export function UnderwritingSection({
       ) : null}
 
       {creditSum.scorecardSummary ? (
-        <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 text-xs text-slate-800">
+        <div className="bt-section-card bt-section-card--violet p-4 text-xs text-slate-800">
           <h3 className="text-sm font-semibold text-violet-950">Scorecard (summary)</h3>
           <p>
             {creditSum.scorecardSummary.name} {creditSum.scorecardSummary.version != null ? `· v${creditSum.scorecardSummary.version}` : ''} ·
@@ -434,7 +475,7 @@ export function UnderwritingSection({
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-amber-200/90 bg-amber-50/60 p-4 text-xs text-slate-800">
+      <div className="bt-section-card bt-section-card--warning p-4 text-xs text-slate-800">
         <h3 className="text-sm font-semibold text-amber-950">Risk flags (auto)</h3>
         <ul className="mt-2 list-inside list-disc space-y-1">
           {creditSum.riskFlags.map((f, i) => (
@@ -449,7 +490,7 @@ export function UnderwritingSection({
       </div>
 
       {showCollateralIntake ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--success p-4 text-sm text-slate-800">
           <h3 className="text-sm font-semibold text-emerald-950">{partyLabels.collateralIntakeSectionTitle}</h3>
           <p className="mt-1 text-xs text-slate-600">
             Declared security for this secured product. Official valuation and LTV follow your standard process.
@@ -467,7 +508,7 @@ export function UnderwritingSection({
         </div>
       ) : null}
       {showIntakeContext ? (
-        <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-4 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--info p-4 text-sm text-slate-800">
           <h3 className="text-sm font-semibold text-sky-950">{partyLabels.declaredIntakeHeading}</h3>
           <p className="mt-1 text-xs text-slate-600">
             Figures from the application journey. Use these as context alongside bureau, bank, and manual credit inputs;
@@ -508,7 +549,7 @@ export function UnderwritingSection({
         </div>
       ) : null}
       {latestEval && (
-        <div className="space-y-3 rounded-lg border border-violet-200 bg-violet-50/50 p-4 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--violet space-y-3 p-4 text-sm text-slate-800">
           <h3 className="text-sm font-semibold text-violet-950">Matched scorecard (latest underwriting run)</h3>
           <p className="text-xs text-slate-600">
             Scorecards are selected by active policy rows in <strong>underwriting_scorecards</strong> — ordered by
@@ -565,7 +606,7 @@ export function UnderwritingSection({
       )}
 
       {latestEval && Array.isArray(latestEval.parameterResults) && latestEval.parameterResults.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-3">
+        <div className="bt-card overflow-x-auto p-3">
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Parameter results</h4>
           <table className="w-full min-w-0 table-fixed border-collapse text-left text-xs">
             <colgroup>
@@ -650,10 +691,10 @@ export function UnderwritingSection({
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="bt-section-card bt-section-card--default p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Parameter source reference</h3>
+            <h3 className="bt-card-title">Parameter source reference</h3>
             <p className="text-xs text-slate-500">
               View how scorecard parameters map to provider, KYC, and manual sources.
             </p>
@@ -668,7 +709,7 @@ export function UnderwritingSection({
           </button>
         </div>
         {showParameterReference ? (
-          <div className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/50 p-3 text-xs text-slate-800">
+          <div className="bt-section-card bt-section-card--warning mt-3 p-3 text-xs text-slate-800">
             <p className="text-slate-600">
               How inputs connect to the scorecard is documented below. Data flows from provider pulls, KYC, manual credit
               inputs, and the effective credit-control snapshot (never overwriting raw provider data).
@@ -702,10 +743,10 @@ export function UnderwritingSection({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="bt-section-card bt-section-card--default p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">Manual credit inputs</h3>
+                <h3 className="bt-card-title">Manual credit inputs</h3>
                 <p className="text-xs text-slate-500">
                   Expand to add or review manual underwriting inputs.
                 </p>
@@ -730,8 +771,8 @@ export function UnderwritingSection({
           </div>
         </div>
         <div className="space-y-3">
-          <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">
-            <h3 className="text-sm font-semibold text-slate-900">AI LOS Review</h3>
+          <div className="bt-section-card bt-section-card--default p-3 text-xs text-slate-800">
+            <h3 className="bt-card-title">AI LOS Review</h3>
             <p className="mt-1 text-slate-600">
               AI underwriting summary and risk insights for this case.
             </p>
@@ -748,7 +789,7 @@ export function UnderwritingSection({
             </div>
           </div>
           {assignInfo ? (
-            <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 text-xs text-slate-800">
+            <div className="bt-section-card bt-section-card--info p-3 text-xs text-slate-800">
               <span className="font-semibold text-blue-950">Assignment</span>: {assignInfo.ruleName ?? 'rule'} → role{' '}
               {assignInfo.assignedRole ?? '—'}
               {assignInfo.assignedUserId ? ` · user ${assignInfo.assignedUserId}` : ''}
@@ -756,7 +797,7 @@ export function UnderwritingSection({
             </div>
           ) : null}
           {latestEval && Array.isArray(latestEval.ruleResults) && latestEval.ruleResults.length > 0 ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-800">
+            <div className="bt-section-card bt-section-card--default p-3 text-xs text-slate-800 bg-slate-50/60">
               <div className="font-semibold text-slate-900">Rule / engine rows (latest)</div>
               <ul className="mt-1 list-inside list-disc">
                 {(latestEval.ruleResults as Record<string, unknown>[]).map((row, i) => (
@@ -772,7 +813,7 @@ export function UnderwritingSection({
         </div>
       </div>
       {scorecardMap && Object.keys(scorecardMap).length > 0 ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--success p-4 text-sm text-slate-800">
           <h3 className="text-sm font-semibold text-emerald-950">Scorecard parameters (effective)</h3>
           <dl className="mt-2 grid gap-1 sm:grid-cols-2">
             {Object.entries(scorecardMap).map(([k, v]) => (
@@ -796,7 +837,7 @@ export function UnderwritingSection({
       ) : null}
       {actionError ? <ErrorState message={actionError} /> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 rounded-lg border border-slate-200 bg-white p-4 text-sm">
+      <div className="bt-section-card bt-section-card--default grid gap-3 sm:grid-cols-2 p-4 text-sm">
         <div>
           <div className="text-xs font-medium text-slate-500">Requested amount</div>
           <div className="mt-0.5 font-medium text-slate-900">{formatMoney(app.requestedAmount)}</div>
@@ -818,7 +859,7 @@ export function UnderwritingSection({
       </div>
 
       {inKyc && kycPass && !hasBureau ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="bt-section-card bt-section-card--warning p-3 text-sm text-amber-900">
           No bureau score yet. Pull the bureau report (requires provider configuration), or save a manual score if
           your role allows.
         </div>
@@ -838,8 +879,8 @@ export function UnderwritingSection({
       ) : null}
 
       {inKyc && kycPass && !hasBureau ? (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Manual bureau score (optional)</h3>
+        <div className="bt-section-card bt-section-card--default p-4 bg-slate-50">
+          <h3 className="bt-card-title">Manual bureau score (optional)</h3>
           <p className="mb-2 text-xs text-slate-500">Requires an internal role in production. Used when automated pull is unavailable.</p>
           {bureauFileMessage ? (
             <div
@@ -935,7 +976,7 @@ export function UnderwritingSection({
       ) : null}
 
       {uwMeta && (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--violet p-4 text-sm text-slate-800">
           <h3 className="text-sm font-semibold text-indigo-950">Last underwriting policy snapshot</h3>
           <dl className="mt-2 grid gap-2 sm:grid-cols-2">
             <div>
@@ -969,7 +1010,7 @@ export function UnderwritingSection({
       )}
 
       {pendingManualReview && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+        <div className="bt-section-card bt-section-card--warning p-4">
           <h3 className="text-sm font-semibold text-amber-950">Manual review required</h3>
           <p className="mb-3 text-sm text-amber-900">
             Policy sent this case to <strong>MANUAL_REVIEW</strong>. Approve or reject as Credit Manager.
@@ -996,8 +1037,8 @@ export function UnderwritingSection({
       )}
 
       {decisionDone && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Credit decision</h3>
+        <div className="bt-section-card bt-section-card--default p-4">
+          <h3 className="bt-card-title">Credit decision</h3>
           <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs text-slate-500">Status</dt>

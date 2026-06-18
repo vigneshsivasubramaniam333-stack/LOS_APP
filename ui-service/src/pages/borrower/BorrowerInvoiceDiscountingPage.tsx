@@ -45,6 +45,7 @@ export function BorrowerInvoiceDiscountingPage() {
   const [actionOk, setActionOk] = useState<string | null>(null)
   const [financeAmounts, setFinanceAmounts] = useState<Record<string, string>>({})
   const [repayAmounts, setRepayAmounts] = useState<Record<string, string>>({})
+  const [expandedLoanInvoiceIds, setExpandedLoanInvoiceIds] = useState<Set<string>>(() => new Set())
 
   const invoiceById = useMemo(() => {
     const map = new Map<string, BorrowerInvoiceItem>()
@@ -53,6 +54,27 @@ export function BorrowerInvoiceDiscountingPage() {
     }
     return map
   }, [data?.invoices])
+
+  const loansByInvoiceId = useMemo(() => {
+    const map = new Map<string, BorrowerInvoiceLoan[]>()
+    for (const loan of data?.loans ?? []) {
+      const invId = loan.invoiceId
+      if (!invId) continue
+      const list = map.get(invId) ?? []
+      list.push(loan)
+      map.set(invId, list)
+    }
+    return map
+  }, [data?.loans])
+
+  const toggleLoanDetails = (invoiceId: string) => {
+    setExpandedLoanInvoiceIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(invoiceId)) next.delete(invoiceId)
+      else next.add(invoiceId)
+      return next
+    })
+  }
 
   const applyFinanceDefaults = useCallback((payload: BorrowerInvoiceDiscounting) => {
     setFinanceAmounts((prev) => {
@@ -185,7 +207,7 @@ export function BorrowerInvoiceDiscountingPage() {
             {data.invoices.length === 0 ? (
               <p className="text-sm text-slate-500">No invoices found for your account yet.</p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="bt-card overflow-x-auto shadow-sm">
                 <table className="min-w-full text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-600">
                     <tr>
@@ -197,9 +219,11 @@ export function BorrowerInvoiceDiscountingPage() {
                       <th className="px-5 py-3.5">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data.invoices.map((inv) => (
-                      <tr key={inv.invoiceId} className="align-middle hover:bg-slate-50/80">
+                  <tbody className="">
+                    {data.invoices.flatMap((inv) => {
+                      const linkedLoans = loansByInvoiceId.get(inv.invoiceId) ?? []
+                      const rows = [
+                        <tr key={inv.invoiceId} className="align-middle ">
                         <td className="whitespace-nowrap px-5 py-4 font-medium text-bl-navy">{inv.invoiceNumber ?? '—'}</td>
                         <td className="whitespace-nowrap px-5 py-4 text-slate-600">{inv.dueDate ?? '—'}</td>
                         <td className="px-5 py-4 tabular-nums text-slate-700">{money(inv.invoiceAmount)}</td>
@@ -212,68 +236,90 @@ export function BorrowerInvoiceDiscountingPage() {
                           </span>
                         </td>
                         <td className="px-5 py-4">
-                          {inv.acceptable ? (
-                            <button
-                              type="button"
-                              onClick={() => void onAccept(inv)}
-                              disabled={busyId === inv.invoiceId}
-                              className="rounded-md border border-sky-600 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
-                            >
-                              {busyId === inv.invoiceId ? '…' : 'Accept invoice'}
-                            </button>
-                          ) : inv.financeable ? (
-                            <form onSubmit={(e) => onFinance(e, inv)} className="flex flex-wrap items-center gap-3">
-                              <input
-                                type="number"
-                                min="1"
-                                step="0.01"
-                                value={financeAmounts[inv.invoiceId] ?? defaultFinanceAmount(inv)}
-                                onChange={(e) =>
-                                  setFinanceAmounts((m) => ({ ...m, [inv.invoiceId]: e.target.value }))
-                                }
-                                className="w-28 rounded border border-slate-300 px-2 py-1 text-sm focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
-                              />
+                          <div className="flex flex-col items-start gap-2">
+                            {linkedLoans.length > 0 ? (
                               <button
-                                type="submit"
-                                disabled={busyId === inv.invoiceId}
-                                className="rounded-md bg-bl-primary px-3 py-1.5 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
+                                type="button"
+                                onClick={() => toggleLoanDetails(inv.invoiceId)}
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                title={expandedLoanInvoiceIds.has(inv.invoiceId) ? 'Hide linked loan details' : 'View linked loan details'}
                               >
-                                {busyId === inv.invoiceId ? '…' : 'Request finance'}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden>
+                                  {expandedLoanInvoiceIds.has(inv.invoiceId) ? (
+                                    <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-4.38 1.5 1.5 0 0 0 0-1.5 10.029 10.029 0 0 0-3.3-4.38 1.5 1.5 0 0 0-1.5 0 10.029 10.029 0 0 0-3.3 4.38 1.5 1.5 0 0 0 1.5 0 10.029 10.029 0 0 0 4.38 3.3l1.745 1.745a.75.75 0 0 0 1.06-1.06l-14.5-14.5Z" clipRule="evenodd" />
+                                  ) : (
+                                    <>
+                                      <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+                                      <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" />
+                                    </>
+                                  )}
+                                </svg>
+                                {expandedLoanInvoiceIds.has(inv.invoiceId) ? 'Hide loan' : 'View loan'}
                               </button>
-                            </form>
-                          ) : (
-                            <span className="text-xs text-slate-400">Not available</span>
-                          )}
+                            ) : null}
+                            {inv.acceptable ? (
+                              <button
+                                type="button"
+                                onClick={() => void onAccept(inv)}
+                                disabled={busyId === inv.invoiceId}
+                                className="rounded-md border border-sky-600 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                              >
+                                {busyId === inv.invoiceId ? '…' : 'Accept invoice'}
+                              </button>
+                            ) : inv.financeable ? (
+                              <form onSubmit={(e) => onFinance(e, inv)} className="flex flex-wrap items-center gap-3">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="0.01"
+                                  value={financeAmounts[inv.invoiceId] ?? defaultFinanceAmount(inv)}
+                                  onChange={(e) =>
+                                    setFinanceAmounts((m) => ({ ...m, [inv.invoiceId]: e.target.value }))
+                                  }
+                                  className="w-28 rounded border border-slate-300 px-2 py-1 text-sm focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={busyId === inv.invoiceId}
+                                  className="bt-btn bt-btn-primary bt-btn-sm disabled:opacity-50"
+                                >
+                                  {busyId === inv.invoiceId ? '…' : 'Request finance'}
+                                </button>
+                              </form>
+                            ) : linkedLoans.length === 0 ? (
+                              <span className="text-xs text-slate-400">Not available</span>
+                            ) : null}
+                          </div>
                         </td>
-                      </tr>
-                    ))}
+                      </tr>,
+                      ]
+                      if (linkedLoans.length > 0 && expandedLoanInvoiceIds.has(inv.invoiceId)) {
+                        rows.push(
+                          <tr key={`${inv.invoiceId}-loans`}>
+                            <td colSpan={6} className="px-5 pb-4 bg-slate-50/40">
+                              <div className="space-y-4">
+                                {linkedLoans.map((loan) => (
+                                  <BorrowerInvoiceLoanCard
+                                    key={loan.loanId}
+                                    loan={loan}
+                                    invoice={invoiceById.get(inv.invoiceId)}
+                                    busyId={busyId}
+                                    repayAmount={repayAmounts[loan.loanId] ?? ''}
+                                    onRepayAmountChange={(value) =>
+                                      setRepayAmounts((m) => ({ ...m, [loan.loanId]: value }))
+                                    }
+                                    onRepay={onRepay}
+                                  />
+                                ))}
+                              </div>
+                            </td>
+                          </tr>,
+                        )
+                      }
+                      return rows
+                    })}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-4">
-            <h2 className="text-sm font-semibold text-bl-navy">Invoice-discounting loans</h2>
-            {data.loans.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No invoice-discounting loans yet. Request finance against an eligible invoice to get started.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {data.loans.map((loan) => (
-                  <BorrowerInvoiceLoanCard
-                    key={loan.loanId}
-                    loan={loan}
-                    invoice={loan.invoiceId ? invoiceById.get(loan.invoiceId) : undefined}
-                    busyId={busyId}
-                    repayAmount={repayAmounts[loan.loanId] ?? ''}
-                    onRepayAmountChange={(value) =>
-                      setRepayAmounts((m) => ({ ...m, [loan.loanId]: value }))
-                    }
-                    onRepay={onRepay}
-                  />
-                ))}
               </div>
             )}
           </section>

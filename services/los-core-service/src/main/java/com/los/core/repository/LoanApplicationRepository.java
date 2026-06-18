@@ -92,4 +92,17 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
             """, nativeQuery = true)
     java.util.List<LoanApplication> findOthersByGstin(@org.springframework.data.repository.query.Param("selfId") UUID selfId,
                                                       @org.springframework.data.repository.query.Param("gstin") String gstin);
+
+    @Query(value = """
+            SELECT * FROM loan_applications a
+            WHERE a.id <> :selfId
+              AND regexp_replace(coalesce(
+                  a.personal_info->>'mobile',
+                  a.personal_info->>'borrowerMobile',
+                  a.personal_info->>'phone',
+                  a.business_info->>'mobile',
+                  a.business_info->>'contactMobile'), '[^0-9]', '', 'g') = :mobileDigits
+            """, nativeQuery = true)
+    java.util.List<LoanApplication> findOthersByMobile(@org.springframework.data.repository.query.Param("selfId") UUID selfId,
+                                                       @org.springframework.data.repository.query.Param("mobileDigits") String mobileDigits);
 }

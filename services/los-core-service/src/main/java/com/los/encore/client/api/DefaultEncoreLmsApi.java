@@ -352,6 +352,10 @@ public class DefaultEncoreLmsApi implements EncoreLmsApi {
             return Collections.emptyList();
         }
         try {
+            List<Map<String, Object>> composite = getCompositeStatement(encoreAccountId);
+            if (composite != null && !composite.isEmpty()) {
+                return composite;
+            }
             Map<String, String> params = new LinkedHashMap<>();
             params.put("accountId", encoreAccountId);
             if (fromDate != null) {
@@ -373,6 +377,43 @@ public class DefaultEncoreLmsApi implements EncoreLmsApi {
             return entries;
         } catch (Exception e) {
             throw new RuntimeException("Encore getAccountStatement failed: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public JsonNode getLoanOdAccountDetails(String encoreAccountId) {
+        if (!isActive()) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            String path = properties.getApi().getLoanOdAccountDetails() + "/" + encoreAccountId;
+            String response = transport.httpGet(path, null);
+            return objectMapper.readTree(response);
+        } catch (Exception e) {
+            throw new RuntimeException("Encore getLoanOdAccountDetails failed: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getCompositeStatement(String encoreAccountId) {
+        if (!isActive()) {
+            return Collections.emptyList();
+        }
+        try {
+            JsonNode root = getLoanOdAccountDetails(encoreAccountId);
+            JsonNode composite = root != null ? root.get("compositeStatement") : null;
+            if (composite == null || !composite.isArray() || composite.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<Map<String, Object>> entries = new ArrayList<>();
+            for (JsonNode node : composite) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> row = objectMapper.convertValue(node, Map.class);
+                entries.add(row);
+            }
+            return entries;
+        } catch (Exception e) {
+            throw new RuntimeException("Encore getCompositeStatement failed: " + e.getMessage(), e);
         }
     }
 

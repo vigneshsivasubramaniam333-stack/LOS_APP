@@ -715,6 +715,7 @@ public class LmsService {
 
     /**
      * Get Encore account statement for a loan.
+     * Prefers {@code compositeStatement} from loan OD account details; falls back to legacy findAccountStatements.
      */
     public List<Map<String, Object>> getEncoreAccountStatement(String applicationNumber,
                                                                  String fromDate, String toDate) {
@@ -722,7 +723,21 @@ public class LmsService {
         if (handoverOpt.isEmpty() || handoverOpt.get().getEncoreAccountId() == null) {
             return Collections.emptyList();
         }
-        return encoreLmsApi.getAccountStatement(handoverOpt.get().getEncoreAccountId(), fromDate, toDate);
+        String accountId = handoverOpt.get().getEncoreAccountId();
+        List<Map<String, Object>> composite = encoreLmsApi.getCompositeStatement(accountId);
+        if (composite != null && !composite.isEmpty()) {
+            return composite;
+        }
+        return encoreLmsApi.getAccountStatement(accountId, fromDate, toDate);
+    }
+
+    /** Composite statement rows from Encore loan OD account details API. */
+    public List<Map<String, Object>> getEncoreCompositeStatement(String applicationNumber) {
+        return handoverRepository.findByApplicationNumber(applicationNumber)
+                .map(LmsLoanHandover::getEncoreAccountId)
+                .filter(id -> id != null && !id.isBlank())
+                .map(encoreLmsApi::getCompositeStatement)
+                .orElse(Collections.emptyList());
     }
 
     /**

@@ -14,11 +14,11 @@ export function BorrowerSubmittedIntakePanel({ app }: { app: ApplicationResponse
   return (
     <div className="space-y-6">
       {sections.map((sec) => (
-        <div key={sec.title}>
-          <h3 className="mb-2 text-sm font-semibold text-slate-900">{sec.title}</h3>
+        <div key={sec.title} className="bt-section-card bt-section-card--default p-4">
+          <h3 className="mb-3 bt-section-card__title">{sec.title}</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {sec.rows.map((r) => (
-              <div key={r.label} className="rounded border border-slate-100 bg-slate-50/80 px-3 py-2">
+              <div key={r.label} className="rounded-lg border border-slate-100 bg-gradient-to-b from-slate-50 to-white px-3 py-2 shadow-sm">
                 <div className="text-xs font-medium text-slate-500">{r.label}</div>
                 <div className="mt-0.5 text-sm text-slate-900 break-words">{r.value}</div>
               </div>

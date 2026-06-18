@@ -27,6 +27,8 @@ import { buildVkycWorkflowGate, insertVkycTab, type VkycWorkflowGate } from '@/l
 import type { ApplicationResponse } from '@/types/application'
 import type { StepExecutionRecordView } from '@/types/stepExecution'
 import type { WorkflowConfigResponse } from '@/types/workflow'
+import { DetailField } from '@/components/ui/AdminLayout'
+import { AppSectionCard } from '@/components/ui/AppSectionCard'
 import { VkycDetailsSection } from '@/components/VkycDetailsSection'
 import { VkycDownstreamGate } from '@/components/VkycDownstreamGate'
 
@@ -128,13 +130,13 @@ export function ApplicationDetailPage() {
   }
 
   return (
-    <div>
+    <div className="bt-app-detail">
       <PageHeader
         title="Application details"
         description="Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan."
       />
-      <p className="mb-4 text-sm text-slate-600">
-        <Link to="/applications" className="font-medium text-slate-800 underline">
+      <p className="mb-4 text-sm">
+        <Link to="/applications" className="font-medium text-[var(--bt-orange)] hover:underline">
           ← Back to applications
         </Link>
       </p>
@@ -143,12 +145,7 @@ export function ApplicationDetailPage() {
       {appError && !app && <ErrorState message={appError} />}
 
       {valid && (
-        <div
-          className="mb-6 border-b border-slate-200"
-          role="tablist"
-          aria-label="Application sections"
-        >
-          <div className="flex flex-wrap gap-1">
+        <div className="bt-tabs" role="tablist" aria-label="Application sections">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -156,22 +153,16 @@ export function ApplicationDetailPage() {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id as typeof tab)}
-                className={[
-                  'rounded-t-md border border-b-0 px-3 py-2 text-sm font-medium transition-colors',
-                  tab === t.id
-                    ? 'border-slate-200 bg-white text-slate-900'
-                    : 'border-transparent bg-transparent text-slate-600 hover:text-slate-900',
-                ].join(' ')}
+                className={tab === t.id ? 'bt-tab active' : 'bt-tab'}
               >
                 {t.label}
               </button>
             ))}
-          </div>
         </div>
       )}
 
       {valid && id && (
-        <div className="mx-auto max-w-6xl rounded-lg border border-slate-200 border-t-0 bg-white p-5 shadow-sm sm:-mt-px sm:border-t sm:pt-5">
+        <div className="bt-card p-5">
           {appLoading && !app ? (
             <LoadingState label="Loading application data…" />
           ) : app ? (
@@ -358,7 +349,7 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
       'MANUALLY_OVERRIDDEN' || manualOverrideCount > 0
   return (
     <div>
-      <h2 className="mb-3 text-sm font-semibold text-slate-900">Application summary</h2>
+      <h2 className="mb-3 bt-card-title">Application summary</h2>
       <div className="mb-4 flex flex-wrap gap-2">
         {app.intakeSegment === 'ANCHOR' ? (
           <span className="inline-flex rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-900">
@@ -393,9 +384,9 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
         <code className="rounded bg-slate-100 px-1">wa.me</code> link; no message API is integrated yet.
         {!phone ? ' Add phone in personalInfo to pre-fill a chat destination on WhatsApp.' : null}
       </p>
-      <div className="mb-4 rounded border border-slate-200 bg-slate-50/80 p-4">
-        <h3 className="text-xs font-semibold uppercase text-slate-500">Applicant (from intake)</h3>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2 text-sm text-slate-800">
+      <AppSectionCard tone="hero" className="mb-4" title="Applicant (from intake)" unstyledBody>
+        <div className="p-4">
+        <div className="grid gap-2 sm:grid-cols-2 text-sm text-[var(--bt-gray-800)]">
           <div>
             <span className="text-slate-500">Name: </span>
             {fullName || '—'}
@@ -441,10 +432,11 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
             </span>
           ) : null}
         </p>
-      </div>
+        </div>
+      </AppSectionCard>
       {requiresCollateral(app.loanProduct) ? (
-        <div className="mb-4 rounded border border-slate-200 p-3 text-sm text-slate-800">
-          <h3 className="text-xs font-semibold uppercase text-slate-500">Secured product — collateral</h3>
+        <AppSectionCard tone="success" className="mb-4 text-sm text-slate-800" title="Secured product — collateral" unstyledBody>
+          <div className="p-4">
           {(() => {
             const bi = (app.collateralInfo as Record<string, unknown> | null)?.[BORROWER_INTAKE_KEY] as
               | Record<string, unknown>
@@ -464,9 +456,11 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
               </p>
             )
           })()}
-        </div>
+          </div>
+        </AppSectionCard>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <AppSectionCard tone="default" className="mb-4" unstyledBody>
+        <div className="grid gap-4 p-4 sm:grid-cols-2">
         <Detail label="Number" value={app.applicationNumber} />
         <Detail
           label="Processing status"
@@ -480,23 +474,22 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
         <Detail label="Credit decision" value={app.creditDecision ?? '—'} />
         <Detail label="eSign transaction" value={app.esignTransactionId ?? '—'} />
         <Detail label="Created" value={formatInstant(app.createdAt)} />
-      </div>
-      {hasManualOverride ? (
-        <div className="mt-3 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
-          Manual override applied. Original failures remain traceable in workflow history and audit trail.
         </div>
+      </AppSectionCard>
+      {hasManualOverride ? (
+        <AppSectionCard
+          tone="override"
+          title="Manual override applied"
+          subtitle="Original failures remain traceable in workflow history and audit trail."
+          badge={<span className="bt-section-card__chip bt-section-card__chip--override">Manually overridden</span>}
+        />
       ) : null}
     </div>
   )
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs font-medium uppercase text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-900">{value}</div>
-    </div>
-  )
+  return <DetailField label={label} value={value} />
 }
 
 function formatWorkflowHistoryStepLabel(stepType: string): string {
@@ -523,21 +516,21 @@ function workflowHistoryIssueCell(r: StepExecutionRecordView): string {
 
 function StepTable({ rows }: { rows: StepExecutionRecordView[] }) {
   if (rows.length === 0) {
-    return <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">No records yet.</div>
+    return <div className="bt-card bt-empty-state p-4">No records yet.</div>
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="min-w-full text-left text-sm">
-        <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
+    <div className="bt-card overflow-x-auto">
+        <table className="bt-table min-w-full">
+        <thead>
           <tr>
-            <th className="px-3 py-2">Check / process</th>
-            <th className="px-3 py-2">Result</th>
-            <th className="px-3 py-2">Started</th>
-            <th className="px-3 py-2">Completed</th>
-            <th className="px-3 py-2">Issue</th>
+            <th>Check / process</th>
+            <th>Result</th>
+            <th>Started</th>
+            <th>Completed</th>
+            <th>Issue</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="">
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="px-3 py-2 text-xs text-slate-900">

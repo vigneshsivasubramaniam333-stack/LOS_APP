@@ -256,7 +256,7 @@ export function DocumentsSection({
         </div>
       ) : null}
       {actionError ? <ErrorState message={actionError} /> : null}
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-end gap-3 bt-section-card bt-section-card--hero p-4">
         <label className="block text-sm text-slate-700">
           <span className="mb-1 block text-xs font-medium text-slate-500">Document type</span>
           <select
@@ -298,8 +298,8 @@ export function DocumentsSection({
       {docs.length === 0 ? (
         <p className="text-sm text-slate-600">No documents uploaded yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
+        <div className="bt-card overflow-x-auto">
+          <table className="bt-table min-w-full">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
               <tr>
                 <th className="px-3 py-2">Name</th>
@@ -309,7 +309,7 @@ export function DocumentsSection({
                 <th className="px-3 py-2"> </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="">
               {docs.map((d) => (
                 <tr key={d.id}>
                   <td className="px-3 py-2 text-slate-900">{d.fileName}</td>

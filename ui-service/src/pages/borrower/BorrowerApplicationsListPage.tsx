@@ -53,8 +53,8 @@ export function BorrowerApplicationsListPage() {
           No applications found.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full text-left text-sm">
+        <div className="bt-card overflow-x-auto shadow-sm">
+          <table className="bt-table min-w-full">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-600">
               <tr>
                 <th className="whitespace-nowrap px-5 py-3.5">Application</th>
@@ -64,9 +64,9 @@ export function BorrowerApplicationsListPage() {
                 <th className="whitespace-nowrap px-5 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="">
               {list.map((a) => (
-                <tr key={a.applicationId} className="hover:bg-slate-50/80">
+                <tr key={a.applicationId} className="">
                   <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">{a.applicationNumber}</td>
                   <td className="px-5 py-4 text-slate-700">{loanProductLabel(a.product)}</td>
                   <td className="px-5 py-4">

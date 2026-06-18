@@ -13,6 +13,14 @@ import { ApiError } from '@/api/http'
 import { ErrorState } from '@/components/ErrorState'
 import { LoadingState } from '@/components/LoadingState'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  DetailEmptyState,
+  DetailPanel,
+  DetailSection,
+  MasterDetailLayout,
+  MasterListItem,
+  MasterListPanel,
+} from '@/components/ui/AdminLayout'
 import { BORROWER_TYPE_LABELS, BORROWER_TYPE_ORDER } from '@/catalog/borrowerTypes'
 import { isLoanProductCode, LOAN_PRODUCT_CODES, LOAN_PRODUCT_LABELS, loanProductLabel } from '@/catalog/loanProducts'
 import type { BorrowerType } from '@/types/createApplication'
@@ -266,55 +274,64 @@ export function UnderwritingRulesPage() {
       {loading && <LoadingState label="Loading…" />}
       {loadError && <ErrorState message={loadError} />}
       {rows && !loading && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-slate-900">Rule sets</h2>
-              <button
-                type="button"
-                onClick={startNew}
-                className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white"
-              >
+        <MasterDetailLayout>
+          <MasterListPanel
+            title="Rule sets"
+            count={rows.length}
+            action={
+              <button type="button" onClick={startNew} className="bt-btn bt-btn-primary bt-btn-sm">
                 New rule set
               </button>
-            </div>
-            <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-              {rows.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => applyRule(r)}
-                    className={[
-                      'w-full px-3 py-2.5 text-left text-sm hover:bg-slate-50',
-                      selected?.id === r.id && !isCreating ? 'bg-slate-100' : '',
-                    ].join(' ')}
-                  >
-                    <div className="font-medium text-slate-900">{r.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {r.borrowerType} · {r.loanProduct} · priority {r.priority}
-                      {r.active ? (
-                        <span className="ml-2 rounded bg-emerald-100 px-1.5 text-emerald-800">Active</span>
-                      ) : (
-                        <span className="ml-2 rounded bg-slate-100 px-1.5 text-slate-600">Inactive</span>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+            }
+          >
+            {rows.map((r) => (
+              <MasterListItem
+                key={r.id}
+                active={selected?.id === r.id && !isCreating}
+                onClick={() => applyRule(r)}
+                avatar={r.name}
+                title={r.name}
+                subtitle={`Priority ${r.priority}`}
+                meta={
+                  r.active ? (
+                    <span className="bt-badge bt-badge-green">Active</span>
+                  ) : (
+                    <span className="bt-badge bt-badge-gray">Inactive</span>
+                  )
+                }
+                tags={
+                  <>
+                    <span className="bt-tag">{BORROWER_TYPE_LABELS[r.borrowerType as BorrowerType] ?? r.borrowerType}</span>
+                    <span className="bt-tag">{loanProductLabel(r.loanProduct)}</span>
+                  </>
+                }
+              />
+            ))}
+          </MasterListPanel>
           <div>
             {showForm ? (
-              <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900">{isCreating ? 'New rule set' : 'Edit'}</h2>
+              <DetailPanel
+                title={isCreating ? 'New rule set' : name}
+                description="Define match criteria and decision rules. Multiple active sets may apply; results are aggregated."
+                badge={
+                  !isCreating && selected ? (
+                    selected.active ? (
+                      <span className="bt-badge bt-badge-green">Active</span>
+                    ) : (
+                      <span className="bt-badge bt-badge-gray">Inactive</span>
+                    )
+                  ) : undefined
+                }
+              >
                 {actionError ? (
-                  <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{actionError}</p>
+                  <p className="bt-alert bt-alert-warning mb-4">{actionError}</p>
                 ) : null}
+                <DetailSection title="Match criteria">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="sm:col-span-2 text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Name</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
@@ -353,7 +370,7 @@ export function UnderwritingRulesPage() {
                   <label className="text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Min amount</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={minAmount}
                       onChange={(e) => setMinAmount(e.target.value)}
                       inputMode="decimal"
@@ -362,7 +379,7 @@ export function UnderwritingRulesPage() {
                   <label className="text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Max amount</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={maxAmount}
                       onChange={(e) => setMaxAmount(e.target.value)}
                       inputMode="decimal"
@@ -371,7 +388,7 @@ export function UnderwritingRulesPage() {
                   <label className="text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Min tenure (months)</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={minTenure}
                       onChange={(e) => setMinTenure(e.target.value.replace(/\D/g, ''))}
                     />
@@ -379,7 +396,7 @@ export function UnderwritingRulesPage() {
                   <label className="text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Max tenure (months)</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={maxTenure}
                       onChange={(e) => setMaxTenure(e.target.value.replace(/\D/g, ''))}
                     />
@@ -387,7 +404,7 @@ export function UnderwritingRulesPage() {
                   <label className="text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Geography — state (optional)</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={geoState}
                       onChange={(e) => setGeoState(e.target.value)}
                       placeholder="e.g. KA"
@@ -396,7 +413,7 @@ export function UnderwritingRulesPage() {
                   <label className="text-sm text-slate-700">
                     <span className="mb-0.5 block text-xs text-slate-500">Geography — city (optional)</span>
                     <input
-                      className="w-full rounded border border-slate-300 px-2 py-1.5"
+                      className="bt-input w-full"
                       value={geoCity}
                       onChange={(e) => setGeoCity(e.target.value)}
                     />
@@ -410,13 +427,16 @@ export function UnderwritingRulesPage() {
                     />
                   </label>
                 </div>
+                </DetailSection>
+
+                <DetailSection title="Policy rules">
                 <div className="rounded border border-slate-200 bg-slate-50/80 p-3">
                   <p className="mb-2 text-xs font-medium text-slate-600">Policy (rulesJson)</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="text-sm text-slate-700">
                       <span className="mb-0.5 block text-xs text-slate-500">Min bureau score</span>
                       <input
-                        className="w-full rounded border border-slate-300 px-2 py-1.5"
+                        className="bt-input w-full"
                         value={minBureau}
                         onChange={(e) => setMinBureau(e.target.value.replace(/\D/g, ''))}
                       />
@@ -424,7 +444,7 @@ export function UnderwritingRulesPage() {
                     <label className="text-sm text-slate-700">
                       <span className="mb-0.5 block text-xs text-slate-500">Max loan amount (cap)</span>
                       <input
-                        className="w-full rounded border border-slate-300 px-2 py-1.5"
+                        className="bt-input w-full"
                         value={maxLoan}
                         onChange={(e) => setMaxLoan(e.target.value)}
                         inputMode="decimal"
@@ -455,7 +475,7 @@ export function UnderwritingRulesPage() {
                     <label className="text-sm text-slate-700 sm:col-span-2">
                       <span className="mb-0.5 block text-xs text-slate-500">Reasons (one per line)</span>
                       <textarea
-                        className="h-20 w-full rounded border border-slate-300 px-2 py-1.5 font-mono text-xs"
+                        className="h-20 bt-input w-full font-mono text-xs"
                         value={reasonsText}
                         onChange={(e) => setReasonsText(e.target.value)}
                       />
@@ -576,7 +596,7 @@ export function UnderwritingRulesPage() {
                     type="button"
                     onClick={() => void onSave()}
                     disabled={saving}
-                    className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                    className="bt-btn bt-btn-primary disabled:opacity-50"
                   >
                     {saving ? 'Saving…' : isCreating ? 'Create' : 'Save'}
                   </button>
@@ -626,14 +646,23 @@ export function UnderwritingRulesPage() {
                   )}
                 </div>
                 {!isCreating && selected ? (
-                  <p className="text-xs text-slate-500">Id: {selected.id}</p>
+                  <p className="mt-3 text-xs text-slate-500">Id: {selected.id}</p>
                 ) : null}
-              </div>
+                </DetailSection>
+              </DetailPanel>
             ) : (
-              <p className="text-sm text-slate-600">Select a rule set or create a new one.</p>
+              <DetailEmptyState
+                title="Select a rule set"
+                description="Choose a rule set from the list to edit its match criteria and policy rules, or create a new one."
+                action={
+                  <button type="button" onClick={startNew} className="bt-btn bt-btn-primary">
+                    New rule set
+                  </button>
+                }
+              />
             )}
           </div>
-        </div>
+        </MasterDetailLayout>
       )}
     </div>
   )

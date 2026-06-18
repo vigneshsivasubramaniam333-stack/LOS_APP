@@ -15,6 +15,14 @@ import {
 import { ErrorState } from '@/components/ErrorState'
 import { LoadingState } from '@/components/LoadingState'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  DetailEmptyState,
+  DetailPanel,
+  DetailSection,
+  MasterDetailLayout,
+  MasterListItem,
+  MasterListPanel,
+} from '@/components/ui/AdminLayout'
 import { BORROWER_TYPE_LABELS, BORROWER_TYPE_ORDER } from '@/catalog/borrowerTypes'
 import { isLoanProductCode, LOAN_PRODUCT_CODES, LOAN_PRODUCT_LABELS, loanProductLabel } from '@/catalog/loanProducts'
 import type { BorrowerType } from '@/types/createApplication'
@@ -130,6 +138,22 @@ export function UserRoleMappingsPage() {
     }
   }
 
+  function startCreate() {
+    setIsCreating(true)
+    setSelected(null)
+    setUserId(users[0]?.id ?? '')
+    setRole('CREDIT_OFFICER')
+    setProductSelection(ALL_PRODUCTS)
+    setBorrowerType(BLANK)
+    setMinAmount('')
+    setMaxAmount('')
+    setGeoState('')
+    setGeoCity('')
+    setPriority('50')
+    setActive(true)
+    setActionError(null)
+  }
+
   return (
     <div>
       <PageHeader
@@ -139,62 +163,63 @@ export function UserRoleMappingsPage() {
       {loading && <LoadingState label="Loading…" />}
       {loadError && <ErrorState message={loadError} />}
       {rows && !loading && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div>
-            <h2 className="mb-2 text-sm font-semibold text-slate-900">Mappings</h2>
-            <ul className="max-h-[70vh] divide-y overflow-y-auto rounded-lg border border-slate-200 bg-white">
-              {rows.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => apply(r)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <div className="font-medium text-slate-900">
-                      {r.userName ?? r.userId} · {ASSIGNMENT_ROLE_LABELS[r.role as AssignmentRoleCode] ?? r.role}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {productLabel(r.loanProduct)} · {r.borrowerType ?? 'any borrower'} · p{r.priority}
-                      {r.active ? (
-                        <span className="ml-1 rounded bg-emerald-100 px-1 text-emerald-800">on</span>
-                      ) : (
-                        <span className="ml-1 rounded bg-slate-200 px-1">off</span>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreating(true)
-                setSelected(null)
-                setUserId(users[0]?.id ?? '')
-                setRole('CREDIT_OFFICER')
-                setProductSelection(ALL_PRODUCTS)
-                setBorrowerType(BLANK)
-                setMinAmount('')
-                setMaxAmount('')
-                setGeoState('')
-                setGeoCity('')
-                setPriority('50')
-                setActive(true)
-                setActionError(null)
-              }}
-              className="mt-2 rounded border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-white"
+        <MasterDetailLayout>
+          <MasterListPanel
+            title="Mappings"
+            count={rows.length}
+            action={
+              <button type="button" onClick={startCreate} className="bt-btn bt-btn-primary bt-btn-sm">
+                Create mapping
+              </button>
+            }
+          >
+            {rows.map((r) => (
+              <MasterListItem
+                key={r.id}
+                active={selected?.id === r.id && !isCreating}
+                onClick={() => apply(r)}
+                avatar={r.userName ?? r.userId}
+                title={`${r.userName ?? r.userId}`}
+                subtitle={ASSIGNMENT_ROLE_LABELS[r.role as AssignmentRoleCode] ?? r.role}
+                meta={
+                  r.active ? (
+                    <span className="bt-badge bt-badge-green">Active</span>
+                  ) : (
+                    <span className="bt-badge bt-badge-gray">Inactive</span>
+                  )
+                }
+                tags={
+                  <>
+                    <span className="bt-tag">{productLabel(r.loanProduct)}</span>
+                    <span className="bt-tag">{r.borrowerType ?? 'Any borrower'}</span>
+                    <span className="bt-tag">P{r.priority}</span>
+                  </>
+                }
+              />
+            ))}
+          </MasterListPanel>
+
+          {selected || isCreating ? (
+            <DetailPanel
+              title={isCreating ? 'New mapping' : `${selected?.userName ?? 'Mapping'}`}
+              description="Define which user can be assigned for a product, segment, amount range, and geography."
+              badge={
+                !isCreating && selected ? (
+                  selected.active ? (
+                    <span className="bt-badge bt-badge-green">Active</span>
+                  ) : (
+                    <span className="bt-badge bt-badge-gray">Inactive</span>
+                  )
+                ) : undefined
+              }
             >
-              Create mapping
-            </button>
-          </div>
-          {(selected || isCreating) && (
-            <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4 text-sm">
-              {actionError ? <p className="text-amber-800">{actionError}</p> : null}
+              {actionError ? <p className="bt-alert bt-alert-warning mb-4">{actionError}</p> : null}
+              <DetailSection title="Assignment criteria">
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-slate-500">User</label>
                   <select
-                    className="w-full border px-2 py-1"
+                    className="bt-input w-full"
                     value={userId}
                     onChange={(e) => setUserId(e.target.value)}
                   >
@@ -211,7 +236,7 @@ export function UserRoleMappingsPage() {
                 <div>
                   <label className="block text-xs text-slate-500">Role</label>
                   <select
-                    className="w-full border px-2 py-1"
+                    className="bt-input w-full"
                     value={role}
                     onChange={(e) => setRole(e.target.value as AssignmentRoleCode)}
                   >
@@ -225,7 +250,7 @@ export function UserRoleMappingsPage() {
                 <div>
                   <label className="block text-xs text-slate-500">Priority</label>
                   <input
-                    className="w-full border px-2 py-1"
+                    className="bt-input w-full"
                     value={priority}
                     onChange={(e) => setPriority(e.target.value.replace(/\D/g, ''))}
                   />
@@ -233,7 +258,7 @@ export function UserRoleMappingsPage() {
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-slate-500">Loan product</label>
                   <select
-                    className="mt-0.5 w-full border px-2 py-1"
+                    className="mt-0.5 bt-input w-full"
                     value={productSelection}
                     onChange={(e) => {
                       setProductSelection(e.target.value)
@@ -294,12 +319,12 @@ export function UserRoleMappingsPage() {
                 <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
                 Active
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={saving}
                   onClick={() => void onSave()}
-                  className="rounded bg-slate-900 px-3 py-1.5 text-white"
+                  className="bt-btn bt-btn-primary bt-btn-sm"
                 >
                   {saving ? '…' : isCreating ? 'Create' : 'Save'}
                 </button>
@@ -319,15 +344,26 @@ export function UserRoleMappingsPage() {
                         setSaving(false)
                       }
                     }}
-                    className="rounded border border-red-700 px-3 py-1.5 text-red-800"
+                    className="bt-btn bt-btn-danger bt-btn-sm"
                   >
                     Delete
                   </button>
                 )}
               </div>
-            </div>
+              </DetailSection>
+            </DetailPanel>
+          ) : (
+            <DetailEmptyState
+              title="Select a mapping"
+              description="Choose a user–role mapping from the list to edit it, or create a new one."
+              action={
+                <button type="button" onClick={startCreate} className="bt-btn bt-btn-primary">
+                  Create mapping
+                </button>
+              }
+            />
           )}
-        </div>
+        </MasterDetailLayout>
       )}
     </div>
   )

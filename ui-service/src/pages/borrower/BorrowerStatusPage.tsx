@@ -76,7 +76,7 @@ function BorrowerStatusContent({ applicationId }: { applicationId: string }) {
         Reference <span className="font-mono text-slate-800">{data.applicationNumber}</span>
       </p>
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mt-6 bt-card p-5">
         <Row label="Your name" value={data.customerName} />
         <Row label="Product" value={data.product} />
         <Row label="Verification" value={data.kycStatus} />

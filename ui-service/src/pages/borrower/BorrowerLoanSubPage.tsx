@@ -82,7 +82,7 @@ export function BorrowerLoanSubPage({ mode }: { mode: Mode }) {
         </p>
       </div>
       {load.kind === 'repayment' ? (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+        <div className="bt-card overflow-x-auto text-sm shadow-sm">
           <table className="min-w-full text-left text-slate-800">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-600">
               <tr>
@@ -94,9 +94,9 @@ export function BorrowerLoanSubPage({ mode }: { mode: Mode }) {
                 <th className="px-5 py-3.5">Outstanding</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="">
               {load.data.map((r) => (
-                <tr key={r.installmentNo} className="hover:bg-slate-50/80">
+                <tr key={r.installmentNo} className="">
                   <td className="px-5 py-4 tabular-nums">{r.installmentNo}</td>
                   <td className="whitespace-nowrap px-5 py-4">{r.dueDate}</td>
                   <td className="px-5 py-4 tabular-nums">₹{r.emi}</td>
@@ -110,7 +110,7 @@ export function BorrowerLoanSubPage({ mode }: { mode: Mode }) {
         </div>
       ) : null}
       {load.kind === 'statement' ? (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+        <div className="bt-card overflow-x-auto text-sm shadow-sm">
           <table className="min-w-full text-left text-slate-800">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-600">
               <tr>
@@ -121,16 +121,24 @@ export function BorrowerLoanSubPage({ mode }: { mode: Mode }) {
                 <th className="px-5 py-3.5">Balance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {load.data.map((r) => (
-                <tr key={`${r.valueDate}-${r.description}`} className="hover:bg-slate-50/80">
+            <tbody className="">
+              {load.data.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-slate-500">
+                    No statement entries from LMS yet.
+                  </td>
+                </tr>
+              ) : (
+                load.data.map((r, idx) => (
+                <tr key={`${r.valueDate}-${r.description}-${idx}`} className="">
                   <td className="whitespace-nowrap px-5 py-4">{r.valueDate}</td>
                   <td className="px-5 py-4">{r.description}</td>
                   <td className="px-5 py-4 tabular-nums">{r.credit != null ? `₹${r.credit}` : '—'}</td>
                   <td className="px-5 py-4 tabular-nums">{r.debit != null ? `₹${r.debit}` : '—'}</td>
-                  <td className="px-5 py-4 tabular-nums">₹{r.balance}</td>
+                  <td className="px-5 py-4 tabular-nums">{r.balance != null ? `₹${r.balance}` : '—'}</td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -1109,12 +1109,14 @@ public class LoanApplicationFlowService {
                     "currentStatus", app.getStatus().name()
             );
         }
+        boolean requiresScore = "UNDERWRITING".equals(normalize(processCode));
         return Map.of(
                 "canOverride", true,
                 "overrideAllowed", true,
                 "requiresReason", boolPolicy(policy, "requires_reason", true),
                 "requiresRemarks", boolPolicy(policy, "requires_remarks", false),
                 "requiresApproval", boolPolicy(policy, "requires_approval", false),
+                "requiresScore", requiresScore,
                 "allowedRoles", allowedRoles,
                 "targetStatus", strPolicy(policy, "override_to_status", ""),
                 "policy", policy
@@ -1129,6 +1131,8 @@ public class LoanApplicationFlowService {
             String overrideReason,
             String remarks,
             String approvalReference,
+            Integer manualBureauScore,
+            Integer creditRiskScore,
             UUID overrideBy,
             Set<String> userRoles) {
         LoanApplication app = findOrThrow(applicationId);
@@ -1151,6 +1155,13 @@ public class LoanApplicationFlowService {
         if (boolPolicy(policy, "requires_approval", false) && (approvalReference == null || approvalReference.isBlank())) {
             throw new BusinessRuleException("Approval reference is mandatory for this override");
         }
+        String normalizedProcess = normalize(processCode);
+        String normalizedFailure = normalize(failureCode);
+        if ("UNDERWRITING".equals(normalizedProcess)
+                && (manualBureauScore == null || manualBureauScore <= 0)) {
+            throw new BusinessRuleException(
+                    "Updated bureau/credit score is mandatory for underwriting manual override");
+        }
         List<String> allowedFromStatuses = textList(policy, "allowed_from_statuses");
         if (!allowedFromStatuses.isEmpty() && !allowedFromStatuses.contains(app.getStatus().name())) {
             throw new BusinessRuleException("Override not allowed from current application status: " + app.getStatus());
@@ -1167,6 +1178,12 @@ public class LoanApplicationFlowService {
         }
         if (targetStatus != null && targetStatus != previousStatus) {
             app.setStatus(targetStatus);
+        }
+        if ("KYC".equals(normalizedProcess) && "KYC_FAILED".equals(normalizedFailure)) {
+            creditControlService.applyManualKycPassOnProcessOverride(app, remarks);
+        }
+        if ("UNDERWRITING".equals(normalizedProcess)) {
+            completeUnderwritingAfterManualOverride(app, manualBureauScore, creditRiskScore, remarks);
         }
 
         Map<String, Object> fi = app.getFinancialInfo() != null ? new LinkedHashMap<>(app.getFinancialInfo()) : new LinkedHashMap<>();
@@ -1192,6 +1209,12 @@ public class LoanApplicationFlowService {
         marker.put("overriddenBy", overrideBy != null ? overrideBy.toString() : "");
         marker.put("overrideApplied", "true");
         marker.put("vkycBypassed", vkycBypassed ? "true" : "false");
+        if (manualBureauScore != null && manualBureauScore > 0) {
+            marker.put("manualBureauScore", manualBureauScore);
+        }
+        if (app.getCreditRiskScore() != null) {
+            marker.put("creditRiskScore", app.getCreditRiskScore());
+        }
         history.add(marker);
         fi.put("manualOverrides", history);
         fi.put("manualOverrideFlag", "MANUALLY_OVERRIDDEN");
@@ -1337,9 +1360,31 @@ public class LoanApplicationFlowService {
             return ApplicationStatus.KYC_IN_PROGRESS;
         }
         if (app.getStatus() == ApplicationStatus.REJECTED && "UNDERWRITING".equals(normalize(processCode))) {
-            return ApplicationStatus.UNDERWRITING;
+            return ApplicationStatus.CAM_READY;
         }
         return app.getStatus();
+    }
+
+    /**
+     * After a controlled underwriting rejection override, treat the case as credit-approved and advance to CAM.
+     */
+    private void completeUnderwritingAfterManualOverride(
+            LoanApplication app, Integer manualBureauScore, Integer creditRiskScore, String remarks) {
+        app.setManualBureauScore(manualBureauScore);
+        if (remarks != null && !remarks.isBlank()) {
+            app.setManualBureauRemarks(remarks.trim());
+        }
+        int riskScore = creditRiskScore != null && creditRiskScore > 0 ? creditRiskScore : manualBureauScore;
+        app.setCreditRiskScore(riskScore);
+        app.setCreditDecision("APPROVED");
+        if (app.getInterestRate() != null) {
+            app.setApprovedRate(app.getInterestRate());
+        }
+        app.setSanctionedAmount(app.getRequestedAmount());
+        app.setStatus(ApplicationStatus.UNDERWRITING_COMPLETED);
+        applicationRepository.save(app);
+        creditAppraisalService.ensureCamForApplication(app);
+        app.setStatus(ApplicationStatus.CAM_READY);
     }
 
     private Map<String, Object> resolveManualOverridePolicy(WorkflowConfig config, String processCode, String failureCode) {
@@ -1364,7 +1409,7 @@ public class LoanApplicationFlowService {
                 "process_code", "KYC",
                 "failure_code", "KYC_FAILED",
                 "override_allowed", true,
-                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER"),
+                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER", "CREDIT_OFFICER"),
                 "requires_reason", true,
                 "requires_remarks", true,
                 "requires_approval", false,
@@ -1387,11 +1432,11 @@ public class LoanApplicationFlowService {
                 "process_code", "UNDERWRITING",
                 "failure_code", "UNDERWRITING_REJECTED",
                 "override_allowed", true,
-                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER"),
+                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER", "CREDIT_OFFICER"),
                 "requires_reason", true,
                 "requires_remarks", true,
                 "requires_approval", true,
-                "override_to_status", "UNDERWRITING",
+                "override_to_status", "CAM_READY",
                 "allowed_from_statuses", List.of("REJECTED"),
                 "is_active", true
         )));

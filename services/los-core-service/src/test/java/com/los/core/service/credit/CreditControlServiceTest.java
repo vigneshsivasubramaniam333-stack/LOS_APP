@@ -71,4 +71,55 @@ class CreditControlServiceTest {
         EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "PASS");
         assertThat(ctx.scorecard().get("BUREAU_SCORE").intValue()).isEqualTo(720);
     }
+
+    @Test
+    void resolveEffective_doesNotApplyDemoFallbackWithoutExplicitDemoFlag() {
+        CreditControlService svc = new CreditControlService(kyc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(0)
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "FAIL");
+        assertThat(ctx.effectiveBureauScore()).isZero();
+        assertThat(ctx.kycPassEffective()).isFalse();
+        assertThat(ctx.scorecard()).doesNotContainKey("DEMO_FALLBACK_ACTIVE");
+    }
+
+    @Test
+    void resolveEffective_appliesDemoFallbackWhenExplicitDemoFlag() {
+        CreditControlService svc = new CreditControlService(kyc);
+        Map<String, Object> fi = new HashMap<>();
+        fi.put("demo", true);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(0)
+                .financialInfo(fi)
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "FAIL");
+        assertThat(ctx.effectiveBureauScore()).isEqualTo(720);
+        assertThat(ctx.kycPassEffective()).isTrue();
+        assertThat(ctx.scorecard()).containsKey("DEMO_FALLBACK_ACTIVE");
+    }
+
+    @Test
+    void applyManualKycPassOnProcessOverride_usesManualKycSource() {
+        CreditControlService svc = new CreditControlService(kyc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(700)
+                .build();
+        svc.applyManualKycPassOnProcessOverride(app, "Ops approved after document review");
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "FAIL");
+        assertThat(ctx.kycPassEffective()).isTrue();
+        assertThat(ctx.kycSource()).isEqualTo("MANUAL");
+    }
 }

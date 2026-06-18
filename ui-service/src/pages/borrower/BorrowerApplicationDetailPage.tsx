@@ -77,7 +77,7 @@ export function BorrowerApplicationDetailPage() {
         ← All applications
       </Link>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="bt-card p-5 sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight text-bl-navy">{data.friendlyStatusHeadline}</h1>
         <p className="mt-2 text-sm text-slate-600">
           {data.applicationNumber} · {data.product}
@@ -138,8 +138,8 @@ export function BorrowerApplicationDetailPage() {
               </ul>
             </div>
           ) : null}
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <h2 className="text-sm font-semibold text-slate-900">Application progress</h2>
+          <div className="bt-card p-5 sm:p-6">
+            <h2 className="bt-card-title">Application progress</h2>
             <ol className="mt-4 space-y-4">
               {data.timeline.map((s) => (
                 <li
@@ -229,7 +229,7 @@ export function BorrowerApplicationDetailPage() {
                 {kfs.signPending ? (
                   <a
                     href={esign[0]?.signingUrl ?? '#'}
-                    className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                    className="bt-btn bt-btn-primary"
                     {...(esign[0]?.signingUrl ? { target: '_blank', rel: 'noreferrer' } : { 'aria-disabled': true })}
                   >
                     Sign KFS

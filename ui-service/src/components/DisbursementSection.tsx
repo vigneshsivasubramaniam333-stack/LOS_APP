@@ -67,12 +67,12 @@ export function DisbursementSection({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-slate-900">Disbursement readiness</h3>
+      <h3 className="bt-card-title">Disbursement readiness</h3>
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{error}</div>
       )}
 
-      <div className="max-w-md space-y-2 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+      <div className="max-w-md space-y-2 bt-section-card bt-section-card--hero p-4">
         <CheckRow done={g.kyc} label="KYC complete" />
         <CheckRow done={g.underwriting} label="Underwriting complete" />
         <CheckRow done={g.cam} label="CAM reviewed" />
@@ -101,7 +101,7 @@ export function DisbursementSection({
             type="button"
             disabled={busy}
             onClick={() => void onDisburse()}
-            className="rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-white"
+            className="bt-btn bt-btn-primary"
           >
             {busy ? 'Processing…' : 'Disburse loan'}
           </button>

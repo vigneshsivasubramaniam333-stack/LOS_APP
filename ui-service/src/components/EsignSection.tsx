@@ -116,7 +116,7 @@ export function EsignSection({
   return (
     <div className="space-y-4">
       {!esignPhase ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
+        <div className="bt-section-card bt-section-card--warning px-3 py-2 text-sm text-amber-950">
           <span className="font-medium">Status:</span> {app.status}. eSign is typically run after the Key Fact Statement
           is generated (KFS_GENERATED or equivalent). Requests already recorded are listed below.
         </div>
@@ -171,7 +171,7 @@ export function EsignSection({
               type="button"
               disabled={busy}
               onClick={() => void onComplete()}
-              className="rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-white"
+              className="bt-btn bt-btn-primary"
             >
               Mark eSign complete
             </button>
@@ -180,8 +180,8 @@ export function EsignSection({
       </div>
 
       {rows && rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-full text-left text-sm">
+        <div className="overflow-x-auto bt-section-card bt-section-card--default">
+          <table className="bt-table min-w-full">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
               <tr>
                 <th className="px-3 py-2">Document</th>
@@ -192,7 +192,7 @@ export function EsignSection({
                 <th className="px-3 py-2">Signed doc</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="">
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td className="px-3 py-2 font-mono text-xs text-slate-800">{r.documentType}</td>

@@ -177,6 +177,7 @@ los:
         find-od-product-info: webservices/loans/accounts/findLoanOdProduct
         find-pre-open-summary: webservices/findPreOpenSummary
         find-loan-info: webservices/findLoanInfo
+        loan-od-account-details: api/loan-od-accounts
       currency: ${ENCORE_CURRENCY:INR}
       admin-branch: ${ENCORE_ADMIN_BRANCH:MGPP}
       casa-branch-code: ${ENCORE_CASA_BRANCH_CODE:MGPP}

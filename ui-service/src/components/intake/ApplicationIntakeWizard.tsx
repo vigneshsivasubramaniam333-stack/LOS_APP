@@ -6,7 +6,7 @@ import { createApplication, updateApplication } from '@/api/applications'
 import { listDocuments, uploadDocument } from '@/api/documents'
 import { listWorkflows } from '@/api/workflows'
 import { submitApplicationForKyc } from '@/api/flow'
-import { ApiError } from '@/api/http'
+import { IntakeFieldError } from '@/components/intake/IntakeFieldError'
 import { ErrorState } from '@/components/ErrorState'
 import { AnchorIntakeWizard } from '@/components/intake/AnchorIntakeWizard'
 import { InvoiceOnboardingTypeCards } from '@/components/intake/InvoiceOnboardingTypeCards'
@@ -36,6 +36,14 @@ import { isInvoiceDiscountingProduct } from '@/catalog/loanProducts'
 import { linkApplicationToProgram } from '@/api/plp'
 import { SelectAnchorProgramStep } from '@/components/intake/SelectAnchorProgramStep'
 import { buildStaffStepLabels, staffIntakeStepIndices } from '@/lib/intake/staffIntakeSteps'
+import {
+  checkBorrowerIdentity,
+  checkKycIdentity,
+  intakeErrorMessage,
+  intakeStepForDuplicateField,
+} from '@/lib/intake/checkIntakeIdentity'
+import { duplicateFieldErrors, duplicateFieldFromError } from '@/lib/userFriendlyError'
+import { notifyError, notifySuccess } from '@/lib/notify'
 import { activeCatalogHasSecuredProduct, uniqueActiveWorkflowLoanProducts, workflowLoanProductDisplayName } from '@/utils/workflowProducts'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import type { BorrowerType } from '@/types/createApplication'
@@ -49,10 +57,10 @@ function Stepper({ step, labels }: { step: number; labels: readonly string[] }) 
             className={[
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
               i < step
-                ? 'bg-emerald-100 text-emerald-900'
+                ? 'bg-[var(--bt-green-bg)] text-[var(--bt-green)]'
                 : i === step
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-500',
+                  ? 'bg-[var(--bt-orange)] text-white'
+                  : 'bg-[var(--bt-gray-100)] text-[var(--bt-gray-500)]',
             ].join(' ')}
             aria-current={i === step ? 'step' : undefined}
           >
@@ -82,6 +90,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
   const [workflowsState, setWorkflowsState] = useState<'loading' | 'ok' | 'err'>('loading')
   const [workflowsError, setWorkflowsError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [docWarning, setDocWarning] = useState<string | null>(null)
   const [collateralDocWarn, setCollateralDocWarn] = useState<string | null>(null)
@@ -90,6 +99,15 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     requestedAmount: string
     tenureMonths: string
   } | null>(null)
+
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
 
   const needColl = useMemo(() => requiresCollateral(form.loanProduct), [form.loanProduct])
   const needPlpAnchorStep = useMemo(
@@ -196,7 +214,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       await updateApplication(applicationId, req)
       return true
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save product details.')
+      setError(intakeErrorMessage(err, 'Could not save product details.'))
       return false
     } finally {
       setBusy(false)
@@ -205,6 +223,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
 
   async function goNext() {
     setError(null)
+    setFieldErrors({})
     setCollateralDocWarn(null)
     if (step === steps.product) {
       const v = validateProductStep(form, mode, activeWorkflows)
@@ -236,7 +255,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
           }
           setStep(steps.plp)
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : 'Could not create application.')
+          setError(intakeErrorMessage(err, 'Could not create application.'))
+          notifyError(err, 'Could not create application.')
         } finally {
           setBusy(false)
         }
@@ -275,7 +295,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
         await linkApplicationToProgram(applicationId, form.selectedSubProgramId)
         setStep(steps.borrower)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not link program.')
+        setError(intakeErrorMessage(err, 'Could not link program.'))
+        notifyError(err, 'Could not link program.')
       } finally {
         setBusy(false)
       }
@@ -295,6 +316,11 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       }
       setBusy(true)
       try {
+        const dup = await checkBorrowerIdentity(form, mode, applicationId)
+        if (dup) {
+          setFieldErrors(dup)
+          return
+        }
         if (!applicationId) {
           const req = buildIntakeCreateRequest(form, mode, user)
           const res = await createApplication(req)
@@ -304,7 +330,9 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
         }
         setStep(needColl ? steps.collateral : steps.kyc)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save application details.')
+        const msg = intakeErrorMessage(err, 'Could not save application details.')
+        setError(msg)
+        notifyError(err, 'Could not save application details.')
       } finally {
         setBusy(false)
       }
@@ -323,7 +351,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
         await persistBorrowerIntakeCollateral(applicationId, form, mode)
         setStep(steps.kyc)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save collateral details.')
+        setError(intakeErrorMessage(err, 'Could not save collateral details.'))
+        notifyError(err, 'Could not save collateral details.')
       } finally {
         setBusy(false)
       }
@@ -338,10 +367,17 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       if (!applicationId) return
       setBusy(true)
       try {
+        const dup = await checkKycIdentity(form, applicationId)
+        if (dup) {
+          setFieldErrors(dup)
+          return
+        }
         await updateApplication(applicationId, buildKycUpdate(form))
         setStep(steps.consent)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save KYC details.')
+        const msg = intakeErrorMessage(err, 'Could not save KYC details.')
+        setError(msg)
+        notifyError(err, 'Could not save KYC details.')
       } finally {
         setBusy(false)
       }
@@ -359,7 +395,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
         await updateApplication(applicationId, buildConsentUpdate(form, mode, user))
         setStep(steps.documents)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save consents.')
+        setError(intakeErrorMessage(err, 'Could not save consents.'))
+        notifyError(err, 'Could not save consents.')
       } finally {
         setBusy(false)
       }
@@ -400,13 +437,25 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     setError(null)
     try {
       await submitApplicationForKyc(applicationId)
+      notifySuccess('Application submitted for verification.')
       if (mode === 'BORROWER_SELF_SERVICE') {
         void navigate(`/borrower/applications/${applicationId}`, { replace: true })
       } else {
         void navigate(`/applications/${applicationId}`, { replace: true })
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not submit application for verification.')
+      const dupField = duplicateFieldFromError(err)
+      if (dupField) {
+        const dup = duplicateFieldErrors(err)
+        if (dup) setFieldErrors(dup)
+        const target = intakeStepForDuplicateField(dupField, steps)
+        if (target != null) setStep(target)
+        notifyError(err, 'Please fix the highlighted identity details before submitting.')
+        return
+      }
+      const msg = intakeErrorMessage(err, 'Could not submit application for verification.')
+      setError(msg)
+      notifyError(err, 'Could not submit application for verification.')
     } finally {
       setBusy(false)
     }
@@ -469,7 +518,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       {workflowsState === 'loading' ? <p className="mb-4 text-sm text-slate-600">Loading active workflows…</p> : null}
       {workflowsState === 'err' && workflowsError ? <ErrorState message={workflowsError} /> : null}
       {workflowsState === 'ok' && activeWorkflows.length === 0 ? (
-        <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className="mb-4 bt-alert bt-alert-warning">
           There are no active workflows. Add and activate a workflow in Workflows before creating an application.
         </p>
       ) : null}
@@ -478,14 +527,14 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       <Stepper step={step} labels={stepLabels} />
 
       {step === steps.product ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Product &amp; request</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Product &amp; request</h2>
           {mode === 'SALES_ASSISTED' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Sales officer name *</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.salesOfficerName}
                   onChange={(e) => setForm((f) => ({ ...f, salesOfficerName: e.target.value }))}
                   disabled={!!applicationId}
@@ -494,7 +543,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Sales / branch ID</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.salesOfficerId}
                   onChange={(e) => setForm((f) => ({ ...f, salesOfficerId: e.target.value }))}
                   disabled={!!applicationId}
@@ -504,7 +553,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <span className="mb-1 block text-xs font-medium text-slate-500">Borrower mobile *</span>
                 <input
                   type="tel"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.borrowerMobile}
                   onChange={(e) => setForm((f) => ({ ...f, borrowerMobile: e.target.value }))}
                 />
@@ -534,7 +583,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <label className="block text-sm text-slate-700 sm:col-span-2">
                   <span className="mb-1 block text-xs font-medium text-slate-500">Loan product *</span>
                   <select
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    className="bt-input w-full text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50"
                     value={staffProductList.length === 0 ? '' : form.loanProduct}
                     onChange={(e) => {
                       const lp = e.target.value
@@ -581,7 +630,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     <label className="block text-sm text-slate-700">
                       <span className="mb-1 block text-xs font-medium text-slate-500">Borrower type *</span>
                       <select
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                        className="bt-input w-full text-slate-900"
                         value={form.borrowerType}
                         onChange={(e) => {
                           const bt = e.target.value as BorrowerType
@@ -629,7 +678,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     type="number"
                     min={0.01}
                     step="0.01"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 tabular-nums"
+                    className="bt-input w-full text-slate-900 tabular-nums"
                     value={form.requestedAmount}
                     onChange={(e) => setForm((f) => ({ ...f, requestedAmount: e.target.value }))}
                     required
@@ -641,7 +690,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     type="number"
                     min={1}
                     step={1}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 tabular-nums"
+                    className="bt-input w-full text-slate-900 tabular-nums"
                     value={form.tenureMonths}
                     onChange={(e) => setForm((f) => ({ ...f, tenureMonths: e.target.value }))}
                     placeholder="Optional"
@@ -653,7 +702,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                   <label className="block text-sm text-slate-700 sm:col-span-2">
                     <span className="mb-1 block text-xs font-medium text-slate-500">Purpose of loan</span>
                     <textarea
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                      className="bt-input w-full text-slate-900"
                       rows={2}
                       value={form.purpose}
                       onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
@@ -675,7 +724,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <label className="block text-sm text-slate-700">
                   <span className="mb-1 block text-xs font-medium text-slate-500">Borrower type *</span>
                   <select
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                    className="bt-input w-full text-slate-900"
                     value={form.borrowerType}
                     onChange={(e) => {
                       const bt = e.target.value as BorrowerType
@@ -694,7 +743,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <div className="text-sm text-slate-700">
                   <span className="mb-1 block text-xs font-medium text-slate-500">Loan product *</span>
                   <select
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    className="bt-input w-full text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50"
                     value={productsForType.length === 0 ? '' : form.loanProduct}
                     onChange={(e) => setForm((f) => ({ ...f, loanProduct: e.target.value }))}
                     disabled={workflowsState !== 'ok' || !productsForType.length || productLocked}
@@ -719,7 +768,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     type="number"
                     min={0.01}
                     step="0.01"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 tabular-nums"
+                    className="bt-input w-full text-slate-900 tabular-nums"
                     value={form.requestedAmount}
                     onChange={(e) => setForm((f) => ({ ...f, requestedAmount: e.target.value }))}
                     required
@@ -731,7 +780,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     type="number"
                     min={1}
                     step={1}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 tabular-nums"
+                    className="bt-input w-full text-slate-900 tabular-nums"
                     value={form.tenureMonths}
                     onChange={(e) => setForm((f) => ({ ...f, tenureMonths: e.target.value }))}
                     placeholder="Optional"
@@ -740,7 +789,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <label className="block text-sm text-slate-700 sm:col-span-2">
                   <span className="mb-1 block text-xs font-medium text-slate-500">Purpose of loan</span>
                   <textarea
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                    className="bt-input w-full text-slate-900"
                     rows={2}
                     value={form.purpose}
                     onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
@@ -769,14 +818,14 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       ) : null}
 
       {step === steps.borrower ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Basic borrower details</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Basic borrower details</h2>
           {form.borrowerType === 'INDIVIDUAL' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Full name (as per PAN) *</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.fullName}
                   onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
                   autoComplete="name"
@@ -786,11 +835,15 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <span className="mb-1 block text-xs font-medium text-slate-500">Mobile *</span>
                 <input
                   type="tel"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.mobile}
-                  onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
+                  onChange={(e) => {
+                    clearFieldError('mobile')
+                    setForm((f) => ({ ...f, mobile: e.target.value }))
+                  }}
                   autoComplete="tel"
                 />
+                <IntakeFieldError message={fieldErrors.mobile} />
               </label>
               {mode === 'SALES_ASSISTED' && form.borrowerMobile ? (
                 <p className="text-xs text-slate-500 sm:col-span-2">
@@ -804,16 +857,20 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <span className="mb-1 block text-xs font-medium text-slate-500">Email *</span>
                 <input
                   type="email"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  onChange={(e) => {
+                    clearFieldError('email')
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                  }}
                 />
+                <IntakeFieldError message={fieldErrors.email} />
               </label>
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Date of birth</span>
                 <input
                   type="date"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.dateOfBirth}
                   onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
                 />
@@ -821,7 +878,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Address</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.addressLine}
                   onChange={(e) => setForm((f) => ({ ...f, addressLine: e.target.value }))}
                 />
@@ -840,7 +897,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Business / entity name *</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.businessName}
                   onChange={(e) => setForm((f) => ({ ...f, businessName: e.target.value }))}
                 />
@@ -848,7 +905,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Contact person *</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.contactPersonName}
                   onChange={(e) => setForm((f) => ({ ...f, contactPersonName: e.target.value }))}
                 />
@@ -857,24 +914,32 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <span className="mb-1 block text-xs font-medium text-slate-500">Contact mobile *</span>
                 <input
                   type="tel"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.contactMobile}
-                  onChange={(e) => setForm((f) => ({ ...f, contactMobile: e.target.value }))}
+                  onChange={(e) => {
+                    clearFieldError('mobile')
+                    setForm((f) => ({ ...f, contactMobile: e.target.value }))
+                  }}
                 />
+                <IntakeFieldError message={fieldErrors.mobile} />
               </label>
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Contact email</span>
                 <input
                   type="email"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.contactEmail}
-                  onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))}
+                  onChange={(e) => {
+                    clearFieldError('email')
+                    setForm((f) => ({ ...f, contactEmail: e.target.value }))
+                  }}
                 />
+                <IntakeFieldError message={fieldErrors.email} />
               </label>
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">GSTIN *</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.gstin}
                   onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value }))}
                 />
@@ -882,7 +947,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Udyam (if applicable)</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.udyam}
                   onChange={(e) => setForm((f) => ({ ...f, udyam: e.target.value }))}
                 />
@@ -890,7 +955,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Business address</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   value={form.businessAddress}
                   onChange={(e) => setForm((f) => ({ ...f, businessAddress: e.target.value }))}
                 />
@@ -909,8 +974,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       ) : null}
 
       {step === steps.collateral && needColl && detectSecuredCollateralKind(form.loanProduct) ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Collateral</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Collateral</h2>
           <p className="text-xs text-slate-600">Secured product — capture the asset offered and upload supporting files.</p>
           <CollateralIntakeFields
             kind={detectSecuredCollateralKind(form.loanProduct)!}
@@ -925,23 +990,27 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       ) : null}
 
       {step === steps.kyc ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Identity &amp; KYC</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Identity &amp; KYC</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">PAN *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono uppercase"
+                className="bt-input w-full font-mono uppercase"
                 value={form.panNumber}
-                onChange={(e) => setForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))}
+                onChange={(e) => {
+                  clearFieldError('panNumber')
+                  setForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))
+                }}
                 maxLength={10}
                 autoComplete="off"
               />
+              <IntakeFieldError message={fieldErrors.panNumber} />
             </label>
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Aadhaar (last 4 digits, or full 12 for internal use)</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.aadhaar}
                 onChange={(e) => setForm((f) => ({ ...f, aadhaar: e.target.value }))}
                 inputMode="numeric"
@@ -963,15 +1032,19 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                 <label className="block text-sm text-slate-700">
                   <span className="mb-1 block text-xs font-medium text-slate-500">GSTIN *</span>
                   <input
-                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="bt-input w-full"
                     value={form.gstin}
-                    onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value }))}
+                    onChange={(e) => {
+                      clearFieldError('gstin')
+                      setForm((f) => ({ ...f, gstin: e.target.value }))
+                    }}
                   />
+                  <IntakeFieldError message={fieldErrors.gstin} />
                 </label>
                 <label className="block text-sm text-slate-700">
                   <span className="mb-1 block text-xs font-medium text-slate-500">Udyam</span>
                   <input
-                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="bt-input w-full"
                     value={form.udyam}
                     onChange={(e) => setForm((f) => ({ ...f, udyam: e.target.value }))}
                   />
@@ -980,7 +1053,7 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                   <label className="block text-sm text-slate-700 sm:col-span-2">
                     <span className="mb-1 block text-xs font-medium text-slate-500">CIN / MCA *</span>
                     <input
-                      className="w-full rounded-md border border-slate-300 px-3 py-2"
+                      className="bt-input w-full"
                       value={form.cin}
                       onChange={(e) => setForm((f) => ({ ...f, cin: e.target.value }))}
                     />
@@ -993,8 +1066,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       ) : null}
 
       {step === steps.consent ? (
-        <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Consents</h2>
+        <section className="space-y-3 bt-card p-5">
+          <h2 className="bt-card-title">Consents</h2>
           <p className="text-xs text-slate-600">{consentHelper(mode)}</p>
           <div className="space-y-2 text-sm text-slate-800">
             <label className="flex items-start gap-2">
@@ -1040,8 +1113,8 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       ) : null}
 
       {step === steps.documents && applicationId ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Upload documents</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Upload documents</h2>
           <p className="text-sm text-slate-600">Upload a clear copy for each type so underwriters can complete checks without back-and-forth.</p>
           <ul className="space-y-4">
             {allDocumentSlotsForIntake(form).map((slot) => (
@@ -1073,10 +1146,10 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       ) : null}
 
       {step === steps.review && applicationId ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Review &amp; submit</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Review &amp; submit</h2>
           {docWarning ? (
-            <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{docWarning}</p>
+            <p className="bt-alert bt-alert-warning">{docWarning}</p>
           ) : null}
           <div className="grid gap-3 text-sm sm:grid-cols-2">
             <div className="rounded border border-slate-100 p-3">

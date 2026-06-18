@@ -126,6 +126,8 @@ export interface ManualOverrideRequest {
   overrideReason: string
   remarks?: string
   approvalReference?: string
+  manualBureauScore?: number
+  creditRiskScore?: number
 }
 
 export async function getManualOverrideEligibility(

@@ -146,6 +146,36 @@ public class CreditControlService {
         app.setFinancialInfo(fi);
     }
 
+    /**
+     * Records a controlled KYC process override so underwriting can proceed using manual KYC pass
+     * even when provider/computed KYC outcome is FAIL.
+     */
+    @SuppressWarnings("unchecked")
+    public void applyManualKycPassOnProcessOverride(LoanApplication app, String remarks) {
+        Map<String, Object> fi = app.getFinancialInfo() != null
+                ? new LinkedHashMap<>(app.getFinancialInfo())
+                : new LinkedHashMap<>();
+        Map<String, Object> cc = fi.get(ROOT) instanceof Map<?, ?> existingCc
+                ? new LinkedHashMap<>((Map<String, Object>) existingCc)
+                : new LinkedHashMap<>();
+        Map<String, Object> manual = cc.get(MANUAL) instanceof Map<?, ?> existingManual
+                ? new LinkedHashMap<>((Map<String, Object>) existingManual)
+                : new LinkedHashMap<>();
+        Map<String, Object> ds = cc.get(DECISION_SOURCES) instanceof Map<?, ?> existingDs
+                ? new LinkedHashMap<>((Map<String, Object>) existingDs)
+                : new LinkedHashMap<>();
+
+        putManualField(manual, "manualKycOutcome", "PASS");
+        if (remarks != null && !remarks.isBlank()) {
+            putManualField(manual, "kycOverrideRemarks", remarks.trim());
+        }
+        ds.put("kycSource", SRC_MANUAL);
+        cc.put(MANUAL, manual);
+        cc.put(DECISION_SOURCES, ds);
+        fi.put(ROOT, cc);
+        app.setFinancialInfo(fi);
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> mergeDecisionSources(Map<String, Object> old, Map<String, Object> updates) {
         Map<String, Object> o = new LinkedHashMap<>(old);
@@ -328,14 +358,7 @@ public class CreditControlService {
             Map<String, Object> cc,
             BigDecimal income,
             BigDecimal obligation) {
-        boolean explicitDemo = isExplicitDemo(fi) || isExplicitDemo(cc) || isExplicitDemo(app.getPersonalInfo());
-        boolean incomeMissing = income == null || income.compareTo(BigDecimal.ZERO) <= 0;
-        boolean obligationMissing = obligation == null;
-        boolean bankExtractMissing = isBlankValue(fi.get("bankStatementIncome"))
-                && isBlankValue(fi.get("averageBankBalance"))
-                && isBlankValue(fi.get("bankData"))
-                && isBlankValue(fi.get("transactions"));
-        return explicitDemo || (incomeMissing && (obligationMissing || bankExtractMissing));
+        return isExplicitDemo(fi) || isExplicitDemo(cc) || isExplicitDemo(app.getPersonalInfo());
     }
 
     private static boolean isExplicitDemo(Map<String, Object> data) {

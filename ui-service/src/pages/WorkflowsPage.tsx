@@ -11,6 +11,14 @@ import {
 import { ErrorState } from '@/components/ErrorState'
 import { LoadingState } from '@/components/LoadingState'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  DetailEmptyState,
+  DetailPanel,
+  DetailSection,
+  MasterDetailLayout,
+  MasterListItem,
+  MasterListPanel,
+} from '@/components/ui/AdminLayout'
 import { WorkflowStepEditorPanel } from '@/components/WorkflowStepEditorPanel'
 import {
   jsonToRows,
@@ -360,77 +368,80 @@ export function WorkflowsPage() {
         <div>
           {successMessage ? (
             <p
-              className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+              className="bt-alert bt-alert-success mb-4"
               role="status"
             >
               {successMessage}
             </p>
           ) : null}
-          <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Workflows</h2>
-                <button
-                  type="button"
-                  onClick={resetFormToNew}
-                  className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-                >
+          <MasterDetailLayout>
+            <MasterListPanel
+              title="Workflows"
+              count={list.length}
+              action={
+                <button type="button" onClick={resetFormToNew} className="bt-btn bt-btn-primary bt-btn-sm">
                   New workflow
                 </button>
-              </div>
-              {list.length === 0 && !isCreating ? (
-                <p className="text-sm text-slate-600">No workflows yet. Click &quot;New workflow&quot; to add one.</p>
-              ) : (
-                <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-                  {list.map((w) => (
-                    <li key={w.id}>
-                      <button
-                        type="button"
-                        onClick={() => applySelection(w)}
-                        className={[
-                          'w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50',
-                          selected?.id === w.id && !isCreating ? 'bg-slate-100' : '',
-                        ].join(' ')}
-                      >
-                        <div className="font-medium text-slate-900">{w.name}</div>
-                        <div className="text-xs text-slate-500">
-                          {BORROWER_TYPE_LABELS[w.borrowerType as BorrowerType] ?? w.borrowerType} ·{' '}
-                          {loanProductLabel(w.loanProduct)} ·{' '}
-                          {w.intakeSegment === 'ANCHOR' ? 'Anchor' : 'Borrower'} · v{w.version}
-                          {w.active ? (
-                            <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800">Active</span>
-                          ) : (
-                            <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">Inactive</span>
-                          )}
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+              }
+              empty={
+                list.length === 0 && !isCreating ? (
+                  <div className="bt-master-list-empty">No workflows yet. Click &quot;New workflow&quot; to add one.</div>
+                ) : undefined
+              }
+            >
+              {list.map((w) => (
+                <MasterListItem
+                  key={w.id}
+                  active={selected?.id === w.id && !isCreating}
+                  onClick={() => applySelection(w)}
+                  avatar={w.name}
+                  title={w.name}
+                  subtitle={`Version ${w.version}`}
+                  meta={
+                    w.active ? (
+                      <span className="bt-badge bt-badge-green">Active</span>
+                    ) : (
+                      <span className="bt-badge bt-badge-gray">Inactive</span>
+                    )
+                  }
+                  tags={
+                    <>
+                      <span className="bt-tag">
+                        {BORROWER_TYPE_LABELS[w.borrowerType as BorrowerType] ?? w.borrowerType}
+                      </span>
+                      <span className="bt-tag">{loanProductLabel(w.loanProduct)}</span>
+                      <span className="bt-tag">{w.intakeSegment === 'ANCHOR' ? 'Anchor' : 'Borrower'}</span>
+                    </>
+                  }
+                />
+              ))}
+            </MasterListPanel>
 
-            <div className="min-w-0">
-              {showEditor ? (
-                <div className="min-w-0 space-y-3">
-                <h2 className="text-sm font-semibold text-slate-900">
-                  {isCreating ? 'New workflow' : 'Edit'}
-                </h2>
-                <p className="text-xs text-slate-500">
-                  New configs are <strong>inactive</strong> until you activate them. Only one active workflow applies per
-                  borrower type, loan product, and intake segment. Delete is allowed for <strong>inactive</strong>{' '}
-                  workflows only.
-                </p>
+            {showEditor ? (
+              <DetailPanel
+                title={isCreating ? 'New workflow' : name}
+                description="New configs are inactive until you activate them. Only one active workflow applies per borrower type, loan product, and intake segment."
+                badge={
+                  !isCreating && selected ? (
+                    selected.active ? (
+                      <span className="bt-badge bt-badge-green">Active</span>
+                    ) : (
+                      <span className="bt-badge bt-badge-gray">Inactive</span>
+                    )
+                  ) : undefined
+                }
+              >
                 {actionError ? (
-                  <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+                  <p className="bt-alert bt-alert-warning mb-4" role="alert">
                     {actionError}
                   </p>
                 ) : null}
+                <DetailSection title="Configuration">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-sm text-slate-700 sm:col-span-2">
                     <span className="mb-1 block text-xs font-medium text-slate-500">Name</span>
                     <input
-                      className="w-full rounded-md border border-slate-300 px-3 py-2"
+                      className="bt-input w-full"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
@@ -438,7 +449,7 @@ export function WorkflowsPage() {
                   <label className="block text-sm text-slate-700">
                     <span className="mb-1 block text-xs font-medium text-slate-500">Borrower type</span>
                     <select
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+                      className="bt-input w-full"
                       value={borrowerType}
                       onChange={(e) => setBorrowerType(e.target.value as BorrowerType)}
                     >
@@ -452,7 +463,7 @@ export function WorkflowsPage() {
                   <label className="block text-sm text-slate-700">
                     <span className="mb-1 block text-xs font-medium text-slate-500">Loan product (code in API)</span>
                     <select
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+                      className="bt-input w-full"
                       value={loanProduct}
                       onChange={(e) => setLoanProduct(e.target.value)}
                     >
@@ -470,7 +481,7 @@ export function WorkflowsPage() {
                   <label className="block text-sm text-slate-700">
                     <span className="mb-1 block text-xs font-medium text-slate-500">Intake segment</span>
                     <select
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+                      className="bt-input w-full"
                       value={intakeSegment}
                       onChange={(e) => setIntakeSegment(e.target.value as WorkflowIntakeSegment)}
                     >
@@ -487,7 +498,7 @@ export function WorkflowsPage() {
                       Anchor identity schema (JSON array, optional)
                     </span>
                     <textarea
-                      className="min-h-[7rem] w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
+                      className="min-h-[7rem] bt-input w-full font-mono text-xs"
                       spellCheck={false}
                       value={intakeIdentitySchemaJson}
                       onChange={(e) => setIntakeIdentitySchemaJson(e.target.value)}
@@ -500,7 +511,7 @@ export function WorkflowsPage() {
                   <label className="block text-sm text-slate-700 sm:col-span-2">
                     <span className="mb-1 block text-xs font-medium text-slate-500">VKYC workflow position</span>
                     <select
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+                      className="bt-input w-full"
                       value={workflowPosition}
                       onChange={(e) => setWorkflowPosition(e.target.value)}
                     >
@@ -511,7 +522,9 @@ export function WorkflowsPage() {
                     </select>
                   </label>
                 </div>
+                </DetailSection>
 
+                <DetailSection title="Steps & notifications">
                 <WorkflowStepEditorPanel
                   steps={visualSteps}
                   onChange={setVisualSteps}
@@ -537,7 +550,7 @@ export function WorkflowsPage() {
                       from the cards above. After editing, use &quot;Apply to visual editor&quot; before saving.
                     </p>
                     <textarea
-                      className="h-48 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
+                      className="h-48 bt-input w-full font-mono text-xs"
                       value={stepsJson}
                       onChange={(e) => setStepsJson(e.target.value)}
                       spellCheck={false}
@@ -599,7 +612,7 @@ export function WorkflowsPage() {
                           <code className="rounded bg-slate-100 px-1">{`[{"field":"...","operator":"...","value":...}]`}</code>.
                         </p>
                         <textarea
-                          className="h-28 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
+                          className="h-28 bt-input w-full font-mono text-xs"
                           value={vkycTriggerConditionJson}
                           onChange={(e) => {
                             setVkycTriggerConditionJson(e.target.value)
@@ -647,12 +660,12 @@ export function WorkflowsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => void onSave()}
                     disabled={saving}
-                    className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                    className="bt-btn bt-btn-primary disabled:opacity-50"
                   >
                     {saving ? 'Saving…' : isCreating ? 'Create' : 'Save changes'}
                   </button>
@@ -707,17 +720,25 @@ export function WorkflowsPage() {
                   <p className="text-xs text-amber-800">Deactivate this workflow before deleting it.</p>
                 ) : null}
                 {!isCreating && selected ? (
-                  <p className="text-xs text-slate-500">
+                  <p className="mt-3 text-xs text-slate-500">
                     Id: {selected.id} · version {selected.version} ·
                     {selected.createdAt ? ` created ${formatInstant(selected.createdAt)}` : ''}
                   </p>
                 ) : null}
-              </div>
+                </DetailSection>
+              </DetailPanel>
             ) : (
-              <p className="text-sm text-slate-600">Select a workflow to edit, or create a new one.</p>
+              <DetailEmptyState
+                title="Select a workflow"
+                description="Pick a workflow from the list to view or edit its configuration, or create a new one."
+                action={
+                  <button type="button" onClick={resetFormToNew} className="bt-btn bt-btn-primary">
+                    New workflow
+                  </button>
+                }
+              />
             )}
-            </div>
-          </div>
+          </MasterDetailLayout>
         </div>
       )}
 

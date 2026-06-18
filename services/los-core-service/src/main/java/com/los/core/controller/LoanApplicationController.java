@@ -5,6 +5,7 @@ import com.los.core.model.dto.request.AiLosOpenRequest;
 import com.los.core.model.dto.request.ManualBureauRequest;
 import com.los.core.model.dto.request.ManualCreditInputsRequest;
 import com.los.core.model.dto.request.UpdateApplicationRequest;
+import com.los.core.model.dto.request.ValidateIdentityRequest;
 import com.los.core.model.dto.response.AiLosOpenResponse;
 import com.los.core.model.dto.response.ApplicationResponse;
 import com.los.core.model.enums.ApplicationStatus;
@@ -73,6 +74,13 @@ public class LoanApplicationController {
             @PathVariable UUID applicationId,
             @RequestBody UpdateApplicationRequest request) {
         return ResponseEntity.ok(loanApplicationService.updateApplication(applicationId, request));
+    }
+
+    @PostMapping("/validate-identity")
+    @Operation(summary = "Check email/mobile/PAN/GSTIN for duplicate use before submit")
+    public ResponseEntity<Map<String, Object>> validateIdentity(@RequestBody ValidateIdentityRequest request) {
+        loanApplicationService.validateIdentity(request);
+        return ResponseEntity.ok(Map.of("valid", true));
     }
 
     @PostMapping("/{applicationId}/transition")

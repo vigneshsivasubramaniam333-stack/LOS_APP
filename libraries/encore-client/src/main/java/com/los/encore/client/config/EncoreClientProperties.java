@@ -85,5 +85,7 @@ public class EncoreClientProperties {
         private String findODProductInfo = "webservices/loans/accounts/findLoanOdProduct";
         private String findPreOpenSummary = "webservices/findPreOpenSummary";
         private String findLoanInfo = "webservices/findLoanInfo";
+        /** REST account details including {@code compositeStatement} (SOA). */
+        private String loanOdAccountDetails = "api/loan-od-accounts";
     }
 }

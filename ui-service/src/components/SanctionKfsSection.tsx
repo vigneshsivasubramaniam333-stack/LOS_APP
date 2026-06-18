@@ -199,7 +199,7 @@ export function SanctionKfsSection({
   return (
     <div className="space-y-8">
       {camStatusLine ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">{camStatusLine}</div>
+        <div className="bt-section-card bt-section-card--default px-3 py-2 text-sm text-slate-800">{camStatusLine}</div>
       ) : null}
       {!sanctionUnlocked ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
@@ -221,7 +221,7 @@ export function SanctionKfsSection({
       ) : null}
 
       {canAct && app.status === 'CAM_REVIEWED' && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="bt-section-card bt-section-card--default p-4">
           <p className="mb-2 text-sm text-slate-700">Optional: move to formal sanction-pending before entering terms.</p>
           <button
             type="button"
@@ -331,8 +331,8 @@ export function SanctionKfsSection({
       )}
 
       {(sanctionRec || kfs) && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="mb-2 text-sm font-semibold text-slate-900">KFS (from sanction)</h3>
+        <div className="bt-section-card bt-section-card--default p-4">
+          <h3 className="mb-2 bt-card-title">KFS (from sanction)</h3>
           {kfsLoad && <p className="text-sm text-slate-500">Refreshing KFS…</p>}
           {loadErr && <p className="text-sm text-amber-800">{loadErr}</p>}
           {kfs && (

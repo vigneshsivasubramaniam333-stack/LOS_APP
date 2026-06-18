@@ -202,7 +202,7 @@ export function BorrowerInvoiceLoanCard({
             <button
               type="submit"
               disabled={busyId === loan.loanId}
-              className="rounded-md bg-bl-primary px-4 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+              className="bt-btn bt-btn-primary disabled:opacity-50"
             >
               {busyId === loan.loanId ? 'Processing…' : 'Record payment'}
             </button>

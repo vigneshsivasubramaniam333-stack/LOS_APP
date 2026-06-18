@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchGeoCitiesForState, type GeoStateRow } from '@/api/geoMaster'
 import { ensureGeoStatesLoaded, syncCitiesForStateName } from '@/lib/intake/masterGeoClientCache'
 
-const INPUT_CLASS = 'w-full rounded-md border border-slate-300 px-3 py-2'
-const SELECT_CLASS = 'w-full rounded-md border border-slate-300 px-3 py-2 bg-white'
+const INPUT_CLASS = 'bt-input w-full'
+const SELECT_CLASS = 'bt-input w-full bg-white'
 
 export interface IndiaStateCityPincodeFieldsProps {
   stateValue: string

@@ -199,7 +199,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
     <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50">
       <button
         type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-900"
+        className="flex w-full items-center justify-between px-4 py-3 text-left bt-card-title"
         onClick={() => setOpen((o) => !o)}
       >
         PLP Program Setup
@@ -350,7 +350,7 @@ function ProgramSetupForm(props: {
         <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
           Anchor
           <select
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={anchorId}
             onChange={(e) => setAnchorId(e.target.value)}
             disabled={anchors.length === 0}
@@ -374,7 +374,7 @@ function ProgramSetupForm(props: {
         <label className="block text-sm font-medium text-slate-700">
           Program name *
           <input
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={programName}
             onChange={(e) => setProgramName(e.target.value)}
           />
@@ -382,7 +382,7 @@ function ProgramSetupForm(props: {
         <label className="block text-sm font-medium text-slate-700">
           Program type *
           <select
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={programType}
             onChange={(e) => setProgramType(e.target.value)}
           >
@@ -397,7 +397,7 @@ function ProgramSetupForm(props: {
           <label className="block text-sm font-medium text-slate-700">
             Bill discounting flow *
             <select
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 bt-input w-full text-sm"
               value={flowType}
               onChange={(e) => setFlowType(e.target.value)}
             >
@@ -413,7 +413,7 @@ function ProgramSetupForm(props: {
           <label className="block text-sm font-medium text-slate-700">
             LMS entry (Encore)
             <select
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 bt-input w-full text-sm"
               value={lmsEntryIn}
               onChange={(e) => setLmsEntryIn(e.target.value)}
             >
@@ -426,7 +426,7 @@ function ProgramSetupForm(props: {
           <label className="block text-sm font-medium text-slate-700">
             Encore product code *
             <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 bt-input w-full text-sm"
               value={encoreProductCode}
               onChange={(e) => setEncoreProductCode(e.target.value)}
               placeholder="e.g. IPPOPAYM01"
@@ -437,7 +437,7 @@ function ProgramSetupForm(props: {
           Credit limit
           <input
             type="number"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={creditLimit}
             onChange={(e) => setCreditLimit(e.target.value)}
           />
@@ -447,7 +447,7 @@ function ProgramSetupForm(props: {
           <input
             type="number"
             step="0.01"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={interestRate}
             onChange={(e) => setInterestRate(e.target.value)}
           />
@@ -456,7 +456,7 @@ function ProgramSetupForm(props: {
           Tenure (days)
           <input
             type="number"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={tenureDays}
             onChange={(e) => setTenureDays(e.target.value)}
           />
@@ -465,7 +465,7 @@ function ProgramSetupForm(props: {
           Validity start
           <input
             type="date"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={validityStart}
             onChange={(e) => setValidityStart(e.target.value)}
           />
@@ -474,7 +474,7 @@ function ProgramSetupForm(props: {
           Validity end
           <input
             type="date"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={validityEnd}
             onChange={(e) => setValidityEnd(e.target.value)}
           />

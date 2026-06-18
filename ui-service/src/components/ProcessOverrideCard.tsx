@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { applyManualOverride, getManualOverrideEligibility } from '@/api/flow'
 import { messageForKycAction } from '@/api/kycErrorMessage'
+import { AppSectionCard } from '@/components/ui/AppSectionCard'
 
 export function ProcessOverrideCard({
   applicationId,
@@ -21,6 +22,8 @@ export function ProcessOverrideCard({
   const [reason, setReason] = useState('')
   const [remarks, setRemarks] = useState('')
   const [approvalReference, setApprovalReference] = useState('')
+  const [manualBureauScore, setManualBureauScore] = useState('')
+  const [creditRiskScore, setCreditRiskScore] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
@@ -50,6 +53,8 @@ export function ProcessOverrideCard({
   const canOverride = Boolean(eligibility?.canOverride)
   const requiresRemarks = Boolean(eligibility?.requiresRemarks)
   const requiresApproval = Boolean(eligibility?.requiresApproval)
+  const requiresScore =
+    Boolean(eligibility?.requiresScore) || processCode.trim().toUpperCase() === 'UNDERWRITING'
   const reasonText = String(eligibility?.reason ?? '')
 
   async function onOverride() {
@@ -67,6 +72,25 @@ export function ProcessOverrideCard({
       setError('Approval reference is required for this override.')
       return
     }
+    let bureauScore: number | undefined
+    let riskScore: number | undefined
+    if (requiresScore) {
+      const n = Number.parseInt(manualBureauScore, 10)
+      if (!Number.isFinite(n) || n <= 0) {
+        setError('Enter a valid updated bureau/credit score (positive whole number).')
+        return
+      }
+      bureauScore = n
+      const riskRaw = creditRiskScore.trim()
+      if (riskRaw) {
+        const r = Number.parseInt(riskRaw, 10)
+        if (!Number.isFinite(r) || r <= 0) {
+          setError('Risk score must be a positive whole number when provided.')
+          return
+        }
+        riskScore = r
+      }
+    }
     setBusy(true)
     try {
       await applyManualOverride(applicationId, {
@@ -75,11 +99,19 @@ export function ProcessOverrideCard({
         overrideReason: reason.trim(),
         remarks: remarks.trim() || undefined,
         approvalReference: approvalReference.trim() || undefined,
+        manualBureauScore: bureauScore,
+        creditRiskScore: riskScore,
       })
-      setInfo('Manual override applied. Workflow can proceed from the overridden state.')
+      setInfo(
+        requiresScore
+          ? 'Manual override applied. Application advanced to CAM ready with updated score.'
+          : 'Manual override applied. Workflow can proceed from the overridden state.',
+      )
       setReason('')
       setRemarks('')
       setApprovalReference('')
+      setManualBureauScore('')
+      setCreditRiskScore('')
       onSuccess()
     } catch (e) {
       setError(messageForKycAction(e))
@@ -89,11 +121,13 @@ export function ProcessOverrideCard({
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span className="font-semibold">{title}</span>
-        <span className="rounded bg-amber-100 px-2 py-0.5 text-xs">Controlled override</span>
-      </div>
+    <AppSectionCard
+      tone="warning"
+      unstyledBody
+      className="mt-3 p-4 text-sm text-amber-950"
+      title={title}
+      badge={<span className="bt-section-card__chip bt-section-card__chip--warning">Controlled override</span>}
+    >
       {loading ? <p className="text-xs">Checking override eligibility…</p> : null}
       {!loading && !canOverride ? (
         <p className="text-xs">
@@ -102,31 +136,65 @@ export function ProcessOverrideCard({
       ) : null}
       {canOverride ? (
         <div className="space-y-2">
+          {requiresScore ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-amber-950">
+                  Updated bureau / credit score (mandatory)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={900}
+                  step={1}
+                  value={manualBureauScore}
+                  onChange={(e) => setManualBureauScore(e.target.value)}
+                  className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[var(--bt-orange)] focus:outline-none focus:ring-2 focus:ring-[var(--bt-orange)]/20"
+                  placeholder="e.g. 720"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-amber-950">
+                  Aggregate risk score (optional)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={900}
+                  step={1}
+                  value={creditRiskScore}
+                  onChange={(e) => setCreditRiskScore(e.target.value)}
+                  className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[var(--bt-orange)] focus:outline-none focus:ring-2 focus:ring-[var(--bt-orange)]/20"
+                  placeholder="Defaults to bureau score"
+                />
+              </div>
+            </div>
+          ) : null}
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-sm text-slate-900"
+            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[var(--bt-orange)] focus:outline-none focus:ring-2 focus:ring-[var(--bt-orange)]/20"
             placeholder="Override reason (mandatory)"
           />
           <textarea
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
             rows={2}
-            className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-sm text-slate-900"
+            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[var(--bt-orange)] focus:outline-none focus:ring-2 focus:ring-[var(--bt-orange)]/20"
             placeholder={`Remarks${requiresRemarks ? ' (mandatory)' : ' (optional)'}`}
           />
           <input
             value={approvalReference}
             onChange={(e) => setApprovalReference(e.target.value)}
-            className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-sm text-slate-900"
+            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[var(--bt-orange)] focus:outline-none focus:ring-2 focus:ring-[var(--bt-orange)]/20"
             placeholder={`Approval reference${requiresApproval ? ' (mandatory)' : ' (optional)'}`}
           />
           <button
             type="button"
             onClick={() => void onOverride()}
             disabled={busy}
-            className="rounded-md bg-amber-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+            className="bt-btn bt-btn-primary disabled:opacity-60"
           >
             {busy ? 'Applying override…' : 'Override failure'}
           </button>
@@ -134,6 +202,6 @@ export function ProcessOverrideCard({
       ) : null}
       {error ? <p className="mt-2 text-xs text-red-700">{error}</p> : null}
       {info ? <p className="mt-2 text-xs text-emerald-700">{info}</p> : null}
-    </div>
+    </AppSectionCard>
   )
 }

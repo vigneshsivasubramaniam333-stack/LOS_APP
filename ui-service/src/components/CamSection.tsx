@@ -296,7 +296,7 @@ export function CamSection({
   return (
     <div className="space-y-6">
       {cam && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--hero p-3 text-sm text-slate-800">
           <div className="flex flex-wrap gap-3 text-xs">
             <span>
               <span className="text-slate-500">CAM status:</span>{' '}
@@ -377,7 +377,7 @@ export function CamSection({
             type="button"
             onClick={() => void onMarkReviewed()}
             disabled={actionBusy}
-            className="rounded-md border border-emerald-600 bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="bt-btn bt-btn-primary disabled:opacity-50"
           >
             {actionBusy ? '…' : isSubmitted ? 'Approve CAM' : 'Approve CAM to reviewed (fast path)'}
           </button>
@@ -390,7 +390,7 @@ export function CamSection({
 
       {cam && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-4">
+          <div className="bt-section-card bt-section-card--warning p-4">
             <h3 className="text-sm font-semibold text-amber-950">Credit officer recommendation (sanctioning basis)</h3>
             {prefilledFromApplication ? (
               <p className="mt-1 text-xs text-amber-900/80">
@@ -492,8 +492,8 @@ export function CamSection({
               return null
             }
             return (
-              <div key={s.key} className="rounded-lg border border-slate-200 bg-white p-3">
-                <h4 className="text-sm font-semibold text-slate-900">{s.label} — adjust narrative</h4>
+              <div key={s.key} className="bt-section-card bt-section-card--default p-3">
+                <h4 className="bt-card-title">{s.label} — adjust narrative</h4>
                 <p className="text-xs text-slate-500">Save draft updates what appears in the PDF for this block.</p>
                 <textarea
                   className="mt-2 w-full rounded border border-slate-200 p-2 text-sm"
@@ -512,7 +512,7 @@ export function CamSection({
             )
           })}
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-600">
+          <div className="bt-section-card bt-section-card--default p-3 text-xs text-slate-600 bg-slate-50/60">
             <p className="font-semibold text-slate-800">Structured snapshot (read-only, from engine)</p>
             <p className="mt-1">
               Extended sections: data is not shown as raw JSON in the product UI here — it is used for the PDF and API
@@ -520,7 +520,7 @@ export function CamSection({
             </p>
           </div>
 
-          <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-4">
+          <div className="bt-section-card bt-section-card--warning p-4">
             <h3 className="text-sm font-semibold text-amber-950">Observations, risk, mitigants (legacy / merged)</h3>
             <div className="mt-2 space-y-2">
               <label className="block text-xs text-slate-600">

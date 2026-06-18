@@ -200,6 +200,8 @@ public class LoanApplicationFlowController {
                 request != null ? request.getOverrideReason() : "",
                 request != null ? request.getRemarks() : null,
                 request != null ? request.getApprovalReference() : null,
+                request != null ? request.getManualBureauScore() : null,
+                request != null ? request.getCreditRiskScore() : null,
                 actor,
                 roles
         ));

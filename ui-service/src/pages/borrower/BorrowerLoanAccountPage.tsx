@@ -106,7 +106,7 @@ export function BorrowerLoanAccountPage() {
             <Stat label="Days past due" value={String(account.dpd)} />
           </div>
 
-          <div className="max-w-lg rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="max-w-lg bt-card p-5 sm:p-6">
             <h2 className="text-sm font-semibold text-bl-navy">Make a repayment</h2>
             <p className="mt-2 text-xs leading-relaxed text-slate-500">
               Amount is posted to the loan management system and your outstanding balance is updated.
@@ -129,7 +129,7 @@ export function BorrowerLoanAccountPage() {
               <button
                 type="submit"
                 disabled={paying}
-                className="rounded-md bg-bl-primary px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+                className="bt-btn bt-btn-primary disabled:opacity-50"
               >
                 {paying ? 'Processing…' : 'Pay now'}
               </button>

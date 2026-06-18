@@ -3,6 +3,8 @@ type BrandLogoProps = {
   variant?: 'billionloans' | 'billiontech'
   /** Text tone: 'light' for dark backgrounds (sidebar), 'dark' for light backgrounds. */
   tone?: 'light' | 'dark'
+  /** Explicit height in px — preferred for sidebar sizing. */
+  height?: number
   /**
    * Extra classes applied to the root element. Set the font size here (e.g. "text-xl");
    * the logo scales with the text so the lockup stays balanced.
@@ -25,7 +27,7 @@ function logoHeightClass(className?: string): string {
  * Billionloans / BillionTech wordmark from bundled public brand assets.
  * Uses separate PNGs for light vs dark backgrounds (no CSS invert — that washed out the logo).
  */
-export function BrandLogo({ variant = 'billionloans', tone = 'dark', className }: BrandLogoProps) {
+export function BrandLogo({ variant = 'billiontech', tone = 'dark', height, className }: BrandLogoProps) {
   const alt = variant === 'billiontech' ? 'BillionTech' : 'Billionloans'
   const src =
     variant === 'billiontech'
@@ -39,7 +41,8 @@ export function BrandLogo({ variant = 'billionloans', tone = 'dark', className }
       <img
         src={src}
         alt={alt}
-        className={`${logoHeightClass(className)} w-auto max-w-none object-contain object-left`}
+        className={height == null ? `${logoHeightClass(className)} w-auto max-w-[148px] object-contain object-left` : 'w-auto max-w-[148px] object-contain object-left'}
+        style={height != null ? { height, width: 'auto' } : undefined}
       />
     </span>
   )

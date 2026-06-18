@@ -46,6 +46,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -435,22 +436,15 @@ public class BorrowerPortalService {
         }
         try {
             List<Map<String, Object>> entries =
-                    lmsService.getEncoreAccountStatement(app.getApplicationNumber(), null, null);
+                    lmsService.getEncoreCompositeStatement(app.getApplicationNumber());
+            if (entries == null || entries.isEmpty()) {
+                entries = lmsService.getEncoreAccountStatement(app.getApplicationNumber(), null, null);
+            }
             if (entries != null && !entries.isEmpty()) {
-                List<BorrowerStatementLineResponse> lines = new ArrayList<>();
-                for (Map<String, Object> e : entries) {
-                    BigDecimal amount = parseBig(e.get("amount"));
-                    String type = String.valueOf(e.getOrDefault("accountEntryType", e.getOrDefault("type", "")));
-                    boolean credit = type.toUpperCase().contains("CREDIT");
-                    lines.add(BorrowerStatementLineResponse.builder()
-                            .valueDate(parseDate(e.get("valueDateStr") != null ? e.get("valueDateStr") : e.get("valueDate")))
-                            .description(String.valueOf(e.getOrDefault("description", e.getOrDefault("transactionName", "Transaction"))))
-                            .credit(credit ? amount : null)
-                            .debit(credit ? null : amount)
-                            .balance(parseBig(e.get("balance")))
-                            .build());
+                List<BorrowerStatementLineResponse> lines = mapEncoreStatementEntries(entries);
+                if (!lines.isEmpty()) {
+                    return lmsData(lines);
                 }
-                return lmsData(lines);
             }
         } catch (RuntimeException ex) {
             // fall through to a real, locally-derived statement
@@ -580,6 +574,59 @@ public class BorrowerPortalService {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    /** Maps Encore {@code compositeStatement} rows (or legacy flat statement entries) to borrower SOA lines. */
+    @SuppressWarnings("unchecked")
+    private static List<BorrowerStatementLineResponse> mapEncoreStatementEntries(List<Map<String, Object>> entries) {
+        List<BorrowerStatementLineResponse> lines = new ArrayList<>();
+        for (Map<String, Object> row : entries) {
+            Map<String, Object> dto = row;
+            if (row.get("accountEntryDto") instanceof Map<?, ?> nested) {
+                dto = (Map<String, Object>) nested;
+            }
+            BigDecimal amount = extractEncoreMoney(dto.get("amount"));
+            if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+            String type = String.valueOf(dto.getOrDefault("accountEntryType", dto.getOrDefault("type", "")));
+            boolean credit = type.toUpperCase(Locale.ROOT).contains("CREDIT");
+            String description = textOrNull(dto.get("description"));
+            if (description == null || description.isBlank()) {
+                description = textOrNull(dto.get("transactionName"));
+            }
+            if (description == null || description.isBlank()) {
+                description = "Transaction";
+            }
+            Object balanceRaw = row.containsKey("balance") ? row.get("balance") : dto.get("balance");
+            lines.add(BorrowerStatementLineResponse.builder()
+                    .valueDate(parseDate(dto.get("valueDate") != null ? dto.get("valueDate") : dto.get("valueDateStr")))
+                    .description(description)
+                    .credit(credit ? amount : null)
+                    .debit(credit ? null : amount)
+                    .balance(extractEncoreMoney(balanceRaw))
+                    .build());
+        }
+        return lines;
+    }
+
+    private static BigDecimal extractEncoreMoney(Object raw) {
+        if (raw instanceof Map<?, ?> money) {
+            BigDecimal mag = parseBig(money.get("magnitude"));
+            if (mag != null) {
+                return mag;
+            }
+            return parseBig(money.get("displayValue"));
+        }
+        return parseBig(raw);
+    }
+
+    private static String textOrNull(Object o) {
+        if (o == null) {
+            return null;
+        }
+        String s = String.valueOf(o).trim();
+        return "null".equalsIgnoreCase(s) ? null : s;
     }
 
     private static LocalDate parseDate(Object o) {

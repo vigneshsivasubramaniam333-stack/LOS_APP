@@ -6,7 +6,7 @@ import { deleteBorrowerDraftApplication, listBorrowerApplications, type Borrower
 import { listDocuments, uploadDocument } from '@/api/documents'
 import { listWorkflows } from '@/api/workflows'
 import { submitApplicationForKyc } from '@/api/flow'
-import { ApiError } from '@/api/http'
+import { IntakeFieldError } from '@/components/intake/IntakeFieldError'
 import { ErrorState } from '@/components/ErrorState'
 import { consentHelper } from '@/lib/intake/intakeLabels'
 import { CollateralIntakeFields } from '@/components/intake/CollateralIntakeFields'
@@ -40,6 +40,13 @@ import {
 import { clearDraft, loadDraftState, saveDraftState } from '@/lib/borrowerWizardDraft'
 import { isBorrowerDeletableApplicationStatus } from '@/lib/borrowerApplicationDeletable'
 import { hydrateIntakeFormFromApplication } from '@/lib/intake/hydrateIntakeFromApplication'
+import {
+  checkBorrowerIdentity,
+  checkKycIdentity,
+  intakeErrorMessage,
+} from '@/lib/intake/checkIntakeIdentity'
+import { duplicateFieldErrors, duplicateFieldFromError } from '@/lib/userFriendlyError'
+import { notifyError, notifySuccess } from '@/lib/notify'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import { type BorrowerType } from '@/types/createApplication'
 
@@ -72,7 +79,7 @@ function Stepper({ step, labels }: { step: number; labels: readonly string[] }) 
           <span
             className={[
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-              i < step ? 'bg-emerald-100 text-emerald-900' : i === step ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500',
+              i < step ? 'bg-[var(--bt-green-bg)] text-[var(--bt-green)]' : i === step ? 'bg-[var(--bt-orange)] text-white' : 'bg-[var(--bt-gray-100)] text-[var(--bt-gray-500)]',
             ].join(' ')}
             aria-current={i === step ? 'step' : undefined}
           >
@@ -102,6 +109,7 @@ export function BorrowerIntakeWizard() {
   const [wfState, setWfState] = useState<'loading' | 'ok' | 'err'>('loading')
   const [wfError, setWfError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [reviewWarning, setReviewWarning] = useState<string | null>(null)
   const [draftLoaded, setDraftLoaded] = useState(false)
@@ -118,6 +126,15 @@ export function BorrowerIntakeWizard() {
   const lastStep = needColl ? 6 : 5
   const bankKycStep = needColl ? 3 : 2
   const [collateralDocWarn, setCollateralDocWarn] = useState<string | null>(null)
+
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
 
   const loadWorkflows = useCallback(async () => {
     setWfState('loading')
@@ -213,7 +230,7 @@ export function BorrowerIntakeWizard() {
           { replace: true },
         )
       } catch (e) {
-        if (c) setResumeError(e instanceof ApiError ? e.message : 'Could not load application')
+        if (c) setResumeError(intakeErrorMessage(e, 'Could not load application'))
       } finally {
         if (c) setHydrating(false)
       }
@@ -283,6 +300,7 @@ export function BorrowerIntakeWizard() {
 
   async function goNext() {
     setError(null)
+    setFieldErrors({})
     setCollateralDocWarn(null)
     const f0 = { ...form, borrowerType: 'INDIVIDUAL' as BorrowerType }
     if (step === 0) {
@@ -309,6 +327,11 @@ export function BorrowerIntakeWizard() {
       }
       setBusy(true)
       try {
+        const dup = await checkBorrowerIdentity(f0, 'BORROWER_SELF_SERVICE', applicationId)
+        if (dup) {
+          setFieldErrors(dup)
+          return
+        }
         if (!applicationId) {
           const req = buildIntakeCreateRequest(f0, 'BORROWER_SELF_SERVICE', user)
           const res = await createApplication(req)
@@ -320,7 +343,9 @@ export function BorrowerIntakeWizard() {
         }
         setStep(2)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save your details.')
+        const msg = intakeErrorMessage(err, 'Could not save your details.')
+        setError(msg)
+        notifyError(err, 'Could not save your details.')
       } finally {
         setBusy(false)
       }
@@ -341,7 +366,8 @@ export function BorrowerIntakeWizard() {
           persistDraft(3, f0, applicationId)
           setStep(3)
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : 'Could not save collateral details.')
+          setError(intakeErrorMessage(err, 'Could not save collateral details.'))
+          notifyError(err, 'Could not save collateral details.')
         } finally {
           setBusy(false)
         }
@@ -355,11 +381,18 @@ export function BorrowerIntakeWizard() {
       if (!applicationId) return
       setBusy(true)
       try {
+        const dup = await checkKycIdentity(f0, applicationId)
+        if (dup) {
+          setFieldErrors(dup)
+          return
+        }
         await updateApplication(applicationId, buildKycUpdate(f0))
         persistDraft(3, f0, applicationId)
         setStep(3)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save KYC and bank details.')
+        const msg = intakeErrorMessage(err, 'Could not save KYC and bank details.')
+        setError(msg)
+        notifyError(err, 'Could not save KYC and bank details.')
       } finally {
         setBusy(false)
       }
@@ -375,11 +408,18 @@ export function BorrowerIntakeWizard() {
         if (!applicationId) return
         setBusy(true)
         try {
+          const dup = await checkKycIdentity(f0, applicationId)
+          if (dup) {
+            setFieldErrors(dup)
+            return
+          }
           await updateApplication(applicationId, buildKycUpdate(f0))
           persistDraft(4, f0, applicationId)
           setStep(4)
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : 'Could not save KYC and bank details.')
+          const msg = intakeErrorMessage(err, 'Could not save KYC and bank details.')
+          setError(msg)
+          notifyError(err, 'Could not save KYC and bank details.')
         } finally {
           setBusy(false)
         }
@@ -397,7 +437,8 @@ export function BorrowerIntakeWizard() {
         persistDraft(4, f0, applicationId)
         setStep(4)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save income details.')
+        setError(intakeErrorMessage(err, 'Could not save income details.'))
+        notifyError(err, 'Could not save income details.')
       } finally {
         setBusy(false)
       }
@@ -417,7 +458,8 @@ export function BorrowerIntakeWizard() {
           persistDraft(5, f0, applicationId)
           setStep(5)
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : 'Could not save income details.')
+          setError(intakeErrorMessage(err, 'Could not save income details.'))
+        notifyError(err, 'Could not save income details.')
         } finally {
           setBusy(false)
         }
@@ -436,7 +478,8 @@ export function BorrowerIntakeWizard() {
         persistDraft(5, f0, applicationId)
         setStep(5)
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Could not save consents.')
+        setError(intakeErrorMessage(err, 'Could not save consents.'))
+        notifyError(err, 'Could not save consents.')
       } finally {
         setBusy(false)
       }
@@ -456,7 +499,8 @@ export function BorrowerIntakeWizard() {
           persistDraft(6, f0, applicationId)
           setStep(6)
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : 'Could not save consents.')
+          setError(intakeErrorMessage(err, 'Could not save consents.'))
+        notifyError(err, 'Could not save consents.')
         } finally {
           setBusy(false)
         }
@@ -481,10 +525,22 @@ export function BorrowerIntakeWizard() {
     setError(null)
     try {
       await submitApplicationForKyc(applicationId)
+      notifySuccess('Application submitted for verification.')
       clearDraft()
       void navigate(`/borrower/applications/${applicationId}`, { replace: true })
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not submit application for verification.')
+      const dupField = duplicateFieldFromError(err)
+      if (dupField) {
+        const dup = duplicateFieldErrors(err)
+        if (dup) setFieldErrors(dup)
+        if (dupField === 'email' || dupField === 'mobile') setStep(1)
+        else if (dupField === 'panNumber') setStep(bankKycStep)
+        notifyError(err, 'Please fix the highlighted identity details before submitting.')
+        return
+      }
+      const msg = intakeErrorMessage(err, 'Could not submit application for verification.')
+      setError(msg)
+      notifyError(err, 'Could not submit application for verification.')
     } finally {
       setBusy(false)
     }
@@ -506,7 +562,8 @@ export function BorrowerIntakeWizard() {
       }
       reloadIncomplete()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not delete application.')
+      setError(intakeErrorMessage(e, 'Could not delete application.'))
+      notifyError(e, 'Could not delete application.')
     } finally {
       setIncompleteBusy(false)
     }
@@ -571,7 +628,7 @@ export function BorrowerIntakeWizard() {
       {wfState === 'loading' ? <p className="mb-4 text-sm text-slate-600">Loading active workflows…</p> : null}
       {wfState === 'err' && wfError ? <ErrorState message={wfError} /> : null}
       {wfState === 'ok' && workflows.length === 0 ? (
-        <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className="mb-4 bt-alert bt-alert-warning">
           There are no active workflows. Please try again later or contact support.
         </p>
       ) : null}
@@ -580,13 +637,13 @@ export function BorrowerIntakeWizard() {
       <Stepper step={step} labels={stepLabels} />
 
       {step === 0 ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Loan details</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Loan details</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Borrower class</span>
               <select
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                className="bt-input w-full text-slate-900"
                 value="INDIVIDUAL"
                 disabled
               >
@@ -600,7 +657,7 @@ export function BorrowerIntakeWizard() {
             <div className="text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Loan product *</span>
               <select
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={products.length === 0 ? '' : form.loanProduct}
                 onChange={(e) => setForm((f) => ({ ...f, loanProduct: e.target.value, borrowerType: 'INDIVIDUAL' }))}
                 disabled={wfState !== 'ok' || !products.length || productLocked}
@@ -630,7 +687,7 @@ export function BorrowerIntakeWizard() {
                 type="number"
                 min={0.01}
                 step="0.01"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums"
+                className="bt-input w-full tabular-nums"
                 value={form.requestedAmount}
                 onChange={(e) => setForm((f) => ({ ...f, requestedAmount: e.target.value }))}
               />
@@ -641,7 +698,7 @@ export function BorrowerIntakeWizard() {
                 type="number"
                 min={1}
                 step={1}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums"
+                className="bt-input w-full tabular-nums"
                 value={form.tenureMonths}
                 onChange={(e) => setForm((f) => ({ ...f, tenureMonths: e.target.value }))}
                 placeholder="Optional"
@@ -650,7 +707,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Purpose of loan *</span>
               <textarea
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 rows={2}
                 value={form.purpose}
                 onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
@@ -683,7 +740,7 @@ export function BorrowerIntakeWizard() {
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Existing loan details *</span>
                 <textarea
-                  className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="bt-input w-full"
                   rows={2}
                   value={form.existingLoansDetails}
                   onChange={(e) => setForm((f) => ({ ...f, existingLoansDetails: e.target.value }))}
@@ -696,13 +753,13 @@ export function BorrowerIntakeWizard() {
       ) : null}
 
       {step === 1 ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Personal &amp; address</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Personal &amp; address</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Full name (as per PAN) *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.fullName}
                 onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
               />
@@ -711,25 +768,33 @@ export function BorrowerIntakeWizard() {
               <span className="mb-1 block text-xs font-medium text-slate-500">Mobile *</span>
               <input
                 type="tel"
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.mobile}
-                onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
+                onChange={(e) => {
+                  clearFieldError('mobile')
+                  setForm((f) => ({ ...f, mobile: e.target.value }))
+                }}
               />
+              <IntakeFieldError message={fieldErrors.mobile} />
             </label>
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Email *</span>
               <input
                 type="email"
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                onChange={(e) => {
+                  clearFieldError('email')
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }}
               />
+              <IntakeFieldError message={fieldErrors.email} />
             </label>
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Date of birth *</span>
               <input
                 type="date"
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.dateOfBirth}
                 onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
               />
@@ -737,7 +802,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Gender *</span>
               <select
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.gender}
                 onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
               >
@@ -751,7 +816,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Marital status *</span>
               <select
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.maritalStatus}
                 onChange={(e) => setForm((f) => ({ ...f, maritalStatus: e.target.value }))}
               >
@@ -766,7 +831,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Address line 1 *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.addressLine}
                 onChange={(e) => setForm((f) => ({ ...f, addressLine: e.target.value }))}
               />
@@ -774,7 +839,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Address line 2</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.addressLine2}
                 onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))}
               />
@@ -791,7 +856,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Address proof type *</span>
               <select
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.addressProofType}
                 onChange={(e) => setForm((f) => ({ ...f, addressProofType: e.target.value }))}
               >
@@ -808,8 +873,8 @@ export function BorrowerIntakeWizard() {
       ) : null}
 
       {step === 2 && needColl && detectSecuredCollateralKind(form.loanProduct) ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Collateral for this loan</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Collateral for this loan</h2>
           <p className="text-xs text-slate-600">
             This product is secured. Provide details and upload documents for the property, securities, or gold offered as
             security.
@@ -827,8 +892,8 @@ export function BorrowerIntakeWizard() {
       ) : null}
 
       {((step === 2 && !needColl) || (step === 3 && needColl)) && applicationId ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Identity, bank account &amp; documents</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Identity, bank account &amp; documents</h2>
           <p className="text-xs text-slate-600">
             Optional uploads: address proof, PAN copy, bank statement, and salary slip help us process faster. You can add them
             after saving this step.
@@ -853,11 +918,15 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">PAN *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono uppercase"
+                className="bt-input w-full font-mono uppercase"
                 value={form.panNumber}
-                onChange={(e) => setForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))}
+                onChange={(e) => {
+                  clearFieldError('panNumber')
+                  setForm((f) => ({ ...f, panNumber: e.target.value.toUpperCase() }))
+                }}
                 maxLength={10}
               />
+              <IntakeFieldError message={fieldErrors.panNumber} />
             </label>
             <div className="sm:col-span-2">
               <span className="text-sm font-medium text-slate-800">Optional PAN copy</span>
@@ -877,7 +946,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Aadhaar (last 4 or full 12) — optional</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.aadhaar}
                 onChange={(e) => setForm((f) => ({ ...f, aadhaar: e.target.value }))}
                 inputMode="numeric"
@@ -894,7 +963,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Account number *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
+                className="bt-input w-full font-mono"
                 value={form.bankAccountNumber}
                 onChange={(e) => setForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
                 inputMode="numeric"
@@ -903,7 +972,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">IFSC *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono uppercase"
+                className="bt-input w-full font-mono uppercase"
                 value={form.ifscCode}
                 onChange={(e) => setForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))}
                 maxLength={11}
@@ -912,7 +981,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Bank name *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.bankName}
                 onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
               />
@@ -952,13 +1021,13 @@ export function BorrowerIntakeWizard() {
       ) : null}
 
       {((step === 3 && !needColl) || (step === 4 && needColl)) ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Income &amp; employment</h2>
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Income &amp; employment</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Employment type *</span>
               <select
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.employmentType}
                 onChange={(e) => setForm((f) => ({ ...f, employmentType: e.target.value }))}
               >
@@ -972,7 +1041,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Employer / business name *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.employerName}
                 onChange={(e) => setForm((f) => ({ ...f, employerName: e.target.value }))}
               />
@@ -983,7 +1052,7 @@ export function BorrowerIntakeWizard() {
                 type="number"
                 min={1}
                 step="1"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums"
+                className="bt-input w-full tabular-nums"
                 value={form.monthlyNetIncome}
                 onChange={(e) => setForm((f) => ({ ...f, monthlyNetIncome: e.target.value }))}
               />
@@ -991,7 +1060,7 @@ export function BorrowerIntakeWizard() {
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Occupation / industry *</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="bt-input w-full"
                 value={form.occupationIndustry}
                 onChange={(e) => setForm((f) => ({ ...f, occupationIndustry: e.target.value }))}
                 placeholder="e.g. software engineer, retail"
@@ -1003,7 +1072,7 @@ export function BorrowerIntakeWizard() {
                 type="number"
                 min={0}
                 step={1}
-                className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2"
+                className="w-full max-w-xs bt-input"
                 value={form.workExperienceYears}
                 onChange={(e) => setForm((f) => ({ ...f, workExperienceYears: e.target.value }))}
               />
@@ -1013,8 +1082,8 @@ export function BorrowerIntakeWizard() {
       ) : null}
 
       {((step === 4 && !needColl) || (step === 5 && needColl)) ? (
-        <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Consents</h2>
+        <section className="space-y-3 bt-card p-5">
+          <h2 className="bt-card-title">Consents</h2>
           <p className="text-xs text-slate-600">{consentHelper('BORROWER_SELF_SERVICE')}</p>
           <div className="space-y-2 text-sm text-slate-800">
             <label className="flex items-start gap-2">
@@ -1058,9 +1127,9 @@ export function BorrowerIntakeWizard() {
       ) : null}
 
       {((step === 5 && !needColl) || (step === 6 && needColl)) && applicationId ? (
-        <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Review &amp; submit</h2>
-          {reviewWarning ? <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{reviewWarning}</p> : null}
+        <section className="space-y-4 bt-card p-5">
+          <h2 className="bt-card-title">Review &amp; submit</h2>
+          {reviewWarning ? <p className="bt-alert bt-alert-warning">{reviewWarning}</p> : null}
           <ul className="grid gap-2 text-sm text-slate-800 sm:grid-cols-2">
             <li className="rounded border border-slate-100 p-2">
               <div className="text-xs text-slate-500">Product &amp; request</div>

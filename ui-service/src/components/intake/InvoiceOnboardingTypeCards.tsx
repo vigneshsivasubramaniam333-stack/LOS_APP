@@ -57,7 +57,7 @@ export function InvoiceOnboardingTypeCards({ value, onChange, disabled }: Invoic
                 disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
                 selected
                   ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900/10'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80',
+                  : 'border-slate-200 bg-white hover:border-slate-300 ',
               ].join(' ')}
             >
               <span className="flex items-start gap-3">
@@ -68,7 +68,7 @@ export function InvoiceOnboardingTypeCards({ value, onChange, disabled }: Invoic
                   {opt.icon}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-900">{opt.title}</span>
+                  <span className="block bt-card-title">{opt.title}</span>
                   <span className="mt-0.5 block text-xs font-medium text-slate-600">{opt.subtitle}</span>
                 </span>
               </span>

@@ -76,6 +76,7 @@ public class BlCoreEncoreLmsAdapter {
         // penalInterestRate: bl-core uses loan.getOverDueInterestRt()
         BigDecimal penalRate = p.penalInterestRate() != null ? p.penalInterestRate() : BigDecimal.ZERO;
         acc.put("penalInterestRate", penalRate.toPlainString());
+        acc.put("preclosureFeeRate", "0");
 
         String productCode = p.productCode() != null && !p.productCode().isBlank()
                 ? p.productCode()

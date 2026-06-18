@@ -58,9 +58,9 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
   return (
     <>
       {resultMsg ? (
-        <p className="mb-2 text-sm text-emerald-800" role="status">
+        <div className="bt-alert bt-alert-success mb-2" role="status">
           {resultMsg}
-        </p>
+        </div>
       ) : null}
       <button
         type="button"
@@ -70,10 +70,7 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
           setResultMsg(null)
           setOpen(true)
         }}
-        className={
-          className ??
-          'rounded-md border border-amber-700 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60'
-        }
+        className={className ?? 'bt-btn bt-btn-secondary border-amber-300 bg-[var(--bt-amber-bg)] text-[var(--bt-amber)] hover:bg-[var(--bt-amber-bg)]'}
       >
         {busy ? 'Clearing data…' : 'Reset demo data'}
       </button>
@@ -84,22 +81,18 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
           aria-modal="true"
           aria-labelledby="reset-demo-title"
         >
-          <div className="w-full max-w-md rounded-lg border-2 border-amber-300 bg-amber-50/95 p-5 shadow-lg ring-1 ring-amber-200/80">
-            <h2 id="reset-demo-title" className="text-base font-semibold text-amber-950">
+          <div className="bt-card w-full max-w-md border-2 border-[var(--bt-amber)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <h2 id="reset-demo-title" className="bt-card-title">
               Reset demo data
             </h2>
-            <p className="mt-2 text-sm text-amber-950/90">
+            <p className="mt-2 text-sm text-[var(--bt-gray-600)]">
               This will permanently delete all demo applications and related data. This action cannot be undone.
             </p>
-            {err ? (
-              <p className="mt-3 rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-sm text-rose-900">
-                {err}
-              </p>
-            ) : null}
+            {err ? <div className="bt-alert bt-alert-error mt-3">{err}</div> : null}
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
-                className="rounded-md border border-slate-400 bg-white px-3 py-1.5 text-sm text-slate-800"
+                className="bt-btn bt-btn-secondary"
                 onClick={() => setOpen(false)}
                 disabled={busy}
               >
@@ -107,7 +100,7 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
               </button>
               <button
                 type="button"
-                className="rounded-md border border-amber-800 bg-amber-800 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="bt-btn bt-btn-danger disabled:opacity-50"
                 onClick={() => void confirm()}
                 disabled={busy}
               >

@@ -1,5 +1,7 @@
 package com.los.encore.client.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,10 @@ public interface EncoreLmsApi {
     void reverseTransaction(String transactionId, String transactionName, String userId);
 
     List<Map<String, Object>> getAccountStatement(String encoreAccountId, String fromDate, String toDate);
+
+    List<Map<String, Object>> getCompositeStatement(String encoreAccountId);
+
+    JsonNode getLoanOdAccountDetails(String encoreAccountId);
 
     /** Bank working date as returned by Encore (raw body). */
     String findBankWorkingDateRaw();
