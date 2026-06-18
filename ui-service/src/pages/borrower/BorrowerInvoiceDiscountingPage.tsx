@@ -105,6 +105,12 @@ export function BorrowerInvoiceDiscountingPage() {
     setLoading(true)
     setLoadErr(null)
     try {
+      const dash = await getBorrowerDashboard()
+      if (!dash.invoiceDiscountingLinked) {
+        setLinked(false)
+        return
+      }
+      setLinked(true)
       const payload = await getInvoiceDiscounting()
       setData(payload)
       applyFinanceDefaults(payload)
@@ -116,35 +122,8 @@ export function BorrowerInvoiceDiscountingPage() {
   }, [applyFinanceDefaults])
 
   useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      setLoading(true)
-      setLoadErr(null)
-      try {
-        const dash = await getBorrowerDashboard()
-        if (cancelled) return
-        if (!dash.invoiceDiscountingLinked) {
-          setLinked(false)
-          setLoading(false)
-          return
-        }
-        setLinked(true)
-        const payload = await getInvoiceDiscounting()
-        if (cancelled) return
-        setData(payload)
-        applyFinanceDefaults(payload)
-      } catch (e) {
-        if (!cancelled) {
-          setLoadErr(e instanceof ApiError ? e.message : 'Failed to load invoice discounting')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [applyFinanceDefaults])
+    void refresh()
+  }, [refresh])
 
   async function onAccept(inv: BorrowerInvoiceItem) {
     setActionErr(null)

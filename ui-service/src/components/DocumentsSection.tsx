@@ -115,7 +115,7 @@ function buildDocumentType(preset: string, otherLabel: string): string {
 export function DocumentsSection({
   applicationId,
   intakeSegment,
-  appStatus,
+  appStatus: _appStatus,
   loanProduct,
 }: {
   applicationId: string
