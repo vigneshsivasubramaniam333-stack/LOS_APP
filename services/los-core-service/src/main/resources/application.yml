@@ -163,6 +163,7 @@ los:
       port: ${ENCORE_PORT:8080}
       api-username: ${ENCORE_API_USERNAME:admin}
       api-password: ${ENCORE_API_PASSWORD:password1}
+      rest-auth-token: ${ENCORE_REST_AUTH_TOKEN:}
       api:
         create-loan-account: webservices/loans/accounts/openAccount
         post-transactions: webservices/loans/accounts/postTransactions

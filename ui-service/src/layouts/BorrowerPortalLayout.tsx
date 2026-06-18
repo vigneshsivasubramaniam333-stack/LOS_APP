@@ -11,20 +11,37 @@ import {
   DocumentsIcon,
   InvoiceIcon,
   ProfileIcon,
+  ProgramsIcon,
 } from '@/components/SidebarNavIcons'
 import { sidebarLinkClass } from '@/components/ui/btUtils'
 import { PoweredByFooter } from '@/components/ui/PoweredByFooter'
 
 const COMPANY_NAME = 'Credinnov'
 
-const nav = [
-  { to: '/borrower/dashboard', label: 'Dashboard', icon: DashboardIcon },
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof DashboardIcon
+  end?: boolean
+}
+
+const overviewNav: NavItem[] = [{ to: '/borrower/dashboard', label: 'Dashboard', icon: DashboardIcon, end: true }]
+
+const programsNav: NavItem[] = [{ to: '/borrower/programs', label: 'Programs', icon: ProgramsIcon }]
+
+const lendingNav: NavItem[] = [
   { to: '/borrower/apply', label: 'Apply for loan', icon: ApplyIcon },
   { to: '/borrower/applications', label: 'Loan applications', icon: ApplicationsIcon },
+]
+
+const invoiceDiscountingNav: NavItem[] = [
   { to: '/borrower/invoice-discounting', label: 'Invoice discounting', icon: InvoiceIcon },
+]
+
+const accountNav: NavItem[] = [
   { to: '/borrower/documents', label: 'Signed documents', icon: DocumentsIcon },
   { to: '/borrower/profile', label: 'Profile', icon: ProfileIcon },
-] as const
+]
 
 function userInitials(name: string) {
   const p = name.trim().split(/\s+/)
@@ -32,11 +49,34 @@ function userInitials(name: string) {
   return name.slice(0, 2).toUpperCase() || '—'
 }
 
+function NavItems({ items }: { items: NavItem[] }) {
+  return (
+    <>
+      {items.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          className={({ isActive }) => sidebarLinkClass(isActive)}
+          end={item.end}
+        >
+          {({ isActive }) => (
+            <>
+              <item.icon active={isActive} />
+              <span className="min-w-0 flex-1">{item.label}</span>
+            </>
+          )}
+        </NavLink>
+      ))}
+    </>
+  )
+}
+
 export function BorrowerPortalLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [hasDisbursedLoan, setHasDisbursedLoan] = useState(false)
   const [loanId, setLoanId] = useState<string | null>(null)
+  const [invoiceDiscountingLinked, setInvoiceDiscountingLinked] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifs, setNotifs] = useState<Awaited<ReturnType<typeof getBorrowerNotifications>>>([])
 
@@ -48,12 +88,14 @@ export function BorrowerPortalLayout() {
         if (!c) return
         setHasDisbursedLoan(d.activeLoanCount > 0)
         setLoanId(d.primaryDisbursedApplicationId)
+        setInvoiceDiscountingLinked(Boolean(d.invoiceDiscountingLinked))
         const n = await getBorrowerNotifications()
         if (c) setNotifs(n)
       } catch {
         if (c) {
           setHasDisbursedLoan(false)
           setLoanId(null)
+          setInvoiceDiscountingLinked(false)
           setNotifs([])
         }
       }
@@ -70,6 +112,9 @@ export function BorrowerPortalLayout() {
     return <Navigate to="/borrower/change-password" replace />
   }
 
+  const overviewItems = invoiceDiscountingLinked ? [...overviewNav, ...programsNav] : overviewNav
+  const lendingItems = invoiceDiscountingLinked ? [...lendingNav, ...invoiceDiscountingNav] : lendingNav
+
   return (
     <div className="bt-app-canvas bt-app-shell">
       <aside className="bt-sidebar-wide">
@@ -78,21 +123,18 @@ export function BorrowerPortalLayout() {
           <p className="bt-sidebar-wide-subtitle">Borrower portal</p>
         </div>
         <nav className="bt-sidebar-wide-nav flex-1" aria-label="Borrower">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => sidebarLinkClass(isActive)}
-              end={item.to === '/borrower/dashboard'}
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon active={isActive} />
-                  <span className="min-w-0 flex-1">{item.label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
+          <div className="mb-1">
+            <div className="bt-sidebar-group-label">Overview</div>
+            <NavItems items={overviewItems} />
+          </div>
+          <div className="mb-1">
+            <div className="bt-sidebar-group-label">Lending</div>
+            <NavItems items={lendingItems} />
+          </div>
+          <div className="mb-1">
+            <div className="bt-sidebar-group-label">Account</div>
+            <NavItems items={accountNav} />
+          </div>
           {hasDisbursedLoan && loanId ? (
             <>
               <div className="bt-sidebar-group-label">After disbursement</div>

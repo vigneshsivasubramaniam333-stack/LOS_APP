@@ -3,6 +3,7 @@ package com.los.core.service.kfs;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.KfsTemplate;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.entity.SanctionRecord;
 import com.los.core.exception.ResourceNotFoundException;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.KfsDocumentRepository;
@@ -19,6 +20,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -111,6 +113,94 @@ public class KfsService {
                 Map.of("kfsId", kfs.getId().toString(), "version", version, "apr", apr.toString()));
 
         log.info("KFS generated for application {} — version={}, APR={}%", applicationId, version, apr);
+        return kfs;
+    }
+
+    public static final String DOCUMENT_KIND_INVOICE_DISCOUNTING_TERMS = "INVOICE_DISCOUNTING_TERMS";
+
+    /**
+     * Invoice discounting borrower: sanction terms document stored as a KFS row for eSign (2-page PDF, no LMS loan).
+     */
+    @Transactional
+    public KfsDocument generateInvoiceDiscountingBorrowerTermsDocument(
+            UUID applicationId,
+            SanctionRecord sanction,
+            Map<String, Object> charges) {
+        LoanApplication app = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new RuntimeException("Application not found: " + applicationId));
+
+        BigDecimal principal = sanction.getApprovedAmount() != null
+                ? sanction.getApprovedAmount()
+                : app.getSanctionedAmount();
+        BigDecimal annualRate = sanction.getInterestRate() != null
+                ? sanction.getInterestRate()
+                : app.getApprovedRate() != null ? app.getApprovedRate() : app.getInterestRate();
+        int tenure = sanction.getApprovedTenure() != null
+                ? sanction.getApprovedTenure()
+                : app.getTenureMonths() != null ? app.getTenureMonths() : 12;
+
+        if (principal == null || annualRate == null) {
+            throw new RuntimeException("Sanction limit and rate are required for invoice discounting terms document");
+        }
+
+        BigDecimal processingFee = extractCharge(charges, "processingFee", sanction.getProcessingFee());
+        if (processingFee == null) {
+            processingFee = BigDecimal.ZERO;
+        }
+
+        KfsTemplate template = kfsTemplateRepository
+                .findFirstByLoanProductAndActiveTrueOrderByCreatedAtDesc(app.getLoanProduct())
+                .orElse(null);
+        String grievance = template != null && template.getGrievanceOfficerDetails() != null
+                ? template.getGrievanceOfficerDetails() : GRIEVANCE_DEFAULT;
+        String lsp = template != null && template.getLspDetails() != null
+                ? template.getLspDetails() : LSP_DEFAULT;
+
+        List<KfsDocument> existing = kfsDocumentRepository.findByApplicationIdOrderByCreatedAtDesc(applicationId);
+        String version = "v" + (existing.size() + 1);
+
+        Map<String, Object> additional = new LinkedHashMap<>();
+        additional.put("documentKind", DOCUMENT_KIND_INVOICE_DISCOUNTING_TERMS);
+        if (sanction.getConditionsText() != null && !sanction.getConditionsText().isBlank()) {
+            additional.put("conditionsText", sanction.getConditionsText());
+        }
+        if (sanction.getRemarks() != null && !sanction.getRemarks().isBlank()) {
+            additional.put("remarks", sanction.getRemarks());
+        }
+        if (sanction.getApprovedBy() != null && !sanction.getApprovedBy().isBlank()) {
+            additional.put("approvedBy", sanction.getApprovedBy());
+        }
+        if (charges != null) {
+            additional.put("sanctionCharges", charges);
+        }
+
+        KfsDocument kfs = KfsDocument.builder()
+                .applicationId(applicationId)
+                .version(version)
+                .sanctionedAmount(principal)
+                .interestRate(annualRate)
+                .apr(annualRate)
+                .tenureMonths(tenure)
+                .emiAmount(BigDecimal.ZERO)
+                .totalInterest(BigDecimal.ZERO)
+                .totalRepayment(principal)
+                .processingFee(processingFee)
+                .stampDuty(BigDecimal.ZERO)
+                .insurancePremium(BigDecimal.ZERO)
+                .otherCharges(BigDecimal.ZERO)
+                .totalCostOfCredit(processingFee != null ? processingFee : BigDecimal.ZERO)
+                .coolingOffHours(DEFAULT_COOLING_OFF_HOURS)
+                .grievanceMechanism(grievance)
+                .lspDisclosure(lsp)
+                .additionalTerms(additional)
+                .status("GENERATED")
+                .build();
+
+        kfs = kfsDocumentRepository.save(kfs);
+        auditService.logEvent(applicationId, "KFS_GENERATED",
+                Map.of("kfsId", kfs.getId().toString(), "version", version,
+                        "documentKind", DOCUMENT_KIND_INVOICE_DISCOUNTING_TERMS));
+        log.info("Invoice discounting terms document for application {} — version={}", applicationId, version);
         return kfs;
     }
 

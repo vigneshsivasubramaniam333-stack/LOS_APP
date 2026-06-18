@@ -101,6 +101,7 @@ public class EncoreHttpTransport {
                         .header("Accept", "application/json")
                         .header("Content-Type", "application/json")
                         .header("Authorization", buildBasicAuthHeader());
+                applyRestAuthHeader(b, apiPath);
 
                 HttpRequest request;
                 if ("POST".equals(method)) {
@@ -207,6 +208,16 @@ public class EncoreHttpTransport {
         return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
     }
 
+    private void applyRestAuthHeader(HttpRequest.Builder builder, String apiPath) {
+        if (apiPath == null || !apiPath.startsWith("api/")) {
+            return;
+        }
+        String token = properties.getRestAuthToken();
+        if (token != null && !token.isBlank()) {
+            builder.header("X-Auth-Token", token.trim());
+        }
+    }
+
     private void logEncoreRequestDetails(String method, String apiPath, Map<String, String> queryParams,
                                          String requestBody, String fullUrl) {
         int pwdLen = properties.getApiPassword() != null ? properties.getApiPassword().length() : 0;
@@ -227,6 +238,15 @@ public class EncoreHttpTransport {
         } else {
             log.info("[LOS][ENCORE][REQUEST] postBody=(empty — openAccount uses query params per bl-core)");
         }
-        log.info("[LOS][ENCORE][REQUEST] headers: Accept=application/json, Content-Type=application/json, Authorization=Basic ***");
+        log.info("[LOS][ENCORE][REQUEST] headers: Accept=application/json, Content-Type=application/json, Authorization=Basic ***"
+                + (usesRestAuth(apiPath) ? ", X-Auth-Token=***" : ""));
+    }
+
+    private boolean usesRestAuth(String apiPath) {
+        if (apiPath == null || !apiPath.startsWith("api/")) {
+            return false;
+        }
+        String token = properties.getRestAuthToken();
+        return token != null && !token.isBlank();
     }
 }

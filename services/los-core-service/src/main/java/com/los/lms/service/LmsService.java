@@ -1,5 +1,6 @@
 package com.los.lms.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.core.model.entity.LoanApplication;
@@ -273,61 +274,46 @@ public class LmsService {
         BigDecimal amount;
         BigDecimal rate;
         int tenure;
+        String lmsRef = "LMS-" + applicationNumber;
 
         if (handoverOpt.isPresent()) {
             LmsLoanHandover handover = handoverOpt.get();
             amount = handover.getSanctionedAmount();
             rate = handover.getInterestRate();
             tenure = handover.getTenureMonths();
+            if (handover.getEncoreAccountId() != null && !handover.getEncoreAccountId().isBlank()) {
+                lmsRef = handover.getEncoreAccountId();
+            }
 
-            // Try Encore repayment schedule if configured
             if (encoreLmsApi.isActive() && handover.getEncoreAccountId() != null) {
                 try {
                     List<Map<String, Object>> encoreSchedule =
                             encoreLmsApi.findRepaymentSchedule(handover.getEncoreAccountId());
-                    if (!encoreSchedule.isEmpty()) {
-                        // Convert Encore schedule to our DTO format
-                        List<RepaymentScheduleEntry> entries = encoreSchedule.stream().map(e -> {
-                            BigDecimal instAmount = new BigDecimal(String.valueOf(e.getOrDefault("installmentAmount", "0")));
-                            return RepaymentScheduleEntry.builder()
-                                    .installmentNumber(((Number) e.getOrDefault("sequenceNum", 0)).intValue())
-                                    .dueDate(LocalDate.parse(String.valueOf(e.getOrDefault("valueDateStr", LocalDate.now().toString()))))
-                                    .emiAmount(instAmount)
-                                    .principalComponent(new BigDecimal(String.valueOf(e.getOrDefault("principalAmount", "0"))))
-                                    .interestComponent(new BigDecimal(String.valueOf(e.getOrDefault("interestAmount", "0"))))
-                                    .outstandingPrincipal(new BigDecimal(String.valueOf(e.getOrDefault("balance", "0"))))
-                                    .status("FROM_ENCORE")
-                                    .build();
-                        }).toList();
-
-                        BigDecimal totalInterest = entries.stream()
-                                .map(RepaymentScheduleEntry::getInterestComponent)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                        return RepaymentScheduleResponse.builder()
-                                .applicationNumber(applicationNumber)
-                                .lmsReferenceId(handover.getEncoreAccountId())
-                                .sanctionedAmount(amount)
-                                .interestRate(rate)
-                                .tenureMonths(tenure)
-                                .totalInterest(totalInterest)
-                                .totalPayable(amount.add(totalInterest))
-                                .schedule(entries)
-                                .build();
+                    RepaymentScheduleResponse fromEncore = buildScheduleResponse(
+                            applicationNumber, lmsRef, amount, rate, tenure,
+                            mapEncoreScheduleMaps(encoreSchedule, "FROM_ENCORE"));
+                    if (fromEncore != null) {
+                        return fromEncore;
                     }
                 } catch (Exception e) {
                     log.warn("Failed to get Encore schedule for {}: {}", applicationNumber, e.getMessage());
                 }
             }
+
+            RepaymentScheduleResponse fromCache = scheduleFromCachedEncoreJson(
+                    handover.getEncoreRepaymentScheduleJson(),
+                    applicationNumber, lmsRef, amount, rate, tenure);
+            if (fromCache != null) {
+                return fromCache;
+            }
         } else {
-            // Use defaults for simulated schedule
             amount = new BigDecimal("500000");
             rate = new BigDecimal("12.5");
             tenure = 36;
         }
 
-        // Generate schedule locally
-        List<RepaymentScheduleEntry> schedule = generateRepaymentSchedule(amount, rate, tenure);
+        List<RepaymentScheduleEntry> schedule = withScheduleStatus(
+                generateRepaymentSchedule(amount, rate, tenure), "INDICATIVE");
 
         BigDecimal totalInterest = schedule.stream()
                 .map(RepaymentScheduleEntry::getInterestComponent)
@@ -335,7 +321,7 @@ public class LmsService {
 
         return RepaymentScheduleResponse.builder()
                 .applicationNumber(applicationNumber)
-                .lmsReferenceId("LMS-" + applicationNumber)
+                .lmsReferenceId(lmsRef)
                 .sanctionedAmount(amount)
                 .interestRate(rate)
                 .tenureMonths(tenure)
@@ -723,21 +709,12 @@ public class LmsService {
         if (handoverOpt.isEmpty() || handoverOpt.get().getEncoreAccountId() == null) {
             return Collections.emptyList();
         }
-        String accountId = handoverOpt.get().getEncoreAccountId();
-        List<Map<String, Object>> composite = encoreLmsApi.getCompositeStatement(accountId);
-        if (composite != null && !composite.isEmpty()) {
-            return composite;
-        }
-        return encoreLmsApi.getAccountStatement(accountId, fromDate, toDate);
+        return encoreLmsApi.getAccountStatement(handoverOpt.get().getEncoreAccountId(), fromDate, toDate);
     }
 
-    /** Composite statement rows from Encore loan OD account details API. */
+    /** Composite or legacy Encore statement rows (webservices first, then REST composite when configured). */
     public List<Map<String, Object>> getEncoreCompositeStatement(String applicationNumber) {
-        return handoverRepository.findByApplicationNumber(applicationNumber)
-                .map(LmsLoanHandover::getEncoreAccountId)
-                .filter(id -> id != null && !id.isBlank())
-                .map(encoreLmsApi::getCompositeStatement)
-                .orElse(Collections.emptyList());
+        return getEncoreAccountStatement(applicationNumber, null, null);
     }
 
     /**
@@ -1220,6 +1197,98 @@ public class LmsService {
             return true;
         }
         return lmsProgramResolver.isLmsEntryEnabled(program.get());
+    }
+
+    private RepaymentScheduleResponse scheduleFromCachedEncoreJson(
+            String json,
+            String applicationNumber,
+            String lmsRef,
+            BigDecimal amount,
+            BigDecimal rate,
+            int tenure) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            List<Map<String, Object>> cached = objectMapper.readValue(json, new TypeReference<>() {});
+            RepaymentScheduleResponse resp = buildScheduleResponse(
+                    applicationNumber, lmsRef, amount, rate, tenure,
+                    mapEncoreScheduleMaps(cached, "FROM_ENCORE"));
+            if (resp != null) {
+                log.info("Using cached Encore repayment schedule for {} ({} rows)", applicationNumber,
+                        resp.getSchedule().size());
+            }
+            return resp;
+        } catch (Exception e) {
+            log.warn("Failed to parse cached Encore schedule for {}: {}", applicationNumber, e.getMessage());
+            return null;
+        }
+    }
+
+    private RepaymentScheduleResponse buildScheduleResponse(
+            String applicationNumber,
+            String lmsRef,
+            BigDecimal amount,
+            BigDecimal rate,
+            int tenure,
+            List<RepaymentScheduleEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return null;
+        }
+        BigDecimal totalInterest = entries.stream()
+                .map(RepaymentScheduleEntry::getInterestComponent)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return RepaymentScheduleResponse.builder()
+                .applicationNumber(applicationNumber)
+                .lmsReferenceId(lmsRef)
+                .sanctionedAmount(amount)
+                .interestRate(rate)
+                .tenureMonths(tenure)
+                .totalInterest(totalInterest)
+                .totalPayable(amount.add(totalInterest))
+                .schedule(entries)
+                .build();
+    }
+
+    private List<RepaymentScheduleEntry> mapEncoreScheduleMaps(
+            List<Map<String, Object>> encoreSchedule, String status) {
+        if (encoreSchedule == null || encoreSchedule.isEmpty()) {
+            return List.of();
+        }
+        return encoreSchedule.stream().map(e -> {
+            BigDecimal instAmount = new BigDecimal(String.valueOf(e.getOrDefault("installmentAmount", "0")));
+            String dueRaw = String.valueOf(e.getOrDefault("valueDateStr", LocalDate.now().toString()));
+            LocalDate dueDate;
+            try {
+                dueDate = LocalDate.parse(dueRaw);
+            } catch (Exception ignored) {
+                dueDate = LocalDate.now();
+            }
+            return RepaymentScheduleEntry.builder()
+                    .installmentNumber(((Number) e.getOrDefault("sequenceNum", 0)).intValue())
+                    .dueDate(dueDate)
+                    .emiAmount(instAmount)
+                    .principalComponent(new BigDecimal(String.valueOf(e.getOrDefault("principalAmount", "0"))))
+                    .interestComponent(new BigDecimal(String.valueOf(e.getOrDefault("interestAmount", "0"))))
+                    .outstandingPrincipal(new BigDecimal(String.valueOf(e.getOrDefault("balance", "0"))))
+                    .status(status)
+                    .build();
+        }).toList();
+    }
+
+    private static List<RepaymentScheduleEntry> withScheduleStatus(
+            List<RepaymentScheduleEntry> schedule, String status) {
+        return schedule.stream()
+                .map(e -> RepaymentScheduleEntry.builder()
+                        .installmentNumber(e.getInstallmentNumber())
+                        .dueDate(e.getDueDate())
+                        .emiAmount(e.getEmiAmount())
+                        .principalComponent(e.getPrincipalComponent())
+                        .interestComponent(e.getInterestComponent())
+                        .outstandingPrincipal(e.getOutstandingPrincipal())
+                        .status(status)
+                        .build())
+                .toList();
     }
 
 }

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -43,6 +44,82 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      * borrower id. Used to map a LOS borrower to their PLP borrower identity for invoice discounting.
      */
     Optional<LoanApplication> findFirstByCustomerIdAndPlpBorrowerIdIsNotNullOrderByUpdatedAtDesc(UUID customerId);
+
+    /**
+     * Invoice-discounting borrower with a synced PLP identity (programs / invoice discounting menus).
+     */
+    Optional<LoanApplication> findFirstByCustomerIdAndLoanProductAndPlpBorrowerIdIsNotNullOrderByUpdatedAtDesc(
+            UUID customerId, String loanProduct);
+
+    Optional<LoanApplication> findFirstByCustomerIdAndLoanProductOrderByUpdatedAtDesc(
+            UUID customerId, String loanProduct);
+
+    boolean existsByCustomerIdAndLoanProductAndPlpBorrowerIdIsNotNull(UUID customerId, String loanProduct);
+
+    @Query(value = """
+            SELECT * FROM loan_applications a
+            WHERE a.loan_product = :loanProduct
+              AND a.personal_info->>'borrowerUserId' = :borrowerUserId
+            ORDER BY a.updated_at DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<LoanApplication> findFirstByPersonalInfoBorrowerUserIdAndLoanProductOrderByUpdatedAtDesc(
+            @Param("borrowerUserId") String borrowerUserId, @Param("loanProduct") String loanProduct);
+
+    @Query(value = """
+            SELECT * FROM loan_applications a
+            WHERE a.loan_product = :loanProduct
+              AND lower(coalesce(a.personal_info->>'email', a.personal_info->>'borrowerEmail',
+                                 a.personal_info->>'contactEmail', a.business_info->>'email',
+                                 a.business_info->>'contactEmail', a.business_info->>'contactPersonEmail')) = lower(:email)
+            ORDER BY a.updated_at DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<LoanApplication> findFirstByBorrowerEmailAndLoanProductOrderByUpdatedAtDesc(
+            @Param("email") String email, @Param("loanProduct") String loanProduct);
+
+    @Query(value = """
+            SELECT * FROM loan_applications a
+            WHERE a.loan_product = :loanProduct
+              AND regexp_replace(coalesce(
+                  a.personal_info->>'mobile',
+                  a.personal_info->>'borrowerMobile',
+                  a.personal_info->>'phone',
+                  a.business_info->>'mobile',
+                  a.business_info->>'contactMobile'), '[^0-9]', '', 'g') = :mobileDigits
+            ORDER BY a.updated_at DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<LoanApplication> findFirstByBorrowerMobileAndLoanProductOrderByUpdatedAtDesc(
+            @Param("mobileDigits") String mobileDigits, @Param("loanProduct") String loanProduct);
+
+    /**
+     * Invoice-discounting (or PLP-linked) applications for a borrower contact, regardless of stale
+     * {@code customer_id}, when PLP borrower sync has succeeded.
+     */
+    @Query(value = """
+            SELECT * FROM loan_applications a
+            WHERE a.sub_program_id IS NOT NULL
+              AND a.plp_borrower_sync_status = 'SYNC_SUCCESS'
+              AND (
+                a.customer_id = CAST(:borrowerUserId AS uuid)
+                OR a.personal_info->>'borrowerUserId' = CAST(:borrowerUserId AS text)
+                OR (:email <> '' AND lower(coalesce(
+                    a.personal_info->>'email', a.personal_info->>'borrowerEmail',
+                    a.personal_info->>'contactEmail', a.business_info->>'email',
+                    a.business_info->>'contactEmail', a.business_info->>'contactPersonEmail')) = lower(:email))
+                OR (:mobileDigits <> '' AND regexp_replace(coalesce(
+                    a.personal_info->>'mobile', a.personal_info->>'borrowerMobile',
+                    a.personal_info->>'phone', a.business_info->>'mobile',
+                    a.business_info->>'contactMobile'), '[^0-9]', '', 'g') = :mobileDigits)
+              )
+            ORDER BY a.updated_at DESC
+            LIMIT 10
+            """, nativeQuery = true)
+    java.util.List<LoanApplication> findPlpSyncedApplicationsForBorrowerContact(
+            @Param("borrowerUserId") UUID borrowerUserId,
+            @Param("email") String email,
+            @Param("mobileDigits") String mobileDigits);
 
     Optional<LoanApplication> findTopByVkycTransactionId(String vkycTransactionId);
 

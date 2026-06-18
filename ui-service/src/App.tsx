@@ -18,6 +18,7 @@ import { BorrowerSignedDocumentsPage } from '@/pages/borrower/BorrowerSignedDocu
 import { BorrowerLoanSubPage } from '@/pages/borrower/BorrowerLoanSubPage'
 import { BorrowerLoanAccountPage } from '@/pages/borrower/BorrowerLoanAccountPage'
 import { BorrowerInvoiceDiscountingPage } from '@/pages/borrower/BorrowerInvoiceDiscountingPage'
+import { BorrowerProgramsPage } from '@/pages/borrower/BorrowerProgramsPage'
 import { BorrowerStatusRedirectPage } from '@/pages/borrower/BorrowerStatusRedirectPage'
 import { SalesNewApplicationPage } from '@/pages/sales/SalesNewApplicationPage'
 import { ApplicationDetailPage } from '@/pages/ApplicationDetailPage'
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="apply" element={<BorrowerApplyPage />} />
         <Route path="applications" element={<BorrowerApplicationsListPage />} />
         <Route path="applications/:id" element={<BorrowerApplicationDetailPage />} />
+        <Route path="programs" element={<BorrowerProgramsPage />} />
         <Route path="invoice-discounting" element={<BorrowerInvoiceDiscountingPage />} />
         <Route path="documents" element={<BorrowerSignedDocumentsPage />} />
         <Route path="profile" element={<BorrowerProfilePage />} />

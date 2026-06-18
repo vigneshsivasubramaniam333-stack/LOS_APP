@@ -114,6 +114,7 @@ services:
       ENCORE_BASE_URL: ${ENCORE_BASE_URL:-http://credinnov-sandbox.senseitech.com/credinnov-encore-server/}
       ENCORE_API_USERNAME: ${ENCORE_API_USERNAME:-admin}
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-password1}
+      ENCORE_REST_AUTH_TOKEN: ${ENCORE_REST_AUTH_TOKEN:-}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
 
     depends_on:

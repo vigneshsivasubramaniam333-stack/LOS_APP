@@ -7,8 +7,14 @@ import { downloadSanctionPdfBlob, getLatestSanction, type SanctionResponse } fro
 import { formatMoney } from '@/lib/format'
 import type { ApplicationResponse } from '@/types/application'
 import { isInvoiceDiscountingProduct } from '@/catalog/loanProducts'
+import {
+  idFlowSkipsKfsAtSanction,
+  isInvoiceDiscountingAnchorApp,
+  isInvoiceDiscountingBorrowerApp,
+} from '@/lib/invoiceDiscountingFlow'
 import { PlpBorrowerProgramSection } from '@/components/plp/PlpBorrowerProgramSection'
 import { PlpProgramSetupSection } from '@/components/plp/PlpProgramSetupSection'
+import { listPlpProgramsForAnchor, listSyncedAnchors } from '@/api/plp'
 
 export function SanctionKfsSection({
   applicationId,
@@ -46,8 +52,13 @@ export function SanctionKfsSection({
   const [kfsLoad, setKfsLoad] = useState(false)
   const [camStatusLine, setCamStatusLine] = useState<string | null>(null)
 
-  const canAct =
-    app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED'
+  const isAnchor = isInvoiceDiscountingAnchorApp(app)
+  const isIdBorrower = isInvoiceDiscountingBorrowerApp(app)
+  const skipKfsDoc = idFlowSkipsKfsAtSanction(app)
+
+  const canAct = isAnchor
+    ? app.status === 'SANCTION_PENDING'
+    : app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED'
 
   const refetchAncillary = useCallback(async () => {
     setKfsLoad(true)
@@ -89,6 +100,15 @@ export function SanctionKfsSection({
             : null,
         )
       }
+      if (c.recommendedAmount != null) {
+        setAmount((prev) => prev || String(c.recommendedAmount))
+      }
+      if (c.recommendedTenureMonths != null) {
+        setTenure((prev) => prev || String(c.recommendedTenureMonths))
+      }
+      if (c.recommendedRate != null) {
+        setRate((prev) => prev || String(c.recommendedRate))
+      }
     } catch {
       setCamStatusLine(
         'CAM is not on file for this case yet, or the application has not reached CAM ready. If you expect CAM here, check underwriting status first.',
@@ -96,10 +116,35 @@ export function SanctionKfsSection({
     }
   }, [applicationId])
 
+  const loadAnchorProgramDefaults = useCallback(async () => {
+    try {
+      const anchors = await listSyncedAnchors()
+      const linked = anchors.find((a) => a.sourceAnchorApplicationId === applicationId)
+      if (!linked) return
+      const programs = await listPlpProgramsForAnchor(linked.id)
+      const program = programs[0]
+      if (!program) return
+      if (program.creditLimit != null) {
+        setAmount((prev) => prev || String(program.creditLimit))
+      }
+      if (program.tenureDays != null) {
+        const months = Math.max(1, Math.ceil(program.tenureDays / 30))
+        setTenure((prev) => prev || String(months))
+      }
+    } catch {
+      /* PLP program may not exist yet */
+    }
+  }, [applicationId])
+
   useEffect(() => {
+    if (isAnchor) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- PLP defaults for anchor sanction
+      void loadAnchorProgramDefaults()
+      return
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async CAM status line for sanction gate
     void loadCamLabel()
-  }, [loadCamLabel, app.status])
+  }, [loadCamLabel, loadAnchorProgramDefaults, app.status, isAnchor])
 
   async function onProceedPending() {
     setBusy(true)
@@ -118,15 +163,20 @@ export function SanctionKfsSection({
     setBusy(true)
     setError(null)
     try {
-      await sanctionApplicationFlow(applicationId, {
+      const body: Record<string, unknown> = {
         sanctionedAmount: amount,
-        interestRate: rate,
-        tenureMonths: parseInt(tenure, 10),
-        processingFee: fee || undefined,
         conditions,
         remarks,
         approvedBy: approvedBy || undefined,
-      })
+      }
+      if (!isAnchor) {
+        body.interestRate = rate
+        body.tenureMonths = parseInt(tenure, 10)
+        body.processingFee = fee || undefined
+      } else if (tenure) {
+        body.tenureMonths = parseInt(tenure, 10)
+      }
+      await sanctionApplicationFlow(applicationId, body)
       await onRefetch()
       await refetchAncillary()
     } catch (e) {
@@ -152,6 +202,28 @@ export function SanctionKfsSection({
     }
   }
 
+  async function openTermsOrKfsPdf() {
+    setBusy(true)
+    setError(null)
+    try {
+      try {
+        const blob = await downloadKfsPdfBlob(applicationId)
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank', 'noopener,noreferrer')
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      } catch {
+        const blob = await downloadSanctionPdfBlob(applicationId)
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank', 'noopener,noreferrer')
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Document preview not available')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function openSanctionPdf() {
     setBusy(true)
     setError(null)
@@ -167,45 +239,39 @@ export function SanctionKfsSection({
     }
   }
 
-  async function openKfsPdf() {
-    setBusy(true)
-    setError(null)
-    try {
-      const blob = await downloadKfsPdfBlob(applicationId)
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank', 'noopener,noreferrer')
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'KFS PDF not available')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const idBorrowerTermsOnFile =
+    isIdBorrower &&
+    (sanctionRec != null ||
+      kfs != null ||
+      ['SANCTIONED', 'KFS_GENERATED', 'SANCTION_ISSUED', 'ESIGN_PENDING', 'ESIGN_COMPLETED'].includes(app.status))
 
-  const sanctionUnlocked = [
-    'CAM_REVIEWED',
-    'SANCTION_PENDING',
-    'SANCTIONED',
-    'KFS_GENERATED',
-    'SANCTION_ISSUED',
-    'ESIGN_PENDING',
-    'ESIGN_COMPLETED',
-    'READY_FOR_DISBURSEMENT',
-    'DISBURSEMENT_PENDING',
-    'DISBURSED',
-    'APPROVED',
-  ].includes(app.status)
+  const sanctionUnlocked = isAnchor
+    ? ['SANCTION_PENDING', 'SANCTIONED'].includes(app.status)
+    : [
+        'CAM_REVIEWED',
+        'SANCTION_PENDING',
+        'SANCTIONED',
+        'KFS_GENERATED',
+        'SANCTION_ISSUED',
+        'ESIGN_PENDING',
+        'ESIGN_COMPLETED',
+        'READY_FOR_DISBURSEMENT',
+        'DISBURSEMENT_PENDING',
+        'DISBURSED',
+        'APPROVED',
+      ].includes(app.status)
 
   return (
     <div className="space-y-8">
-      {camStatusLine ? (
+      {!isAnchor && camStatusLine ? (
         <div className="bt-section-card bt-section-card--default px-3 py-2 text-sm text-slate-800">{camStatusLine}</div>
       ) : null}
       {!sanctionUnlocked ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
-          <span className="font-medium">Status:</span> {app.status}. Sanction and KFS actions unlock after the Credit
-          Appraisal Memo is reviewed (CAM_REVIEWED or legacy APPROVED). You can still use this tab to read guidance and
-          download PDFs if they already exist.
+          <span className="font-medium">Status:</span> {app.status}.{' '}
+          {isAnchor
+            ? 'Sanction unlocks after due diligence approval (SANCTION_PENDING).'
+            : 'Sanction and KFS actions unlock after the Credit Appraisal Memo is reviewed (CAM_REVIEWED or legacy APPROVED). You can still use this tab to read guidance and download PDFs if they already exist.'}
         </div>
       ) : null}
       {error && (
@@ -220,7 +286,7 @@ export function SanctionKfsSection({
         )
       ) : null}
 
-      {canAct && app.status === 'CAM_REVIEWED' && (
+      {canAct && !isAnchor && app.status === 'CAM_REVIEWED' && (
         <div className="bt-section-card bt-section-card--default p-4">
           <p className="mb-2 text-sm text-slate-700">Optional: move to formal sanction-pending before entering terms.</p>
           <button
@@ -236,10 +302,23 @@ export function SanctionKfsSection({
 
       {canAct && (
         <div className="rounded-lg border border-indigo-200/80 bg-indigo-50/40 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-indigo-950">Sanction decision</h3>
+          <h3 className="mb-2 text-sm font-semibold text-indigo-950">
+            {isAnchor ? 'Anchor sanction (final step)' : 'Sanction decision'}
+          </h3>
+          {isAnchor ? (
+            <p className="mb-3 text-sm text-slate-700">
+              Set the program limit below and complete PLP program setup. No LMS loan or KFS is created for anchor
+              onboarding — this is the final step.
+            </p>
+          ) : isIdBorrower ? (
+            <p className="mb-3 text-sm text-slate-700">
+              Issue sanction terms for this invoice discounting borrower. A terms &amp; conditions document is generated
+              instead of a KFS; no LMS loan is created.
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-medium text-slate-600">
-              Approved amount
+              {isAnchor ? 'Program / anchor limit (INR)' : 'Approved amount'}
               <input
                 className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
                 value={amount}
@@ -247,33 +326,49 @@ export function SanctionKfsSection({
                 inputMode="decimal"
               />
             </label>
-            <label className="text-xs font-medium text-slate-600">
-              Tenure (months)
-              <input
-                className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
-                value={tenure}
-                onChange={(e) => setTenure(e.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-600">
-              Interest rate (% p.a.)
-              <input
-                className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
-                value={rate}
-                onChange={(e) => setRate(e.target.value)}
-                inputMode="decimal"
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-600">
-              Processing fee
-              <input
-                className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
-                value={fee}
-                onChange={(e) => setFee(e.target.value)}
-                inputMode="decimal"
-              />
-            </label>
+            {isAnchor ? (
+              <label className="text-xs font-medium text-slate-600">
+                Program validity (months, from PLP)
+                <input
+                  className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
+                  value={tenure}
+                  onChange={(e) => setTenure(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="From PLP program tenure"
+                />
+              </label>
+            ) : null}
+            {!isAnchor ? (
+              <>
+                <label className="text-xs font-medium text-slate-600">
+                  Tenure (months)
+                  <input
+                    className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
+                    value={tenure}
+                    onChange={(e) => setTenure(e.target.value)}
+                    inputMode="numeric"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-600">
+                  Interest rate (% p.a.)
+                  <input
+                    className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                    inputMode="decimal"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-600">
+                  Processing fee
+                  <input
+                    className="mt-0.5 w-full rounded border border-slate-200 p-2 text-sm"
+                    value={fee}
+                    onChange={(e) => setFee(e.target.value)}
+                    inputMode="decimal"
+                  />
+                </label>
+              </>
+            ) : null}
           </div>
           <label className="mt-3 block text-xs font-medium text-slate-600">
             Conditions
@@ -308,7 +403,13 @@ export function SanctionKfsSection({
               onClick={() => void onApprove()}
               className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
-              {busy ? 'Working…' : 'Approve & generate sanction + KFS'}
+              {busy
+                ? 'Working…'
+                : isAnchor
+                  ? 'Complete anchor sanction'
+                  : isIdBorrower
+                    ? 'Approve & generate terms document'
+                    : 'Approve & generate sanction + KFS'}
             </button>
             <button
               type="button"
@@ -324,18 +425,20 @@ export function SanctionKfsSection({
               onClick={() => void openSanctionPdf()}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
             >
-              Sanction letter PDF
+              {isIdBorrower ? 'Terms & conditions PDF' : 'Sanction letter PDF'}
             </button>
           </div>
         </div>
       )}
 
-      {(sanctionRec || kfs) && (
+      {(idBorrowerTermsOnFile || (!skipKfsDoc && (sanctionRec || kfs))) && (
         <div className="bt-section-card bt-section-card--default p-4">
-          <h3 className="mb-2 bt-card-title">KFS (from sanction)</h3>
-          {kfsLoad && <p className="text-sm text-slate-500">Refreshing KFS…</p>}
+          <h3 className="mb-2 bt-card-title">
+            {isIdBorrower ? 'Sanction terms' : 'KFS (from sanction)'}
+          </h3>
+          {kfsLoad && <p className="text-sm text-slate-500">Refreshing document…</p>}
           {loadErr && <p className="text-sm text-amber-800">{loadErr}</p>}
-          {kfs && (
+          {kfs && !isIdBorrower && (
             <dl className="mb-3 grid gap-2 sm:grid-cols-2 text-sm">
               <div>
                 <dt className="text-xs uppercase text-slate-500">APR</dt>
@@ -357,14 +460,20 @@ export function SanctionKfsSection({
               </div>
             </dl>
           )}
+          {isIdBorrower && sanctionRec ? (
+            <p className="mb-3 text-sm text-slate-700">
+              Sanctioned limit: {formatMoney(sanctionRec.approvedAmount)}
+              {sanctionRec.createdAt ? ` · Recorded ${sanctionRec.createdAt}` : ''}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               disabled={busy}
-              onClick={() => void openKfsPdf()}
+              onClick={() => void openTermsOrKfsPdf()}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
             >
-              Preview KFS PDF
+              {isIdBorrower ? 'Preview terms document (PDF)' : 'Preview KFS PDF'}
             </button>
             <button
               type="button"
@@ -378,10 +487,13 @@ export function SanctionKfsSection({
         </div>
       )}
 
-      {sanctionRec && (
-        <p className="text-xs text-slate-500">
-          Latest sanction on file from {sanctionRec.createdAt ?? '—'}
-        </p>
+      {skipKfsDoc && sanctionRec && isAnchor && (
+        <div className="bt-section-card bt-section-card--default p-4">
+          <h3 className="mb-2 bt-card-title">Anchor sanction</h3>
+          <p className="text-sm text-slate-700">
+            Limit: {formatMoney(sanctionRec.approvedAmount)} · Recorded {sanctionRec.createdAt ?? '—'}
+          </p>
+        </div>
       )}
     </div>
   )

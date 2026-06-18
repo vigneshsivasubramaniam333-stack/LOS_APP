@@ -45,6 +45,36 @@ export async function rejectManualUnderwritingFlow(applicationId: string): Promi
   return data
 }
 
+export async function getAnchorDueDiligenceFlow(applicationId: string): Promise<Record<string, unknown>> {
+  const { data } = await http.get<Record<string, unknown>>(`/flow/${applicationId}/anchor/due-diligence`)
+  return data
+}
+
+export async function saveAnchorDueDiligenceFlow(
+  applicationId: string,
+  answers: Record<string, string>,
+): Promise<Record<string, unknown>> {
+  const { data } = await http.post<Record<string, unknown>>(`/flow/${applicationId}/anchor/due-diligence`, {
+    answers,
+  })
+  return data
+}
+
+export async function completeAnchorUnderwritingFlow(applicationId: string): Promise<Record<string, unknown>> {
+  const { data } = await http.post<Record<string, unknown>>(`/flow/${applicationId}/anchor/underwrite`)
+  return data
+}
+
+export async function approveAnchorManualUnderwritingFlow(applicationId: string): Promise<ApplicationResponse> {
+  const { data } = await http.post<ApplicationResponse>(`/flow/${applicationId}/anchor/underwriting/approve`)
+  return data
+}
+
+export async function rejectAnchorManualUnderwritingFlow(applicationId: string): Promise<ApplicationResponse> {
+  const { data } = await http.post<ApplicationResponse>(`/flow/${applicationId}/anchor/underwriting/reject`)
+  return data
+}
+
 export async function markCamReviewedFlow(applicationId: string): Promise<ApplicationResponse> {
   const { data } = await http.post<ApplicationResponse>(`/flow/${applicationId}/cam/reviewed`)
   return data

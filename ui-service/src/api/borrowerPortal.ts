@@ -16,6 +16,7 @@ export interface BorrowerDashboard {
   recentApplications: BorrowerAppSummary[]
   secondLoanWarning: string | null
   primaryDisbursedApplicationId: string | null
+  invoiceDiscountingLinked: boolean
 }
 
 export interface BorrowerAppSummary {

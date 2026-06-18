@@ -11,6 +11,7 @@ import com.los.core.model.dto.auth.RegisterRequest;
 import com.los.core.model.dto.auth.ResetPasswordRequest;
 import com.los.core.model.entity.LosUser;
 import com.los.core.repository.LosUserRepository;
+import com.los.core.service.borrower.BorrowerApplicationOwnershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class DemoAuthService {
 
     private final LosUserRepository losUserRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BorrowerApplicationOwnershipService borrowerApplicationOwnershipService;
 
     @Transactional
     public LoginResponse register(RegisterRequest req) {
@@ -96,6 +98,9 @@ public class DemoAuthService {
             throw new UnauthorizedException("Invalid email or password");
         }
         String role = u.getPrimaryLosRole() != null ? u.getPrimaryLosRole() : "OPERATIONS";
+        if ("BORROWER".equalsIgnoreCase(role)) {
+            borrowerApplicationOwnershipService.reconcileCustomerId(u.getId());
+        }
         return LoginResponse.builder()
                 .userId(u.getId())
                 .name(u.getName())

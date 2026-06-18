@@ -27,6 +27,12 @@ public class EncoreClientProperties {
     private String apiUsername = "admin";
     private String apiPassword = "password1";
 
+    /**
+     * Optional session token for Encore REST paths under {@code api/} (e.g. loan-od-accounts).
+     * Webservices paths continue to use Basic auth. Set {@code ENCORE_REST_AUTH_TOKEN} in env.
+     */
+    private String restAuthToken = "";
+
     private EncoreApiEndpoints api = new EncoreApiEndpoints();
 
     private String currency = "INR";
@@ -74,9 +80,14 @@ public class EncoreClientProperties {
             port = 8080;
         }
         log.info("LOS Encore LMS client configured: baseUrl={} apiUsername={} apiPasswordConfigured={} "
-                        + "openAccountEndpoint={} connectTimeoutMs={} readTimeoutMs={}",
+                        + "restAuthTokenConfigured={} openAccountEndpoint={} connectTimeoutMs={} readTimeoutMs={}",
                 baseUrl, apiUsername, apiPassword != null && !apiPassword.isBlank(),
+                restAuthToken != null && !restAuthToken.isBlank(),
                 api != null ? api.getCreateLoanAccount() : "-", connectTimeoutMs, readTimeoutMs);
+        if (restAuthToken == null || restAuthToken.isBlank()) {
+            log.warn("ENCORE_REST_AUTH_TOKEN is not set — repayment schedule and SOA via api/loan-od-accounts "
+                    + "will fail (401). Copy X-Auth-Token from Encore UI after login, or set ENCORE_REST_AUTH_TOKEN.");
+        }
     }
 
     @Data

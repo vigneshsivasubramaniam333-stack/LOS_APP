@@ -29,23 +29,46 @@ public class PlpAnchorSanctionHookService {
     private final AnchorMasterRepository anchorMasterRepository;
     private final PlpAnchorSyncService plpAnchorSyncService;
 
+    public void onAnchorCreditRatingCompleted(UUID applicationId) {
+        LoanApplication app = loanApplicationRepository.findById(applicationId).orElse(null);
+        if (app == null || app.getIntakeSegment() != IntakeSegment.ANCHOR) {
+            return;
+        }
+        log.info("PLP anchor sync after credit rating completion for application: {}", applicationId);
+        pushAnchorToPlp(applicationId);
+    }
+
+    /** @deprecated Anchor ID flow uses {@link #onAnchorCreditRatingCompleted}; kept for legacy CAM-reviewed rows. */
     public void onAnchorApplicationCamReviewed(UUID applicationId) {
         LoanApplication app = loanApplicationRepository.findById(applicationId).orElse(null);
         if (app == null || app.getIntakeSegment() != IntakeSegment.ANCHOR) {
             return;
         }
         log.info("PLP anchor sync after CAM approval for anchor application: {}", applicationId);
-        onAnchorApplicationSanctioned(applicationId);
+        pushAnchorToPlp(applicationId);
     }
 
+    /** Refreshes anchor master from application after sanction (e.g. limit). Initial PLP push is on credit rating. */
     public void onAnchorApplicationSanctioned(UUID applicationId) {
+        if (!plpProperties.isEnabled()) {
+            return;
+        }
+        LoanApplication app = loanApplicationRepository.findById(applicationId).orElse(null);
+        if (app == null || app.getIntakeSegment() != IntakeSegment.ANCHOR) {
+            return;
+        }
+        log.info("PLP anchor refresh after sanction for application: {}", applicationId);
+        pushAnchorToPlp(applicationId);
+    }
+
+    private void pushAnchorToPlp(UUID applicationId) {
         if (!plpProperties.isEnabled()) {
             return;
         }
 
         LoanApplication app = loanApplicationRepository.findById(applicationId).orElse(null);
         if (app == null) {
-            log.warn("PLP anchor sanction hook skipped — application not found: {}", applicationId);
+            log.warn("PLP anchor sync skipped — application not found: {}", applicationId);
             return;
         }
         if (app.getIntakeSegment() != IntakeSegment.ANCHOR) {
@@ -71,12 +94,11 @@ public class PlpAnchorSanctionHookService {
             try {
                 plpAnchorSyncService.sync(anchorMasterId);
             } catch (Exception e) {
-                log.error("PLP anchor sync failed after sanction for application {}: {}",
+                log.error("PLP anchor sync failed for application {}: {}",
                         applicationId, e.getMessage(), e);
             }
         };
 
-        // PlpAnchorSyncService.sync() uses REQUIRES_NEW — run after outer tx commits so the anchor row is visible.
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override

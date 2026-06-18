@@ -12,13 +12,14 @@ import { DisbursementSection } from '@/components/DisbursementSection'
 import { EsignSection } from '@/components/EsignSection'
 import { SanctionKfsSection } from '@/components/SanctionKfsSection'
 import { UnderwritingSection } from '@/components/UnderwritingSection'
+import { AnchorDueDiligenceSection } from '@/components/AnchorDueDiligenceSection'
 import { useApplication } from '@/hooks/useApplication'
 import { useStepExecutions } from '@/hooks/useStepExecutions'
 import { borrowerStatusPath, buildWhatsAppStatusShareUrl } from '@/lib/borrowerShare'
 import { BORROWER_INTAKE_KEY } from '@/lib/intake/collateralIntakePayload'
 import { formatInstant, formatMoney, isUuid } from '@/lib/format'
 import { borrowerTypeLabel } from '@/catalog/borrowerTypes'
-import { loanProductLabel } from '@/catalog/loanProducts'
+import { loanProductLabel, isInvoiceDiscountingProduct } from '@/catalog/loanProducts'
 import { requiresCollateral } from '@/lib/intake/securedProducts'
 import { getActiveWorkflow } from '@/api/workflows'
 import { getVkycEligibility, getVkycTimeline } from '@/api/vkyc'
@@ -31,6 +32,11 @@ import { DetailField } from '@/components/ui/AdminLayout'
 import { AppSectionCard } from '@/components/ui/AppSectionCard'
 import { VkycDetailsSection } from '@/components/VkycDetailsSection'
 import { VkycDownstreamGate } from '@/components/VkycDownstreamGate'
+import {
+  anchorSkipsPostSanctionSteps,
+  isInvoiceDiscountingAnchorApp,
+  underwritingTabLabel,
+} from '@/lib/invoiceDiscountingFlow'
 
 const TABS = [
   { id: 'summary' as const, label: 'Summary' },
@@ -106,11 +112,17 @@ export function ApplicationDetailPage() {
 
   const tabs = useMemo(() => {
     const L = applicationPartyLabels(app?.intakeSegment)
-    const base: Array<{ id: typeof tab; label: string }> = TABS.map((t) =>
-      t.id === 'borrower' ? { ...t, label: L.profileTab } : t,
-    ) as Array<{ id: typeof tab; label: string }>
+    const skipPostSanction = app ? anchorSkipsPostSanctionSteps(app) : false
+    const hidden = skipPostSanction ? new Set(['cam', 'esign', 'disbursement']) : new Set<string>()
+    const base: Array<{ id: typeof tab; label: string }> = TABS.filter((t) => !hidden.has(t.id)).map((t) => {
+      if (t.id === 'borrower') return { ...t, label: L.profileTab }
+      if (t.id === 'underwriting') {
+        return { ...t, label: underwritingTabLabel(app?.intakeSegment, app?.loanProduct) }
+      }
+      return t
+    }) as Array<{ id: typeof tab; label: string }>
     return insertVkycTab(base, vkycGate)
-  }, [app?.intakeSegment, vkycGate])
+  }, [app, vkycGate])
   useEffect(() => {
     if (!vkycGate.visible && tab === 'vkyc') setTab('summary')
   }, [vkycGate.visible, tab])
@@ -133,7 +145,11 @@ export function ApplicationDetailPage() {
     <div className="bt-app-detail">
       <PageHeader
         title="Application details"
-        description="Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan."
+        description={
+          app && anchorSkipsPostSanctionSteps(app)
+            ? 'Review KYC, due diligence credit rating, and sanction for this anchor onboarding case.'
+            : 'Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan.'
+        }
       />
       <p className="mb-4 text-sm">
         <Link to="/applications" className="font-medium text-[var(--bt-orange)] hover:underline">
@@ -211,11 +227,19 @@ export function ApplicationDetailPage() {
                 />
               )}
               {tab === 'documents' && (
-                <DocumentsSection applicationId={id} intakeSegment={app.intakeSegment} />
+                <DocumentsSection
+                  applicationId={id}
+                  intakeSegment={app.intakeSegment}
+                  appStatus={app.status}
+                  loanProduct={app.loanProduct}
+                />
               )}
-              {tab === 'underwriting' && (
-                <UnderwritingSection applicationId={id} app={app} onRefetch={refetchApp} />
-              )}
+              {tab === 'underwriting' &&
+                (isInvoiceDiscountingAnchorApp(app) ? (
+                  <AnchorDueDiligenceSection applicationId={id} app={app} onRefetch={refetchApp} />
+                ) : (
+                  <UnderwritingSection applicationId={id} app={app} onRefetch={refetchApp} />
+                ))}
               {tab === 'cam' && (
                 <div>
                   <h2 className="mb-1 text-lg font-medium text-slate-900">Credit Appraisal Memo (CAM)</h2>
@@ -470,8 +494,26 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
         <Detail label={partyLabels.entityTypeDetail} value={borrowerTypeLabel(app.borrowerType)} />
         <Detail label="Requested amount" value={formatMoney(app.requestedAmount)} />
         <Detail label="Tenure (months)" value={app.tenureMonths != null ? String(app.tenureMonths) : '—'} />
-        <Detail label="Bureau score" value={app.bureauScore != null ? String(app.bureauScore) : '—'} />
-        <Detail label="Credit decision" value={app.creditDecision ?? '—'} />
+        {app.intakeSegment === 'ANCHOR' && isInvoiceDiscountingProduct(app.loanProduct) ? (
+          <>
+            <Detail
+              label="Credit rating"
+              value={(() => {
+                const dd = (app.financialInfo as Record<string, unknown> | null)?.anchorDueDiligence as
+                  | { creditRating?: string; score?: number }
+                  | undefined
+                if (!dd?.creditRating) return '—'
+                return dd.score != null ? `${dd.creditRating} (score ${dd.score})` : dd.creditRating
+              })()}
+            />
+            <Detail label="Credit decision" value={app.creditDecision ?? '—'} />
+          </>
+        ) : (
+          <>
+            <Detail label="Bureau score" value={app.bureauScore != null ? String(app.bureauScore) : '—'} />
+            <Detail label="Credit decision" value={app.creditDecision ?? '—'} />
+          </>
+        )}
         <Detail label="eSign transaction" value={app.esignTransactionId ?? '—'} />
         <Detail label="Created" value={formatInstant(app.createdAt)} />
         </div>

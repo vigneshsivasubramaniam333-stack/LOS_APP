@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import {
   acceptInvoice,
   getInvoiceDiscounting,
@@ -8,6 +9,7 @@ import {
   type BorrowerInvoiceItem,
   type BorrowerInvoiceLoan,
 } from '@/api/borrowerInvoiceDiscounting'
+import { getBorrowerDashboard } from '@/api/borrowerPortal'
 import { BorrowerInvoiceLoanCard } from '@/components/borrower/BorrowerInvoiceLoanCard'
 import { ApiError } from '@/api/http'
 import { PageHeader } from '@/components/PageHeader'
@@ -37,6 +39,7 @@ function statusBadge(status: string | null): string {
 }
 
 export function BorrowerInvoiceDiscountingPage() {
+  const [linked, setLinked] = useState<boolean | null>(null)
   const [data, setData] = useState<BorrowerInvoiceDiscounting | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -113,8 +116,35 @@ export function BorrowerInvoiceDiscountingPage() {
   }, [applyFinanceDefaults])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      setLoadErr(null)
+      try {
+        const dash = await getBorrowerDashboard()
+        if (cancelled) return
+        if (!dash.invoiceDiscountingLinked) {
+          setLinked(false)
+          setLoading(false)
+          return
+        }
+        setLinked(true)
+        const payload = await getInvoiceDiscounting()
+        if (cancelled) return
+        setData(payload)
+        applyFinanceDefaults(payload)
+      } catch (e) {
+        if (!cancelled) {
+          setLoadErr(e instanceof ApiError ? e.message : 'Failed to load invoice discounting')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [applyFinanceDefaults])
 
   async function onAccept(inv: BorrowerInvoiceItem) {
     setActionErr(null)
@@ -175,6 +205,10 @@ export function BorrowerInvoiceDiscountingPage() {
     } finally {
       setBusyId(null)
     }
+  }
+
+  if (linked === false && !loading) {
+    return <Navigate to="/borrower/dashboard" replace />
   }
 
   return (

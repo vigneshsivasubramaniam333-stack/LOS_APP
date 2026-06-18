@@ -124,8 +124,46 @@ public class CreditAppraisalService {
             cam.setCamStatus("DRAFT");
         }
         cam = camRepository.save(cam);
+        applyCamSanctionBasisToApplication(applicationId, cam);
         LoanApplication app = applicationRepository.findById(applicationId).orElseThrow();
         return toResponse(cam, app);
+    }
+
+    /**
+     * Propagate CAM sanction basis (rate, amount, tenure) to the application for downstream sanction/KFS.
+     */
+    @Transactional
+    public void applyCamSanctionBasisToApplication(UUID applicationId) {
+        LoanApplication app = applicationRepository.findById(applicationId).orElse(null);
+        if (app == null) {
+            return;
+        }
+        camRepository.findByApplicationId(applicationId)
+                .ifPresent(cam -> applyCamSanctionBasisToApplication(applicationId, cam));
+    }
+
+    private void applyCamSanctionBasisToApplication(UUID applicationId, CreditAppraisalMemo cam) {
+        LoanApplication app = applicationRepository.findById(applicationId).orElse(null);
+        if (app == null || cam == null) {
+            return;
+        }
+        boolean changed = false;
+        if (cam.getRecommendedRate() != null) {
+            app.setApprovedRate(cam.getRecommendedRate());
+            app.setInterestRate(cam.getRecommendedRate());
+            changed = true;
+        }
+        if (cam.getRecommendedAmount() != null && app.getSanctionedAmount() == null) {
+            app.setSanctionedAmount(cam.getRecommendedAmount());
+            changed = true;
+        }
+        if (cam.getRecommendedTenureMonths() != null) {
+            app.setTenureMonths(cam.getRecommendedTenureMonths());
+            changed = true;
+        }
+        if (changed) {
+            applicationRepository.save(app);
+        }
     }
 
     /**
@@ -250,6 +288,7 @@ public class CreditAppraisalService {
             cam.setApprovedByUserId(approvedByUserId);
         }
         camRepository.save(cam);
+        applyCamSanctionBasisToApplication(applicationId, cam);
     }
 
     public byte[] renderCamPdf(UUID applicationId) {

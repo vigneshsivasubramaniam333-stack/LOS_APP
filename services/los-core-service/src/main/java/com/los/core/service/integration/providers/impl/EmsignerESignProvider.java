@@ -8,11 +8,14 @@ import com.los.core.config.IntegrationProperties;
 import com.los.core.model.entity.ApiAuditLog;
 import com.los.core.model.entity.schema.los2.AggregatorProviderConfig;
 import com.los.core.model.entity.KfsDocument;
+import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.ApiAuditLogRepository;
 import com.los.core.repository.KfsDocumentRepository;
+import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.schema.los2.AggregatorProviderConfigRepository;
 import com.los.core.service.integration.providers.IESignProvider;
 import com.los.core.service.kfs.KfsPdfGenerationService;
+import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -48,6 +51,7 @@ public class EmsignerESignProvider implements IESignProvider {
     private final ObjectMapper objectMapper;
     private final AggregatorProviderConfigRepository aggregatorProviderConfigRepository; // retained for compatibility, no runtime fallback
     private final KfsDocumentRepository kfsDocumentRepository;
+    private final LoanApplicationRepository applicationRepository;
     private final KfsPdfGenerationService kfsPdfGenerationService;
 
     @Override
@@ -398,13 +402,20 @@ public class EmsignerESignProvider implements IESignProvider {
             throw new IllegalStateException("applicationId is required to load KFS PDF");
         }
         Optional<KfsDocument> kfsOpt = kfsDocumentRepository.findFirstByApplicationIdOrderByCreatedAtDesc(applicationId);
-        if (kfsOpt.isEmpty()) {
-            throw new IllegalStateException("No KFS document for application " + applicationId
-                    + " — generate KFS before eSign or pass fileBase64 in signerInfo.");
+        if (kfsOpt.isPresent()) {
+            byte[] pdf = kfsPdfGenerationService.generateKfsPdf(kfsOpt.get());
+            log.info("[Emsigner] Generated PDF from KFS entity id={}", kfsOpt.get().getId());
+            return pdf;
         }
-        byte[] pdf = kfsPdfGenerationService.generateKfsPdf(kfsOpt.get());
-        log.info("[Emsigner] Generated KFS PDF from entity id={}", kfsOpt.get().getId());
-        return pdf;
+        LoanApplication app = applicationRepository.findById(applicationId).orElse(null);
+        if (app != null && InvoiceDiscountingApplicationRules.isBorrowerFlow(app)) {
+            byte[] pdf = kfsPdfGenerationService.generateInvoiceDiscountingTermsPdfForApplication(applicationId);
+            log.info("[Emsigner] Generated invoice discounting terms PDF (legacy/fallback) for applicationId={}",
+                    applicationId);
+            return pdf;
+        }
+        throw new IllegalStateException("No KFS document for application " + applicationId
+                + " — generate KFS before eSign or pass fileBase64 in signerInfo.");
     }
 
     private static int countPdfPages(byte[] pdfBytes) {

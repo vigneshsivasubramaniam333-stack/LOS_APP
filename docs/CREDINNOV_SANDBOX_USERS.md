@@ -149,3 +149,32 @@ docker exec los_core wget -qO- --user=admin --password=password1 \
 ```
 
 Public equivalent: `http://credinnov-sandbox.senseitech.com/credinnov-encore-server/`
+
+### Repayment schedule & SOA (REST token)
+
+Some Encore accounts return **HTTP 500** from `findSummaries` when `preclosureFeeRate` is null on the server (Encore bug for older accounts). LOS falls back to **`GET api/loan-od-accounts/{accountId}`**, which requires an **`X-Auth-Token`** header (same as the Encore UI), not Basic auth.
+
+Set in `/vol/LOS_APP/.env.prod`:
+
+```bash
+ENCORE_REST_AUTH_TOKEN=<token-from-encore-ui>
+```
+
+**How to obtain the token:** log in to [Encore LMS UI](http://credinnov-sandbox.senseitech.com/encore-client/) as `admin` / `password1`, open DevTools → Network, trigger any API call (e.g. open a loan account), copy the **`X-Auth-Token`** request header value.
+
+Restart LOS after setting:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate --no-deps los-core
+docker exec los_core printenv | grep ENCORE_REST_AUTH_TOKEN
+docker logs los_core 2>&1 | grep restAuthTokenConfigured
+```
+
+Expect startup log `restAuthTokenConfigured=true`. Without it, schedule/SOA sync logs **401** on `api/loan-od-accounts/*` and falls back to the broken `findSummaries` webservice.
+
+Smoke test (replace token and account id):
+
+```bash
+curl -s "http://credinnov-sandbox.senseitech.com/credinnov-encore-server/api/loan-od-accounts/000000025591" \
+  -H "X-Auth-Token: YOUR_TOKEN" -H "Accept: application/json" | head -c 500
+```

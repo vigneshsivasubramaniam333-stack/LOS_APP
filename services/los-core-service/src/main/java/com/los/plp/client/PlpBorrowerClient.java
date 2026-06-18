@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -89,6 +90,40 @@ public class PlpBorrowerClient {
         body.put("amount", amount);
         String raw = post("/api/v1/loans/" + plpLoanId + "/repay", body);
         return parseData(raw);
+    }
+
+    /** All sub-programs (lender machine identity). */
+    public List<Map<String, Object>> listSubPrograms() {
+        String raw = get("/api/v1/sub-programs");
+        return parseDataList(raw);
+    }
+
+    /** Program detail including aggregate limits ({@code GET /api/v1/programs/{id}}). */
+    public Map<String, Object> getProgram(UUID programId) {
+        String raw = get("/api/v1/programs/" + programId);
+        return parseData(raw);
+    }
+
+    /**
+     * Borrower membership limits for a sub-program, or empty when the borrower is not enrolled.
+     */
+    public Optional<Map<String, Object>> getBorrowerLimitSummary(UUID subProgramId, UUID borrowerId) {
+        try {
+            String raw = get("/api/v1/sub-programs/" + subProgramId + "/borrowers/" + borrowerId + "/limit-summary");
+            Map<String, Object> data = parseData(raw);
+            return data.isEmpty() ? Optional.empty() : Optional.of(data);
+        } catch (PlpIntegrationException e) {
+            if (e.getMessage() != null && e.getMessage().contains("HTTP 403")) {
+                return Optional.empty();
+            }
+            if (e.getMessage() != null && e.getMessage().contains("HTTP 404")) {
+                return Optional.empty();
+            }
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("not enrolled")) {
+                return Optional.empty();
+            }
+            throw e;
+        }
     }
 
     // ----- transport -----

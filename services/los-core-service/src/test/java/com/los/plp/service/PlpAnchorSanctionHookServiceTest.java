@@ -108,7 +108,33 @@ class PlpAnchorSanctionHookServiceTest {
     }
 
     @Test
-    void camReviewedEntryPointCreatesAnchorAndSyncs() {
+    void creditRatingCompletedCreatesAnchorAndSyncs() {
+        when(plpProperties.isEnabled()).thenReturn(true);
+        UUID appId = UUID.randomUUID();
+        LoanApplication app = LoanApplication.builder()
+                .id(appId)
+                .applicationNumber("LOS-ANC-20260520-16394")
+                .intakeSegment(IntakeSegment.ANCHOR)
+                .loanProduct(StandardLoanProduct.BUSINESS_WC_INVOICE_DISCOUNTING)
+                .businessInfo(Map.of("corporateName", "Test Anchor Corp"))
+                .build();
+        when(loanApplicationRepository.findById(appId)).thenReturn(Optional.of(app));
+        when(anchorMasterRepository.findBySourceAnchorApplicationId(appId)).thenReturn(Optional.empty());
+        when(anchorMasterRepository.save(any())).thenAnswer(inv -> {
+            AnchorMaster a = inv.getArgument(0);
+            if (a.getId() == null) {
+                a.setId(UUID.randomUUID());
+            }
+            return a;
+        });
+
+        hookService.onAnchorCreditRatingCompleted(appId);
+
+        verify(plpAnchorSyncService).sync(any(UUID.class));
+    }
+
+    @Test
+    void camReviewedEntryPointStillSyncsForLegacyFlow() {
         when(plpProperties.isEnabled()).thenReturn(true);
         UUID appId = UUID.randomUUID();
         LoanApplication app = LoanApplication.builder()

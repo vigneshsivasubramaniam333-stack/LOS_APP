@@ -65,6 +65,8 @@ public class BorrowerPortalService {
     private final KfsService kfsService;
     private final DemoApplicationPurgeService demoApplicationPurgeService;
     private final LmsService lmsService;
+    private final BorrowerProgramsService borrowerProgramsService;
+    private final BorrowerApplicationOwnershipService ownershipService;
 
     public void requireBorrower(String role) {
         if (role == null || !ROLE.equalsIgnoreCase(role.trim())) {
@@ -73,6 +75,7 @@ public class BorrowerPortalService {
     }
 
     public BorrowerDashboardResponse dashboard(UUID borrowerUserId) {
+        ownershipService.reconcileCustomerId(borrowerUserId);
         LosUser u = losUserRepository.findById(borrowerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Page<LoanApplication> page = applicationRepository.findByCustomerId(
@@ -106,6 +109,7 @@ public class BorrowerPortalService {
                 .recentApplications(recent)
                 .secondLoanWarning(warn)
                 .primaryDisbursedApplicationId(firstDisbursed)
+                .invoiceDiscountingLinked(borrowerProgramsService.isInvoiceDiscountingLinked(borrowerUserId))
                 .build();
     }
 
@@ -140,7 +144,7 @@ public class BorrowerPortalService {
         LoanApplication app = applicationRepository
                 .findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found"));
-        if (!borrowerUserId.equals(app.getCustomerId())) {
+        if (!ownershipService.ownsApplication(borrowerUserId, app)) {
             throw new ForbiddenException("You can only delete your own applications.");
         }
         ApplicationStatus st = app.getStatus();
@@ -404,8 +408,7 @@ public class BorrowerPortalService {
         }
         try {
             RepaymentScheduleResponse resp = lmsService.getRepaymentSchedule(app.getApplicationNumber());
-            if (resp != null && resp.getSchedule() != null && !resp.getSchedule().isEmpty()
-                    && isEncoreSchedule(resp)) {
+            if (resp != null && resp.getSchedule() != null && !resp.getSchedule().isEmpty()) {
                 List<BorrowerRepaymentScheduleItemResponse> rows = new ArrayList<>();
                 for (RepaymentScheduleEntry e : resp.getSchedule()) {
                     rows.add(BorrowerRepaymentScheduleItemResponse.builder()
@@ -417,10 +420,16 @@ public class BorrowerPortalService {
                             .outstandingPrincipal(e.getOutstandingPrincipal())
                             .build());
                 }
-                return lmsData(rows);
+                if (isEncoreSchedule(resp)) {
+                    return lmsData(rows);
+                }
+                return BorrowerServicingDataResponse.<BorrowerRepaymentScheduleItemResponse>builder()
+                        .source("INDICATIVE")
+                        .rows(rows)
+                        .build();
             }
         } catch (RuntimeException ex) {
-            // fall through to indicative
+            // fall through to indicative demo
         }
         return localData(repaymentScheduleDemo(borrowerUserId, loanId));
     }
@@ -436,10 +445,7 @@ public class BorrowerPortalService {
         }
         try {
             List<Map<String, Object>> entries =
-                    lmsService.getEncoreCompositeStatement(app.getApplicationNumber());
-            if (entries == null || entries.isEmpty()) {
-                entries = lmsService.getEncoreAccountStatement(app.getApplicationNumber(), null, null);
-            }
+                    lmsService.getEncoreAccountStatement(app.getApplicationNumber(), null, null);
             if (entries != null && !entries.isEmpty()) {
                 List<BorrowerStatementLineResponse> lines = mapEncoreStatementEntries(entries);
                 if (!lines.isEmpty()) {
@@ -732,7 +738,7 @@ public class BorrowerPortalService {
     private LoanApplication loadOwned(UUID borrowerUserId, UUID applicationId) {
         LoanApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found"));
-        if (!borrowerUserId.equals(app.getCustomerId())) {
+        if (!ownershipService.ownsApplication(borrowerUserId, app)) {
             throw new ForbiddenException("You do not have access to this application.");
         }
         return app;

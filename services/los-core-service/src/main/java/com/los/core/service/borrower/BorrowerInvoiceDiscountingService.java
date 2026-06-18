@@ -7,8 +7,6 @@ import com.los.core.model.dto.response.BorrowerInvoiceRepaymentItemResponse;
 import com.los.core.model.dto.response.BorrowerInvoiceDiscountingResponse;
 import com.los.core.model.dto.response.BorrowerInvoiceItemResponse;
 import com.los.core.model.dto.response.BorrowerInvoiceLoanResponse;
-import com.los.core.model.entity.LoanApplication;
-import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.LosUserRepository;
 import com.los.plp.client.PlpBorrowerClient;
 import com.los.plp.client.PlpIntegrationException;
@@ -45,9 +43,9 @@ public class BorrowerInvoiceDiscountingService {
 
     private static final String INVOICE_DISCOUNTING_PRODUCT = "INVOICE_DISCOUNTING";
 
-    private final LoanApplicationRepository applicationRepository;
     private final LosUserRepository losUserRepository;
     private final PlpBorrowerClient plpBorrowerClient;
+    private final BorrowerApplicationOwnershipService ownershipService;
 
     public void requireBorrower(String role) {
         if (role == null || !ROLE.equalsIgnoreCase(role.trim())) {
@@ -193,9 +191,7 @@ public class BorrowerInvoiceDiscountingService {
     // ----- helpers -----
 
     private Optional<UUID> resolvePlpBorrowerId(UUID borrowerUserId) {
-        return applicationRepository
-                .findFirstByCustomerIdAndPlpBorrowerIdIsNotNullOrderByUpdatedAtDesc(borrowerUserId)
-                .map(LoanApplication::getPlpBorrowerId);
+        return ownershipService.resolvePlpBorrowerId(borrowerUserId);
     }
 
     private boolean ownsLoan(UUID plpBorrowerId, UUID loanId) {
