@@ -29,9 +29,15 @@ export function SanctionKfsSection({
   const [sanctionRec, setSanctionRec] = useState<SanctionResponse | null>(null)
   const [kfs, setKfs] = useState<KfsDocumentView | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
-  const [amount, setAmount] = useState<string>(() =>
-    app.sanctionedAmount != null ? String(app.sanctionedAmount) : '',
-  )
+  const [amount, setAmount] = useState<string>(() => {
+    if (app.sanctionedAmount != null) {
+      return String(app.sanctionedAmount)
+    }
+    if (isInvoiceDiscountingAnchorApp(app) && app.requestedAmount != null) {
+      return String(app.requestedAmount)
+    }
+    return ''
+  })
   const [tenure, setTenure] = useState<string>(() =>
     app.tenureMonths != null ? String(app.tenureMonths) : '',
   )
@@ -117,6 +123,9 @@ export function SanctionKfsSection({
   }, [applicationId])
 
   const loadAnchorProgramDefaults = useCallback(async () => {
+    if (app.requestedAmount != null) {
+      setAmount((prev) => prev || String(app.requestedAmount))
+    }
     try {
       const anchors = await listSyncedAnchors()
       const linked = anchors.find((a) => a.sourceAnchorApplicationId === applicationId)
@@ -134,7 +143,7 @@ export function SanctionKfsSection({
     } catch {
       /* PLP program may not exist yet */
     }
-  }, [applicationId])
+  }, [applicationId, app.requestedAmount])
 
   useEffect(() => {
     if (isAnchor) {

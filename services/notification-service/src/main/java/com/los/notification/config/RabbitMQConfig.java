@@ -79,7 +79,8 @@ public class RabbitMQConfig {
         typeMapper.setTrustedPackages("com.los.*", "java.util", "java.lang");
         typeMapper.setIdClassMapping(Map.of(
                 "com.los.core.service.esign.EsignSigningLinkNotifier$RoutingEmailEvent", NotificationEvent.class,
-                "com.los.core.service.vkyc.VkycLinkNotifier$RoutingEmailEvent", NotificationEvent.class));
+                "com.los.core.service.vkyc.VkycLinkNotifier$RoutingEmailEvent", NotificationEvent.class,
+                "com.los.core.service.sanction.SanctionApprovedNotifier$RoutingEmailEvent", NotificationEvent.class));
         converter.setJavaTypeMapper(typeMapper);
         return converter;
     }

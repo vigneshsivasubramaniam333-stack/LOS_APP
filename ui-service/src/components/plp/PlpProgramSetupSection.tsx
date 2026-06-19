@@ -22,6 +22,9 @@ const INVOICE_FLOW_TYPES = [
   { value: 'SALES_BILL_DISCOUNTING', label: 'Sales bill discounting (anchor = buyer)' },
 ]
 
+const DEFAULT_ID_INTEREST_RATE = '12'
+const DEFAULT_ID_TENURE_DAYS = '90'
+
 function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpProgramSetupResponse {
   return {
     programId: p.programId,
@@ -114,19 +117,30 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
         }
       }
       if (!hasExistingProgram && app.id) {
+        if (app.requestedAmount != null) {
+          setCreditLimit(String(app.requestedAmount))
+        }
+        setInterestRate((prev) => prev || DEFAULT_ID_INTEREST_RATE)
+        setTenureDays((prev) => prev || DEFAULT_ID_TENURE_DAYS)
         try {
           const cam = await getCam(app.id)
-          if (cam.recommendedAmount != null) setCreditLimit(String(cam.recommendedAmount))
-          if (cam.recommendedRate != null) setInterestRate(String(cam.recommendedRate))
-          if (cam.recommendedTenureMonths != null) setTenureDays(String(cam.recommendedTenureMonths * 30))
+          if (app.requestedAmount == null && cam.recommendedAmount != null) {
+            setCreditLimit(String(cam.recommendedAmount))
+          }
+          if (cam.recommendedRate != null) {
+            setInterestRate(String(cam.recommendedRate))
+          }
+          if (cam.recommendedTenureMonths != null) {
+            setTenureDays(String(cam.recommendedTenureMonths * 30))
+          }
         } catch {
-          /* CAM may not exist yet — leave fields empty */
+          /* CAM may not exist yet — keep requested amount / ID defaults */
         }
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load anchors.')
     }
-  }, [app.id])
+  }, [app.id, app.requestedAmount])
 
   useEffect(() => {
     void loadAnchors()

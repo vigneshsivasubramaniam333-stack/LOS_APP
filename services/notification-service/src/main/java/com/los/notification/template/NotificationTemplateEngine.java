@@ -191,6 +191,21 @@ public class NotificationTemplateEngine {
                 case "EMAIL" -> StyledWorkflowEmailTemplates.sanctionApprovedEmail();
                 default -> "Sanction issued for {{applicationNumber}}.";
             };
+            case "SANCTION_ANCHOR" -> switch (channel) {
+                case "SMS" -> "Dear {{borrowerName}}, anchor program sanction for {{applicationNumber}} is approved. Limit: {{sanctionedAmount}}.";
+                case "EMAIL" -> StyledWorkflowEmailTemplates.anchorSanctionApprovedEmail();
+                default -> "Anchor sanction approved for {{applicationNumber}}.";
+            };
+            case "SANCTION_ID_BORROWER" -> switch (channel) {
+                case "SMS" -> "Dear {{borrowerName}}, sanction for {{applicationNumber}} is approved ({{sanctionedAmount}}). Review terms in your portal.";
+                case "EMAIL" -> StyledWorkflowEmailTemplates.idBorrowerSanctionApprovedEmail();
+                default -> "Sanction approved for {{applicationNumber}}.";
+            };
+            case "SANCTION_TERM_LOAN" -> switch (channel) {
+                case "SMS" -> "Dear {{borrowerName}}, loan {{applicationNumber}} sanctioned for {{sanctionedAmount}}. KFS and agreement are ready in your portal.";
+                case "EMAIL" -> StyledWorkflowEmailTemplates.termLoanSanctionApprovedEmail();
+                default -> "Sanction and KFS ready for {{applicationNumber}}.";
+            };
             case "DISBURSEMENT_COMPLETED" -> switch (channel) {
                 case "SMS" -> "Dear {{borrowerName}}, ₹{{disbursedAmount}} disbursed to your account (UTR: {{utrNumber}}) for application {{applicationNumber}}.";
                 case "EMAIL" -> StyledWorkflowEmailTemplates.disbursementSuccessEmail();
@@ -254,6 +269,9 @@ public class NotificationTemplateEngine {
             case "APPLICATION_APPROVED" -> "Loan Approved — {{applicationNumber}}";
             case "APPLICATION_REJECTED" -> "Loan Application Update — {{applicationNumber}}";
             case "SANCTION_ISSUED" -> "Sanction Approved — {{applicationNumber}}";
+            case "SANCTION_ANCHOR" -> "Anchor Program Sanction Approved — {{applicationNumber}}";
+            case "SANCTION_ID_BORROWER" -> "Sanction Approved — {{applicationNumber}}";
+            case "SANCTION_TERM_LOAN" -> "Sanction Approved — KFS & Agreement — {{applicationNumber}}";
             case "DISBURSEMENT_COMPLETED" -> "Loan Disbursed — {{applicationNumber}}";
             case "EMI_REMINDER" -> "Payment Reminder — {{applicationNumber}}";
             case "ESIGN_PENDING" -> "eSign Required — {{applicationNumber}}";
@@ -344,6 +362,9 @@ public class NotificationTemplateEngine {
             case "VKYC_COMPLETED_VIA_PKY", "VKYC_COMPLETED_VIA_PKY_EMAIL" -> "VKYC_COMPLETED_VIA_PKY";
             case "KYC_SUCCESS", "KYC_SUCCESS_EMAIL" -> "KYC_COMPLETED";
             case "SANCTION_APPROVED", "SANCTION_APPROVED_EMAIL" -> "SANCTION_ISSUED";
+            case "SANCTION_APPROVED_ANCHOR", "SANCTION_APPROVED_ANCHOR_EMAIL" -> "SANCTION_ANCHOR";
+            case "SANCTION_APPROVED_ID_BORROWER", "SANCTION_APPROVED_ID_BORROWER_EMAIL" -> "SANCTION_ID_BORROWER";
+            case "SANCTION_APPROVED_TERM_LOAN", "SANCTION_APPROVED_TERM_LOAN_EMAIL" -> "SANCTION_TERM_LOAN";
             case "DISBURSEMENT_SUCCESS", "DISBURSEMENT_SUCCESS_EMAIL" -> "DISBURSEMENT_COMPLETED";
             case "WORKFLOW_PAYMENT_REMINDER", "WORKFLOW_PAYMENT_REMINDER_EMAIL" -> "EMI_REMINDER";
             case "APPLICATION_REJECTED_EMAIL" -> "APPLICATION_REJECTED";

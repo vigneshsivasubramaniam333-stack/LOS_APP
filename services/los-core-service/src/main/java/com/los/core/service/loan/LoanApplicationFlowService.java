@@ -35,6 +35,7 @@ import com.los.lms.service.LmsService;
 import com.los.plp.service.PlpAnchorSanctionHookService;
 import com.los.plp.service.PlpSanctionSyncOrchestrator;
 import com.los.plp.support.PlpApplicationSyncFieldMerge;
+import com.los.core.service.sanction.SanctionApprovedNotifier;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.vkyc.VkycWorkflowService;
 import lombok.RequiredArgsConstructor;
@@ -89,6 +90,7 @@ public class LoanApplicationFlowService {
     private final AnchorDueDiligenceService anchorDueDiligenceService;
     private final InvoiceDiscountingSanctionDefaultsService invoiceDiscountingSanctionDefaultsService;
     private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
+    private final SanctionApprovedNotifier sanctionApprovedNotifier;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
      * disbursement) until VKYC is auditor-approved when VKYC is configured and applicable
@@ -1002,6 +1004,13 @@ public class LoanApplicationFlowService {
         } catch (Exception anchorPlpEx) {
             log.error("[PLP-ANCHOR-SANCTION] PLP anchor sync failed for {} — sanction is preserved: {}",
                     app.getApplicationNumber(), anchorPlpEx.getMessage(), anchorPlpEx);
+        }
+
+        try {
+            sanctionApprovedNotifier.publishSanctionApprovedEmail(app, rec, anchorFlow, idBorrowerFlow, kfs);
+        } catch (Exception emailEx) {
+            log.error("[SANCTION_EMAIL] notification failed for {} — sanction is preserved: {}",
+                    app.getApplicationNumber(), emailEx.getMessage(), emailEx);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();

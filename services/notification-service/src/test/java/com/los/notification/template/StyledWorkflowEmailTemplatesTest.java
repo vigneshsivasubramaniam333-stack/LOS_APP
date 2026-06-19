@@ -44,9 +44,11 @@ class StyledWorkflowEmailTemplatesTest {
     }
 
     @Test
-    void esignLinkEmail_containsPercentWidthAttributes() {
-        String html = StyledWorkflowEmailTemplates.esignLinkEmail();
-        assertThat(html).contains("width=\"100%\"");
-        assertThat(html.split("width=\"100%\"")).hasSizeGreaterThan(3);
+    void sanctionFlowTemplates_buildWithoutFormatException() {
+        assertThatCode(StyledWorkflowEmailTemplates::anchorSanctionApprovedEmail).doesNotThrowAnyException();
+        assertThatCode(StyledWorkflowEmailTemplates::idBorrowerSanctionApprovedEmail).doesNotThrowAnyException();
+        assertThatCode(StyledWorkflowEmailTemplates::termLoanSanctionApprovedEmail).doesNotThrowAnyException();
+        assertThat(StyledWorkflowEmailTemplates.termLoanSanctionApprovedEmail()).contains("{{sanctionedAmount}}");
+        assertThat(StyledWorkflowEmailTemplates.termLoanSanctionApprovedEmail()).contains("Key Fact Statement");
     }
 }

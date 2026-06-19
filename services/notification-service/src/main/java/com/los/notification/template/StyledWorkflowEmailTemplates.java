@@ -117,6 +117,48 @@ public final class StyledWorkflowEmailTemplates {
                         """);
     }
 
+    public static String anchorSanctionApprovedEmail() {
+        return statusUpdateEmail(
+                "Anchor Program Sanction Approved",
+                """
+                        Your anchor onboarding application {{applicationNumber}} has been sanctioned.
+                        <br><br><strong>Sanctioned limit:</strong> {{sanctionedAmount}}
+                        <br><strong>Interest rate:</strong> {{interestRate}}% p.a.
+                        <br><strong>Tenure:</strong> {{tenureMonths}} month(s)
+                        <br><br>Your program is now active on the PLP platform. Sign in to the anchor portal to view program details and begin onboarding borrowers.
+                        """);
+    }
+
+    public static String idBorrowerSanctionApprovedEmail() {
+        return statusUpdateEmail(
+                "Sanction Approved",
+                """
+                        Sanction for your invoice discounting application {{applicationNumber}} has been issued.
+                        <br><br><strong>Sanctioned amount:</strong> {{sanctionedAmount}}
+                        <br><strong>Interest rate:</strong> {{interestRate}}% p.a.
+                        <br><strong>Tenure:</strong> {{tenureMonths}} month(s)
+                        <br><br>Your sanction terms document is ready. Please sign in to the borrower portal to review the sanction details and complete eSign when prompted.
+                        """);
+    }
+
+    public static String termLoanSanctionApprovedEmail() {
+        return statusUpdateEmail(
+                "Sanction Approved — KFS &amp; Agreement Ready",
+                """
+                        Congratulations! Your loan application {{applicationNumber}} has been sanctioned.
+                        <br><br><strong>Sanction details</strong>
+                        <br><strong>Sanctioned amount:</strong> {{sanctionedAmount}}
+                        <br><strong>Interest rate:</strong> {{interestRate}}% p.a.
+                        <br><strong>Tenure:</strong> {{tenureMonths}} month(s)
+                        <br><strong>Processing fee:</strong> {{processingFee}}
+                        <br><br><strong>Key Fact Statement (KFS)</strong> and the <strong>loan agreement</strong> have been generated and are available in your borrower portal.
+                        <br><br>Next steps:
+                        <br>1. Review the KFS and loan agreement in your portal.
+                        <br>2. Complete eSign when you receive the signing link.
+                        <br>3. Disbursement will proceed after eSign is complete.
+                        """);
+    }
+
     public static String disbursementSuccessEmail() {
         return statusUpdateEmail(
                 "Loan Disbursed",
