@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { disburseApplicationFlow, markReadyForDisbursementFlow } from '@/api/flow'
 import { ApiError } from '@/api/http'
 import { disburseChecklist } from '@/lib/postCreditGates'
+import { idBorrowerSkipsDisbursement } from '@/lib/invoiceDiscountingFlow'
 import type { ApplicationResponse } from '@/types/application'
 
 function CheckRow({ done, label }: { done: boolean; label: string }) {
@@ -36,8 +37,17 @@ export function DisbursementSection({
   const allGreen =
     g.kyc && g.underwriting && g.cam && g.sanction && g.kfs && g.esign
 
-  const canMarkReady = app.status === 'ESIGN_COMPLETED'
-  const canDisburse = app.status === 'READY_FOR_DISBURSEMENT' || app.status === 'ESIGN_COMPLETED'
+  const idBorrowerOnboarding = idBorrowerSkipsDisbursement(app)
+  const onboardingComplete =
+    idBorrowerOnboarding &&
+    (app.status === 'ESIGN_COMPLETED' ||
+      app.status === 'READY_FOR_DISBURSEMENT' ||
+      app.status === 'DISBURSEMENT_PENDING')
+
+  const canMarkReady = !idBorrowerOnboarding && app.status === 'ESIGN_COMPLETED'
+  const canDisburse =
+    !idBorrowerOnboarding &&
+    (app.status === 'READY_FOR_DISBURSEMENT' || app.status === 'ESIGN_COMPLETED')
 
   async function onReady() {
     setBusy(true)
@@ -63,6 +73,28 @@ export function DisbursementSection({
     } finally {
       setBusy(false)
     }
+  }
+
+  if (idBorrowerOnboarding) {
+    return (
+      <div className="space-y-4">
+        <h3 className="bt-card-title">Program onboarding</h3>
+        {onboardingComplete ? (
+          <div className="max-w-xl rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+            <p className="font-medium">Borrower onboarding is complete</p>
+            <p className="mt-2 leading-relaxed">
+              Sanction and terms eSign are done. This invoice discounting borrower is linked to the program in PLP.
+              Term-loan disbursement does not apply — finance happens per invoice in the invoice discounting module.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">
+            Complete sanction and terms eSign first. No term-loan disbursement step applies for invoice discounting
+            borrower onboarding.
+          </p>
+        )}
+      </div>
+    )
   }
 
   return (

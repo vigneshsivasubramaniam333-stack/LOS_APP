@@ -17,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -96,6 +98,22 @@ public class BorrowerApplicationController {
         UUID uid = UUID.fromString(userId);
         borrowerPortalService.requireBorrower(role);
         return ResponseEntity.ok(borrowerPortalService.kfsForBorrower(uid, applicationId));
+    }
+
+    @GetMapping("/{applicationId}/terms/pdf")
+    @Operation(summary = "Download invoice discounting sanction terms PDF (borrower onboarding)")
+    public ResponseEntity<byte[]> termsPdf(
+            @PathVariable UUID applicationId,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        borrowerPortalService.requireBorrower(role);
+        byte[] pdf = borrowerPortalService.invoiceDiscountingTermsPdf(uid, applicationId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"invoice-discounting-terms-" + applicationId + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @DeleteMapping("/{applicationId}/draft")

@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { downloadKfsPdfBlob } from '@/api/kfsApi'
-import { getBorrowerApplicationDetail, getBorrowerKfsSummary } from '@/api/borrowerPortal'
+import {
+  downloadInvoiceDiscountingTermsPdf,
+  getBorrowerApplicationDetail,
+  getBorrowerKfsSummary,
+} from '@/api/borrowerPortal'
 import { listEsignRequests } from '@/api/esignRequests'
 import { ApiError } from '@/api/http'
+import { loanProductLabel } from '@/catalog/loanProducts'
 import { isUuid } from '@/lib/format'
 
 type Tab = 'overview' | 'kfs' | 'loan'
+
+function money(n: number | null | undefined) {
+  if (n == null || Number.isNaN(Number(n))) return '—'
+  return `₹${Number(n).toLocaleString('en-IN')}`
+}
 
 export function BorrowerApplicationDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -16,6 +26,7 @@ export function BorrowerApplicationDetailPage() {
   const [kfs, setKfs] = useState<Awaited<ReturnType<typeof getBorrowerKfsSummary>> | null>(null)
   const [kfsErr, setKfsErr] = useState<string | null>(null)
   const [esign, setEsign] = useState<Awaited<ReturnType<typeof listEsignRequests>>>([])
+  const [termsBusy, setTermsBusy] = useState(false)
 
   useEffect(() => {
     if (!id || !isUuid(id)) return
@@ -35,7 +46,13 @@ export function BorrowerApplicationDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (tab !== 'kfs' || !id || !isUuid(id)) return
+    if (data?.invoiceDiscountingBorrower && (tab === 'kfs' || tab === 'loan')) {
+      setTab('overview')
+    }
+  }, [data?.invoiceDiscountingBorrower, tab])
+
+  useEffect(() => {
+    if (tab !== 'kfs' || !id || !isUuid(id) || data?.invoiceDiscountingBorrower) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async load KFS + eSign
     setKfsErr(null)
     void getBorrowerKfsSummary(id)
@@ -48,7 +65,7 @@ export function BorrowerApplicationDetailPage() {
         setKfs(null)
         setKfsErr(e instanceof ApiError ? e.message : 'KFS is not available yet')
       })
-  }, [tab, id])
+  }, [tab, id, data?.invoiceDiscountingBorrower])
 
   if (!id || !isUuid(id)) {
     return <p className="text-sm text-rose-700">Invalid application link.</p>
@@ -60,13 +77,31 @@ export function BorrowerApplicationDetailPage() {
     return <p className="text-sm text-slate-600">Loading…</p>
   }
 
+  const idBorrower = Boolean(data.invoiceDiscountingBorrower)
   const disbursed = data.status === 'DISBURSED'
-  const showLoan = disbursed
+  const showLoan = !idBorrower && disbursed
+  const showKfsTab = !idBorrower
 
   const tabClass = (active: boolean) =>
     active
       ? '-mb-px border-b-2 border-bl-primary px-1 pb-3 font-semibold text-bl-navy'
       : '-mb-px border-b-2 border-transparent px-1 pb-3 text-slate-500 hover:text-slate-800'
+
+  async function onDownloadTerms() {
+    if (!id) return
+    setTermsBusy(true)
+    try {
+      const blob = await downloadInvoiceDiscountingTermsPdf(id)
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `sanction-terms-${data.applicationNumber}.pdf`
+      a.click()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Could not download sanction terms')
+    } finally {
+      setTermsBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -80,7 +115,7 @@ export function BorrowerApplicationDetailPage() {
       <div className="bt-card p-5 sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight text-bl-navy">{data.friendlyStatusHeadline}</h1>
         <p className="mt-2 text-sm text-slate-600">
-          {data.applicationNumber} · {data.product}
+          {data.applicationNumber} · {loanProductLabel(data.product)}
         </p>
         <p className="mt-4 text-sm leading-relaxed text-slate-800">{data.currentStageMessage}</p>
         {data.estimatedProcessingHint ? (
@@ -88,21 +123,25 @@ export function BorrowerApplicationDetailPage() {
         ) : null}
       </div>
 
-      <nav className="border-b border-slate-200 text-sm" aria-label="Application sections">
-        <div className="-mb-px flex flex-wrap gap-6 sm:gap-8">
-          <button type="button" className={tabClass(tab === 'overview')} onClick={() => setTab('overview')}>
-            Overview
-          </button>
-          <button type="button" className={tabClass(tab === 'kfs')} onClick={() => setTab('kfs')}>
-            KFS &amp; agreement
-          </button>
-          {showLoan ? (
-            <button type="button" className={tabClass(tab === 'loan')} onClick={() => setTab('loan')}>
-              Disbursement &amp; loan
+      {showKfsTab || showLoan ? (
+        <nav className="border-b border-slate-200 text-sm" aria-label="Application sections">
+          <div className="-mb-px flex flex-wrap gap-6 sm:gap-8">
+            <button type="button" className={tabClass(tab === 'overview')} onClick={() => setTab('overview')}>
+              Overview
             </button>
-          ) : null}
-        </div>
-      </nav>
+            {showKfsTab ? (
+              <button type="button" className={tabClass(tab === 'kfs')} onClick={() => setTab('kfs')}>
+                KFS &amp; agreement
+              </button>
+            ) : null}
+            {showLoan ? (
+              <button type="button" className={tabClass(tab === 'loan')} onClick={() => setTab('loan')}>
+                Disbursement &amp; loan
+              </button>
+            ) : null}
+          </div>
+        </nav>
+      ) : null}
 
       {tab === 'overview' ? (
         <div className="space-y-5">
@@ -122,6 +161,62 @@ export function BorrowerApplicationDetailPage() {
               </div>
             </div>
           ) : null}
+
+          {idBorrower && (data.sanctionedAmount != null || data.termsDocumentAvailable) ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm shadow-sm sm:p-6">
+              <h2 className="font-medium text-slate-900">Sanction details</h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                Your approved invoice discounting facility terms. Finance is requested per invoice after onboarding —
+                there is no separate term loan account for this application.
+              </p>
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <li className="rounded-md border border-slate-100 bg-slate-50/80 px-4 py-3">
+                  <span className="block text-xs text-slate-500">Sanctioned limit</span>
+                  <span className="font-medium text-slate-900">{money(data.sanctionedAmount)}</span>
+                </li>
+                <li className="rounded-md border border-slate-100 bg-slate-50/80 px-4 py-3">
+                  <span className="block text-xs text-slate-500">Interest rate</span>
+                  <span className="font-medium text-slate-900">
+                    {data.interestRate != null ? `${data.interestRate}%` : '—'}
+                  </span>
+                </li>
+                <li className="rounded-md border border-slate-100 bg-slate-50/80 px-4 py-3">
+                  <span className="block text-xs text-slate-500">Tenure</span>
+                  <span className="font-medium text-slate-900">
+                    {data.tenureMonths != null ? `${data.tenureMonths} mo` : '—'}
+                  </span>
+                </li>
+              </ul>
+              {data.termsDocumentAvailable ? (
+                <div className="mt-5">
+                  <button
+                    type="button"
+                    disabled={termsBusy}
+                    className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                    onClick={() => void onDownloadTerms()}
+                  >
+                    {termsBusy ? 'Preparing…' : 'Download sanction terms'}
+                  </button>
+                </div>
+              ) : null}
+              {data.status === 'ESIGN_COMPLETED' ||
+              data.status === 'READY_FOR_DISBURSEMENT' ||
+              data.status === 'DISBURSEMENT_PENDING' ? (
+                <p className="mt-4 text-sm text-emerald-800">
+                  Onboarding is complete. Use{' '}
+                  <Link to="/borrower/programs" className="font-medium underline">
+                    Programs
+                  </Link>{' '}
+                  and{' '}
+                  <Link to="/borrower/invoice-discounting" className="font-medium underline">
+                    Invoice discounting
+                  </Link>{' '}
+                  to view limits and request finance on invoices.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           {data.collateralSummary && data.collateralSummary.length > 0 ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-800 shadow-sm">
               <h2 className="font-medium text-slate-900">Security / collateral (your submission)</h2>
@@ -174,7 +269,7 @@ export function BorrowerApplicationDetailPage() {
         </div>
       ) : null}
 
-      {tab === 'kfs' ? (
+      {tab === 'kfs' && showKfsTab ? (
         <div className="space-y-4">
           {kfsErr ? <p className="text-sm text-amber-800">{kfsErr}</p> : null}
           {kfs ? (

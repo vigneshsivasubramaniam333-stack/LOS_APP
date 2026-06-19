@@ -88,6 +88,7 @@ public class LoanApplicationFlowService {
     private final com.los.core.service.loan.intake.ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
     private final AnchorDueDiligenceService anchorDueDiligenceService;
     private final InvoiceDiscountingSanctionDefaultsService invoiceDiscountingSanctionDefaultsService;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
      * disbursement) until VKYC is auditor-approved when VKYC is configured and applicable
@@ -720,6 +721,13 @@ public class LoanApplicationFlowService {
     public ApplicationResponse markReadyForDisbursement(UUID applicationId) {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.READY_FOR_DISBURSEMENT);
         LoanApplication app = findOrThrow(applicationId);
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            throw new BusinessRuleException(
+                    "Invoice discounting borrower onboarding is complete after sanction and eSign — no term loan disbursement applies.",
+                    "INVOICE_DISCOUNTING_NO_TERM_LOAN",
+                    "READY_FOR_DISBURSEMENT",
+                    Map.of("status", app.getStatus().name()));
+        }
         if (app.getStatus() != ApplicationStatus.ESIGN_COMPLETED) {
             throw new BusinessRuleException(
                     "Ready for disbursement requires ESIGN_COMPLETED. Current: " + app.getStatus(),
@@ -799,8 +807,8 @@ public class LoanApplicationFlowService {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.SANCTION);
         LoanApplication app = findOrThrow(applicationId);
         boolean anchorFlow = InvoiceDiscountingApplicationRules.isAnchorFlow(app);
-        boolean idBorrowerFlow = InvoiceDiscountingApplicationRules.isBorrowerFlow(app);
-        boolean skipLms = InvoiceDiscountingApplicationRules.skipsLmsAtSanction(app);
+        boolean idBorrowerFlow = invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app);
+        boolean skipLms = idBorrowerFlow || InvoiceDiscountingApplicationRules.isAnchorFlow(app);
         boolean skipKfs = InvoiceDiscountingApplicationRules.skipsKfsAtSanction(app);
 
         if (anchorFlow) {
@@ -1063,7 +1071,9 @@ public class LoanApplicationFlowService {
                 null, Map.of("status", "ESIGN_PENDING"),
                 Map.of("status", "ESIGN_COMPLETED", "esignTransactionId",
                         esignTransactionId != null ? esignTransactionId : ""),
-                "eSign completed — ready for disbursement");
+                invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)
+                        ? "Invoice discounting borrower terms signed — program onboarding complete"
+                        : "eSign completed — ready for disbursement");
 
         log.info("eSign completed for {} — status: ESIGN_COMPLETED", app.getApplicationNumber());
         return toResponse(app);

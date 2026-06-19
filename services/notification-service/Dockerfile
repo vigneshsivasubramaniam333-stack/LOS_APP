@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # ─── Stage 1: Build ─────────────────────────────────────
 FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 WORKDIR /build
@@ -10,11 +11,12 @@ COPY services/enrollment-service/pom.xml ./services/enrollment-service/pom.xml
 COPY services/los-core-service/pom.xml ./services/los-core-service/pom.xml
 COPY services/notification-service/pom.xml ./services/notification-service/pom.xml
 
-RUN mvn dependency:go-offline -pl services/notification-service -am -q 2>/dev/null || true
-
 COPY services/discovery-service/src ./services/discovery-service/src
 COPY services/notification-service/src ./services/notification-service/src
-RUN mvn package -pl services/notification-service -am -DskipTests -q
+
+# Requires Docker DNS to reach Maven Central (see docs below). Cache .m2 between builds.
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn package -pl services/notification-service -am -Dmaven.test.skip=true -q
 
 # ─── Stage 2: Runtime ───────────────────────────────────
 FROM eclipse-temurin:17-jre-alpine

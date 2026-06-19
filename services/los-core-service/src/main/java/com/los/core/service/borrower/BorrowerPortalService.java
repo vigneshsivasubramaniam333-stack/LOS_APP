@@ -23,13 +23,18 @@ import com.los.lms.service.LmsService;
 import com.los.core.model.dto.response.DocumentResponse;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.entity.SanctionRecord;
 import com.los.core.model.entity.LosUser;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.LosUserRepository;
+import com.los.core.repository.SanctionRecordRepository;
 import com.los.core.service.demo.DemoApplicationPurgeService;
 import com.los.core.service.document.IDocumentService;
+import com.los.core.service.kfs.KfsPdfGenerationService;
 import com.los.core.service.kfs.KfsService;
+import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
+import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +53,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -67,6 +73,9 @@ public class BorrowerPortalService {
     private final LmsService lmsService;
     private final BorrowerProgramsService borrowerProgramsService;
     private final BorrowerApplicationOwnershipService ownershipService;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
+    private final SanctionRecordRepository sanctionRecordRepository;
+    private final KfsPdfGenerationService kfsPdfGenerationService;
 
     public void requireBorrower(String role) {
         if (role == null || !ROLE.equalsIgnoreCase(role.trim())) {
@@ -86,7 +95,8 @@ public class BorrowerPortalService {
         UUID firstDisbursed = null;
         for (LoanApplication a : page.getContent()) {
             recent.add(toSummary(a));
-            if (a.getStatus() == ApplicationStatus.DISBURSED) {
+            if (a.getStatus() == ApplicationStatus.DISBURSED
+                    && !InvoiceDiscountingApplicationRules.isBorrowerFlow(a)) {
                 disbursed++;
                 if (firstDisbursed == null) {
                     firstDisbursed = a.getId();
@@ -158,6 +168,7 @@ public class BorrowerPortalService {
     public BorrowerApplicationDetailResponse applicationDetail(
             UUID borrowerUserId, UUID applicationId, boolean includeTimeline) {
         LoanApplication app = loadOwned(borrowerUserId, applicationId);
+        boolean invoiceDiscountingBorrower = invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app);
         int docCount = documentService.getDocuments(applicationId).size();
         boolean checklist = documentService.isDocumentChecklistComplete(applicationId);
         var base = statusService.build(app, checklist, docCount);
@@ -169,15 +180,43 @@ public class BorrowerPortalService {
             rej = (r != null && !r.isBlank()) ? r.trim() : "We could not continue with this application on this occasion.";
         }
         String mask = bankMask(app);
+        BigDecimal sanctionedAmount = app.getSanctionedAmount();
+        BigDecimal interestRate = app.getApprovedRate() != null ? app.getApprovedRate() : app.getInterestRate();
+        Integer tenureMonths = app.getTenureMonths();
+        boolean termsDocumentAvailable = false;
+        if (invoiceDiscountingBorrower) {
+            Optional<SanctionRecord> sanction = sanctionRecordRepository
+                    .findTopByApplicationIdOrderByCreatedAtDesc(applicationId);
+            if (sanction.isPresent()) {
+                SanctionRecord rec = sanction.get();
+                if (rec.getApprovedAmount() != null) {
+                    sanctionedAmount = rec.getApprovedAmount();
+                }
+                if (rec.getInterestRate() != null) {
+                    interestRate = rec.getInterestRate();
+                }
+                if (rec.getApprovedTenure() != null) {
+                    tenureMonths = rec.getApprovedTenure();
+                }
+                termsDocumentAvailable = true;
+            } else if (sanctionedAmount != null && app.getStatus() != ApplicationStatus.DRAFT) {
+                termsDocumentAvailable = app.getStatus() == ApplicationStatus.SANCTIONED
+                        || app.getStatus() == ApplicationStatus.KFS_GENERATED
+                        || app.getStatus() == ApplicationStatus.ESIGN_PENDING
+                        || app.getStatus() == ApplicationStatus.ESIGN_COMPLETED;
+            }
+        }
         return BorrowerApplicationDetailResponse.builder()
                 .applicationId(app.getId())
                 .applicationNumber(app.getApplicationNumber())
                 .customerName(base.getCustomerName())
                 .product(app.getLoanProduct())
                 .status(app.getStatus())
-                .friendlyStatusHeadline(BorrowerFriendlyLabels.headline(app.getStatus()))
-                .currentStageMessage(stageMessage(base.getCustomerName(), app.getStatus()))
-                .estimatedProcessingHint("Estimated time for this stage: 1–2 business days where manual review applies.")
+                .friendlyStatusHeadline(BorrowerFriendlyLabels.headline(app.getStatus(), invoiceDiscountingBorrower))
+                .currentStageMessage(stageMessage(app.getStatus(), invoiceDiscountingBorrower))
+                .estimatedProcessingHint(invoiceDiscountingBorrower
+                        ? "Invoice discounting onboarding — use Programs and Invoice discounting after eSign is complete."
+                        : "Estimated time for this stage: 1–2 business days where manual review applies.")
                 .requiredActions(base.getRequiredActions())
                 .kycStatus(base.getKycStatus())
                 .documentStatus(base.getDocumentStatus())
@@ -194,7 +233,20 @@ public class BorrowerPortalService {
                 .loanAccountNumber(app.getLmsReferenceId() != null ? app.getLmsReferenceId() : app.getApplicationNumber())
                 .timeline(timeline)
                 .collateralSummary(collateralSummaryForBorrower(app))
+                .invoiceDiscountingBorrower(invoiceDiscountingBorrower)
+                .sanctionedAmount(sanctionedAmount)
+                .interestRate(interestRate)
+                .tenureMonths(tenureMonths)
+                .termsDocumentAvailable(termsDocumentAvailable)
                 .build();
+    }
+
+    public byte[] invoiceDiscountingTermsPdf(UUID borrowerUserId, UUID applicationId) {
+        LoanApplication app = loadOwned(borrowerUserId, applicationId);
+        if (!invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            throw new ForbiddenException("Sanction terms download is only for invoice discounting borrower onboarding.");
+        }
+        return kfsPdfGenerationService.generateInvoiceDiscountingTermsPdfForApplication(applicationId);
     }
 
     private List<BorrowerLabelValueItem> collateralSummaryForBorrower(LoanApplication app) {
@@ -288,8 +340,9 @@ public class BorrowerPortalService {
         return "****----";
     }
 
-    private String stageMessage(String name, ApplicationStatus s) {
-        return "Your application is currently in: " + BorrowerFriendlyLabels.headline(s) + ".";
+    private String stageMessage(ApplicationStatus status, boolean invoiceDiscountingBorrower) {
+        return "Your application is currently in: "
+                + BorrowerFriendlyLabels.headline(status, invoiceDiscountingBorrower) + ".";
     }
 
     public List<BorrowerDocumentItemResponse> listDocumentsSafe(UUID borrowerUserId, UUID applicationId) {

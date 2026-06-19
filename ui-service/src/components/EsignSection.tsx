@@ -4,6 +4,7 @@ import { completeEsignFlow, initiateEsignFlow } from '@/api/flow'
 import { ApiError } from '@/api/http'
 import { formatInstant } from '@/lib/format'
 import { esignSignerFromApplication } from '@/lib/intake/applicationPartyResolve'
+import { idBorrowerSkipsDisbursement } from '@/lib/invoiceDiscountingFlow'
 import type { ApplicationResponse } from '@/types/application'
 
 export function EsignSection({
@@ -113,8 +114,24 @@ export function EsignSection({
     'DISBURSED',
   ].includes(app.status)
 
+  const idBorrowerOnboarding = idBorrowerSkipsDisbursement(app)
+  const onboardingComplete =
+    idBorrowerOnboarding &&
+    (app.status === 'ESIGN_COMPLETED' ||
+      app.status === 'READY_FOR_DISBURSEMENT' ||
+      app.status === 'DISBURSEMENT_PENDING')
+
   return (
     <div className="space-y-4">
+      {onboardingComplete ? (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <p className="font-medium">Borrower onboarding complete</p>
+          <p className="mt-2 leading-relaxed">
+            Terms are signed and the borrower is linked in PLP. No term-loan disbursement step — finance happens per
+            invoice in the invoice discounting module.
+          </p>
+        </div>
+      ) : null}
       {!esignPhase ? (
         <div className="bt-section-card bt-section-card--warning px-3 py-2 text-sm text-amber-950">
           <span className="font-medium">Status:</span> {app.status}. eSign is typically run after the Key Fact Statement

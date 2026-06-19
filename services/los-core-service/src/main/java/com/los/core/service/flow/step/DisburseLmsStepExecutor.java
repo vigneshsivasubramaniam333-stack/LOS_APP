@@ -5,6 +5,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
+import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.los.lms.dto.LoanHandoverRequest;
 import com.los.lms.dto.LoanHandoverResponse;
 import com.los.lms.entity.WorkflowLmsProductMapping;
@@ -40,6 +41,7 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
     private final WorkflowLmsProductResolver workflowLmsProductResolver;
     private final LmsProgramResolver lmsProgramResolver;
     private final AuditService auditService;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
 
     @Override
     public boolean supports(String stepType) {
@@ -51,6 +53,19 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
     public StepResult execute(UUID applicationId, Map<String, Object> context) {
         LoanApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new com.los.core.exception.ResourceNotFoundException("Application not found: " + applicationId));
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            auditService.logEvent(applicationId, "PREREQUISITE_BLOCK", "DISBURSEMENT_BLOCKED",
+                    null,
+                    Map.of("status", app.getStatus().name(), "reason", "INVOICE_DISCOUNTING_BORROWER", "action", "DISBURSE"),
+                    null,
+                    "Disbursement blocked: invoice discounting borrower onboarding does not create a term loan");
+            throw new BusinessRuleException(
+                    "Invoice discounting borrower onboarding is complete after sanction and eSign — no term loan disbursement applies.",
+                    "INVOICE_DISCOUNTING_NO_TERM_LOAN",
+                    "DISBURSE",
+                    Map.of("status", app.getStatus().name())
+            );
+        }
         if (app.getStatus() != ApplicationStatus.READY_FOR_DISBURSEMENT
                 && app.getStatus() != ApplicationStatus.DISBURSEMENT_PENDING
                 && app.getStatus() != ApplicationStatus.ESIGN_COMPLETED) {

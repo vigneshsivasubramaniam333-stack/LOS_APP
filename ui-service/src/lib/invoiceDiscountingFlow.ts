@@ -15,6 +15,15 @@ export function anchorSkipsPostSanctionSteps(app: Pick<ApplicationResponse, 'loa
   return isInvoiceDiscountingAnchorApp(app)
 }
 
+/** Invoice discounting borrower onboarding ends after eSign — no term-loan disbursement. */
+export function idBorrowerSkipsDisbursement(app: Pick<ApplicationResponse, 'loanProduct' | 'intakeSegment'>): boolean {
+  return isInvoiceDiscountingBorrowerApp(app)
+}
+
+export function isInvoiceDiscountingBorrowerProduct(product: string | null | undefined): boolean {
+  return isInvoiceDiscountingProduct(product ?? '')
+}
+
 export function idFlowSkipsLmsAtSanction(app: Pick<ApplicationResponse, 'loanProduct' | 'intakeSegment'>): boolean {
   return isInvoiceDiscountingAnchorApp(app) || isInvoiceDiscountingBorrowerApp(app)
 }

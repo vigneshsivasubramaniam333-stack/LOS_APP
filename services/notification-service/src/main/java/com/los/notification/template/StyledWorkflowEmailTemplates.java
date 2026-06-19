@@ -3,6 +3,9 @@ package com.los.notification.template;
 /**
  * Table-based HTML email layouts for workflow notifications.
  * Inline styles only — compatible with common email clients.
+ * <p>
+ * Uses string concatenation (not {@link String#formatted}) so literal {@code %} in HTML attributes
+ * (e.g. {@code width="100%"}) never triggers {@link java.util.UnknownFormatConversionException}.
  */
 public final class StyledWorkflowEmailTemplates {
 
@@ -161,35 +164,9 @@ public final class StyledWorkflowEmailTemplates {
             String plainLink,
             String warningText) {
         boolean hasCta = ctaLabel != null && ctaUrl != null;
-        String detailsBlock = detailsHtml == null || detailsHtml.isBlank()
-                ? ""
-                : """
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 18px 0;background:#f8fafc;border:1px solid #dbe7ff;border-radius:10px;">
-                    <tr><td style="padding:14px 16px;">%s</td></tr>
-                  </table>
-                  """.formatted(detailsHtml);
-
-        String ctaBlock = hasCta
-                ? """
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 14px 0;">
-                    <tr><td align="center" style="border-radius:8px;background-color:#2563eb;">
-                      <a href="%s" target="_blank" style="display:inline-block;padding:12px 22px;font-size:14px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;">%s</a>
-                    </td></tr>
-                  </table>
-                  <p style="margin:0 0 8px 0;font-size:12px;line-height:18px;color:#64748b;">If the button above does not work, copy and paste this link into your browser:</p>
-                  <p style="margin:0 0 18px 0;font-size:12px;line-height:18px;word-break:break-all;overflow-wrap:anywhere;">
-                    <a href="%s" target="_blank" style="color:#1d4ed8;text-decoration:underline;">%s</a>
-                  </p>
-                  """.formatted(ctaUrl, ctaLabel, ctaUrl, plainLink != null ? plainLink : ctaUrl)
-                : "";
-
-        String warningBlock = warningText == null || warningText.isBlank()
-                ? ""
-                : """
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 18px 0;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;">
-                    <tr><td style="padding:10px 12px;font-size:13px;line-height:20px;color:#9a3412;">%s</td></tr>
-                  </table>
-                  """.formatted(warningText);
+        String detailsBlock = wrapDetailsBlock(detailsHtml);
+        String ctaBlock = hasCta ? wrapCtaBlock(ctaLabel, ctaUrl, plainLink) : "";
+        String warningBlock = wrapWarningBlock(warningText);
 
         return """
                 <!doctype html>
@@ -197,28 +174,32 @@ public final class StyledWorkflowEmailTemplates {
                 <head>
                   <meta charset="UTF-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <title>%s</title>
+                  <title>""" + headerBadge + """
+                  </title>
                 </head>
                 <body style="margin:0;padding:0;background-color:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f7fb;margin:0;padding:24px 12px;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f7fb;margin:0;padding:24px 12px;">
                     <tr><td align="center">
-                      <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;">
                         <tr>
                           <td style="padding:20px 24px;border-bottom:1px solid #e2e8f0;background-color:#ffffff;">
-                            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                               <tr>
-                                <td align="left" style="font-size:18px;font-weight:700;color:#1d4ed8;">%s</td>
-                                <td align="right" style="font-size:12px;color:#64748b;">%s</td>
+                                <td align="left" style="font-size:18px;font-weight:700;color:#1d4ed8;">""" + headerLabel + """
+                                </td>
+                                <td align="right" style="font-size:12px;color:#64748b;">""" + headerBadge + """
+                                </td>
                               </tr>
                             </table>
                           </td>
                         </tr>
                         <tr><td style="padding:24px;">
                           <p style="margin:0 0 14px 0;font-size:16px;line-height:24px;color:#0f172a;">Dear {{borrowerName}},</p>
-                          <p style="margin:0 0 18px 0;font-size:14px;line-height:22px;color:#334155;">%s</p>
-                          %s
-                          %s
-                          %s
+                          <p style="margin:0 0 18px 0;font-size:14px;line-height:22px;color:#334155;">""" + intro + """
+                          </p>
+                          """ + detailsBlock + """
+                          """ + ctaBlock + """
+                          """ + warningBlock + """
                           <p style="margin:0;font-size:13px;line-height:20px;color:#475569;">Need help? Please contact your relationship manager or support desk.</p>
                           <p style="margin:12px 0 0 0;font-size:13px;line-height:20px;color:#475569;">Regards,<br>BillionTech LOS Team</p>
                         </td></tr>
@@ -232,6 +213,45 @@ public final class StyledWorkflowEmailTemplates {
                   </table>
                 </body>
                 </html>
-                """.formatted(headerBadge, headerLabel, headerBadge, intro, detailsBlock, ctaBlock, warningBlock);
+                """;
+    }
+
+    private static String wrapDetailsBlock(String detailsHtml) {
+        if (detailsHtml == null || detailsHtml.isBlank()) {
+            return "";
+        }
+        return """
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 18px 0;background:#f8fafc;border:1px solid #dbe7ff;border-radius:10px;">
+                    <tr><td style="padding:14px 16px;">""" + detailsHtml + """
+                    </td></tr>
+                  </table>
+                  """;
+    }
+
+    private static String wrapCtaBlock(String ctaLabel, String ctaUrl, String plainLink) {
+        String linkText = plainLink != null ? plainLink : ctaUrl;
+        return """
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 14px 0;">
+                    <tr><td align="center" style="border-radius:8px;background-color:#2563eb;">
+                      <a href="""" + ctaUrl + """" target="_blank" style="display:inline-block;padding:12px 22px;font-size:14px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;">""" + ctaLabel + """</a>
+                    </td></tr>
+                  </table>
+                  <p style="margin:0 0 8px 0;font-size:12px;line-height:18px;color:#64748b;">If the button above does not work, copy and paste this link into your browser:</p>
+                  <p style="margin:0 0 18px 0;font-size:12px;line-height:18px;word-break:break-all;overflow-wrap:anywhere;">
+                    <a href="""" + ctaUrl + """" target="_blank" style="color:#1d4ed8;text-decoration:underline;">""" + linkText + """</a>
+                  </p>
+                  """;
+    }
+
+    private static String wrapWarningBlock(String warningText) {
+        if (warningText == null || warningText.isBlank()) {
+            return "";
+        }
+        return """
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 18px 0;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;">
+                    <tr><td style="padding:10px 12px;font-size:13px;line-height:20px;color:#9a3412;">""" + warningText + """
+                    </td></tr>
+                  </table>
+                  """;
     }
 }

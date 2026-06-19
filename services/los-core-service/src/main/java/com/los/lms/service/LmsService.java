@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.service.loan.ApplicationPartyResolver;
+import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.los.encore.client.api.EncoreLmsApi;
 import com.los.encore.client.api.EncoreOpenLoanParams;
 import com.los.encore.client.api.EncoreTemporaryOverrides;
@@ -57,6 +58,7 @@ public class LmsService {
     private final LmsRepaymentCallbackRepository repaymentRepository;
     private final LmsAccountSummaryRepository summaryRepository;
     private final LmsCallbackSecurityProperties callbackSecurity;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
 
     /**
      * Hand over a disbursed loan to LMS for servicing.
@@ -66,6 +68,17 @@ public class LmsService {
      */
     @Transactional
     public LoanHandoverResponse handoverLoan(LoanHandoverRequest request) {
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(request.getApplicationId())
+                || invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(request.getApplicationNumber())) {
+            log.info("[LMS-HANDOVER] Skipped — invoice discounting borrower onboarding for {}",
+                    request.getApplicationNumber());
+            return LoanHandoverResponse.builder()
+                    .applicationNumber(request.getApplicationNumber())
+                    .status("SKIPPED")
+                    .message("Invoice discounting borrower onboarding does not create a term loan in LOS/LMS")
+                    .build();
+        }
+
         String encoreAccountId = null;
         String encoreTransactionId = null;
         String status = "ACCEPTED";
@@ -753,6 +766,12 @@ public class LmsService {
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public String createLmsAccountOnSanction(LoanApplication app) {
         log.info("[LMS-SANCTION] Triggered for {} — starting LMS account creation", app.getApplicationNumber());
+
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            log.info("[LMS-SANCTION] Skipped — invoice discounting borrower onboarding for {}",
+                    app.getApplicationNumber());
+            return null;
+        }
 
         Optional<com.los.plp.model.entity.ProgramMaster> linkedProgram = lmsProgramResolver.resolveForApplication(app);
         if (linkedProgram.isPresent() && !lmsProgramResolver.isLmsEntryEnabled(linkedProgram.get())) {

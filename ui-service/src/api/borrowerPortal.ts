@@ -62,6 +62,12 @@ export interface BorrowerApplicationDetail {
   timeline: BorrowerTimelineStep[]
   /** Borrower-submitted collateral summary (intake) — no internal credit remarks. */
   collateralSummary?: { label: string; value: string }[]
+  /** Invoice discounting borrower onboarding — overview only, no KFS/loan tabs. */
+  invoiceDiscountingBorrower?: boolean
+  sanctionedAmount?: number | null
+  interestRate?: number | null
+  tenureMonths?: number | null
+  termsDocumentAvailable?: boolean
 }
 
 export async function getBorrowerDashboard(): Promise<BorrowerDashboard> {
@@ -79,6 +85,13 @@ export async function listBorrowerApplications(page = 0, size = 20) {
 
 export async function getBorrowerApplicationDetail(id: string): Promise<BorrowerApplicationDetail> {
   const { data } = await http.get<BorrowerApplicationDetail>(`/borrower/applications/${id}`)
+  return data
+}
+
+export async function downloadInvoiceDiscountingTermsPdf(applicationId: string): Promise<Blob> {
+  const { data } = await http.get<Blob>(`/borrower/applications/${applicationId}/terms/pdf`, {
+    responseType: 'blob',
+  })
   return data
 }
 

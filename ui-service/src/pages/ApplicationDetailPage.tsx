@@ -34,7 +34,9 @@ import { VkycDetailsSection } from '@/components/VkycDetailsSection'
 import { VkycDownstreamGate } from '@/components/VkycDownstreamGate'
 import {
   anchorSkipsPostSanctionSteps,
+  idBorrowerSkipsDisbursement,
   isInvoiceDiscountingAnchorApp,
+  isInvoiceDiscountingBorrowerApp,
   underwritingTabLabel,
 } from '@/lib/invoiceDiscountingFlow'
 
@@ -113,7 +115,12 @@ export function ApplicationDetailPage() {
   const tabs = useMemo(() => {
     const L = applicationPartyLabels(app?.intakeSegment)
     const skipPostSanction = app ? anchorSkipsPostSanctionSteps(app) : false
-    const hidden = skipPostSanction ? new Set(['cam', 'esign', 'disbursement']) : new Set<string>()
+    const skipDisbursement = app ? idBorrowerSkipsDisbursement(app) : false
+    const hidden = skipPostSanction
+      ? new Set(['cam', 'esign', 'disbursement'])
+      : skipDisbursement
+        ? new Set(['disbursement'])
+        : new Set<string>()
     const base: Array<{ id: typeof tab; label: string }> = TABS.filter((t) => !hidden.has(t.id)).map((t) => {
       if (t.id === 'borrower') return { ...t, label: L.profileTab }
       if (t.id === 'underwriting') {
@@ -123,6 +130,12 @@ export function ApplicationDetailPage() {
     }) as Array<{ id: typeof tab; label: string }>
     return insertVkycTab(base, vkycGate)
   }, [app, vkycGate])
+  useEffect(() => {
+    if (app && idBorrowerSkipsDisbursement(app) && tab === 'disbursement') {
+      setTab('esign')
+    }
+  }, [app, tab])
+
   useEffect(() => {
     if (!vkycGate.visible && tab === 'vkyc') setTab('summary')
   }, [vkycGate.visible, tab])
@@ -148,7 +161,9 @@ export function ApplicationDetailPage() {
         description={
           app && anchorSkipsPostSanctionSteps(app)
             ? 'Review KYC, due diligence credit rating, and sanction for this anchor onboarding case.'
-            : 'Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan.'
+            : app && isInvoiceDiscountingBorrowerApp(app)
+              ? 'Review KYC, underwriting, CAM, sanction, terms eSign, and PLP program linkage for this invoice discounting borrower.'
+              : 'Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan.'
         }
       />
       <p className="mb-4 text-sm">
