@@ -88,7 +88,7 @@ export function BorrowerApplicationDetailPage() {
       : '-mb-px border-b-2 border-transparent px-1 pb-3 text-slate-500 hover:text-slate-800'
 
   async function onDownloadTerms() {
-    if (!id) return
+    if (!id || !data) return
     setTermsBusy(true)
     try {
       const blob = await downloadInvoiceDiscountingTermsPdf(id)
