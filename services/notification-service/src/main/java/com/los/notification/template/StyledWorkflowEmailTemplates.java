@@ -233,12 +233,16 @@ public final class StyledWorkflowEmailTemplates {
         return """
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 14px 0;">
                     <tr><td align="center" style="border-radius:8px;background-color:#2563eb;">
-                      <a href="""" + ctaUrl + """" target="_blank" style="display:inline-block;padding:12px 22px;font-size:14px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;">""" + ctaLabel + """</a>
+                      <a href=\"""" + ctaUrl + """
+                      " target="_blank" style="display:inline-block;padding:12px 22px;font-size:14px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;">""" + ctaLabel + """
+                      </a>
                     </td></tr>
                   </table>
                   <p style="margin:0 0 8px 0;font-size:12px;line-height:18px;color:#64748b;">If the button above does not work, copy and paste this link into your browser:</p>
                   <p style="margin:0 0 18px 0;font-size:12px;line-height:18px;word-break:break-all;overflow-wrap:anywhere;">
-                    <a href="""" + ctaUrl + """" target="_blank" style="color:#1d4ed8;text-decoration:underline;">""" + linkText + """</a>
+                    <a href=\"""" + ctaUrl + """
+                      " target="_blank" style="color:#1d4ed8;text-decoration:underline;">""" + linkText + """
+                      </a>
                   </p>
                   """;
     }
