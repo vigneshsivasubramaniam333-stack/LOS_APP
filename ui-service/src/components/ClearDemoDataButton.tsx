@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { clearDemoApplications } from '@/api/demo'
+import { useEffect, useState } from 'react'
+import { clearDemoApplications, getDemoStatus } from '@/api/demo'
 import { ApiError } from '@/api/http'
 
 const DEMO_DISABLED_HINT =
@@ -23,16 +23,55 @@ function clearErrorMessage(e: unknown): string {
   return e instanceof Error ? e.message : 'Request failed'
 }
 
+function successMessage(
+  deletedApplications: number,
+  deletedBorrowerUsers: number,
+  deletedLosPlpMasterRows?: number,
+): string {
+  if (deletedApplications === 0 && deletedBorrowerUsers === 0 && !(deletedLosPlpMasterRows && deletedLosPlpMasterRows > 0)) {
+    return 'No demo data to delete'
+  }
+  const parts: string[] = []
+  if (deletedApplications > 0) {
+    parts.push(`${deletedApplications} application${deletedApplications === 1 ? '' : 's'}`)
+  }
+  if (deletedBorrowerUsers > 0) {
+    parts.push(`${deletedBorrowerUsers} borrower account${deletedBorrowerUsers === 1 ? '' : 's'}`)
+  }
+  if (deletedLosPlpMasterRows && deletedLosPlpMasterRows > 0) {
+    parts.push(`${deletedLosPlpMasterRows} PLP program entr${deletedLosPlpMasterRows === 1 ? 'y' : 'ies'} on LOS`)
+  }
+  if (parts.length === 0) {
+    return 'Demo data cleared successfully'
+  }
+  return `Cleared ${parts.join(', ')}`
+}
+
 type ClearDemoDataButtonProps = {
   onCleared: () => void
   className?: string
 }
 
 export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButtonProps) {
+  const [demoEnabled, setDemoEnabled] = useState<boolean | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [resultMsg, setResultMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void getDemoStatus()
+      .then((s) => {
+        if (!cancelled) setDemoEnabled(s.demoEnabled)
+      })
+      .catch(() => {
+        if (!cancelled) setDemoEnabled(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function confirm() {
     setErr(null)
@@ -40,11 +79,7 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
     setBusy(true)
     try {
       const r = await clearDemoApplications()
-      if (r.deletedApplications === 0) {
-        setResultMsg('No applications to delete')
-      } else {
-        setResultMsg('All demo applications cleared successfully')
-      }
+      setResultMsg(successMessage(r.deletedApplications, r.deletedBorrowerUsers ?? 0, r.deletedLosPlpMasterRows))
       window.dispatchEvent(new CustomEvent('los:demo-data-cleared'))
       onCleared()
       setOpen(false)
@@ -53,6 +88,14 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
     } finally {
       setBusy(false)
     }
+  }
+
+  if (demoEnabled === null) {
+    return null
+  }
+
+  if (!demoEnabled) {
+    return null
   }
 
   return (
@@ -71,6 +114,7 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
           setOpen(true)
         }}
         className={className ?? 'bt-btn bt-btn-secondary border-amber-300 bg-[var(--bt-amber-bg)] text-[var(--bt-amber)] hover:bg-[var(--bt-amber-bg)]'}
+        title="Delete all applications and auto-provisioned borrower accounts"
       >
         {busy ? 'Clearing data…' : 'Reset demo data'}
       </button>
@@ -86,7 +130,9 @@ export function ClearDemoDataButton({ onCleared, className }: ClearDemoDataButto
               Reset demo data
             </h2>
             <p className="mt-2 text-sm text-[var(--bt-gray-600)]">
-              This will permanently delete all demo applications and related data. This action cannot be undone.
+              This will permanently delete all loan applications, related records, auto-provisioned borrower
+              accounts, and PLP program/anchor/sub-program entries stored in LOS. Seeded demo users are kept.
+              Use the PLP app reset separately to clear remote PLP data. This action cannot be undone.
             </p>
             {err ? <div className="bt-alert bt-alert-error mt-3">{err}</div> : null}
             <div className="mt-4 flex flex-wrap justify-end gap-2">

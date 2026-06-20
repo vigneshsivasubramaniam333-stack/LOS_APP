@@ -51,7 +51,8 @@ los:
     local-dev-permit-all: false
   # Set true in local profile or a secure env; enables DELETE /api/v1/demo/applications. Never in prod default.
   demo:
-    enabled: false
+    enabled: ${LOS_DEMO_ENABLED:false}
+    preserved-user-emails: ${LOS_DEMO_PRESERVED_USER_EMAILS:sahil@gmail.com,borrower@credinnov.com}
 
   # minio: object storage for documents (default). Use storage: local + file-storage.root for demo without MinIO.
   document:
@@ -86,6 +87,12 @@ los:
       download-api-url: /api/DownloadWorkflowDocuments
       auth-type: BASIC
       fallback-to-db: false
+
+  sanction:
+    notification:
+      enabled: ${LOS_SANCTION_EMAIL_ENABLED:true}
+      anchor-portal-url: ${ANCHOR_PORTAL_URL:http://localhost:3200/plp-anchor/}
+      default-temporary-password: ${PLP_INTEGRATION_DEFAULT_USER_PASSWORD:ChangeMe@PLP2026}
 
   integration:
     # Notification-service (read-only proxy for workflow template catalog)

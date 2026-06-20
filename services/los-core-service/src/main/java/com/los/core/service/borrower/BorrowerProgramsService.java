@@ -104,7 +104,8 @@ public class BorrowerProgramsService {
                         }
                     });
                 }
-                enrollments.add(toEnrollment(sp, program, membership));
+                Map<String, Object> borrowerTerms = findBorrowerTerms(spId, plpBorrowerId.get());
+                enrollments.add(toEnrollment(sp, program, membership, borrowerTerms));
             }
 
             return BorrowerProgramsResponse.builder()
@@ -125,8 +126,17 @@ public class BorrowerProgramsService {
     private BorrowerProgramEnrollmentResponse toEnrollment(
             Map<String, Object> sp,
             Map<String, Object> program,
-            Map<String, Object> membership) {
+            Map<String, Object> membership,
+            Map<String, Object> borrowerTerms) {
         boolean hasProgram = program != null && !program.isEmpty();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> parameters = hasProgram && program.get("parameters") instanceof Map<?, ?> p
+                ? (Map<String, Object>) p
+                : null;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> config = hasProgram && program.get("config") instanceof Map<?, ?> c
+                ? (Map<String, Object>) c
+                : null;
         return BorrowerProgramEnrollmentResponse.builder()
                 .subProgramId(asString(sp.get("id")))
                 .subProgramName(asString(sp.get("name")))
@@ -147,11 +157,36 @@ public class BorrowerProgramsService {
                 .defaultInterestRate(hasProgram ? asBig(program.get("defaultInterestRate")) : null)
                 .programMarginPercent(hasProgram ? asBig(program.get("marginPercent")) : null)
                 .programMaxTenureDays(hasProgram ? asInt(program.get("maxTenureDays")) : null)
+                .programParameters(parameters)
+                .programConfig(config)
+                .lmsEntryIn(hasProgram ? asString(program.get("lmsEntryIn")) : null)
+                .encoreProductCode(hasProgram ? asString(program.get("encoreProductCode")) : null)
                 .borrowerLimit(asBig(membership.get("borrowerLimit")))
                 .borrowerUtilizedLimit(asBig(membership.get("utilizedLimit")))
                 .borrowerAvailableLimit(asBig(membership.get("availableLimit")))
                 .membershipStatus(asString(membership.get("status"), "ACTIVE"))
+                .borrowerInterestRate(borrowerTerms != null ? asBig(borrowerTerms.get("interestRate")) : null)
+                .borrowerDiscountMarginPercent(borrowerTerms != null ? asBig(borrowerTerms.get("discountMarginPercent")) : null)
+                .borrowerCreditPeriodDays(borrowerTerms != null ? asInt(borrowerTerms.get("creditPeriodDays")) : null)
+                .borrowerDiscountHold(borrowerTerms != null ? asString(borrowerTerms.get("discountHold")) : null)
+                .borrowerPaymentMethod(borrowerTerms != null ? asString(borrowerTerms.get("paymentMethod")) : null)
+                .borrowerOverdueInterestRate(borrowerTerms != null ? asBig(borrowerTerms.get("overdueInterestRate")) : null)
                 .build();
+    }
+
+    private Map<String, Object> findBorrowerTerms(UUID subProgramId, UUID plpBorrowerId) {
+        try {
+            for (Map<String, Object> row : plpBorrowerClient.listSubProgramBorrowers(subProgramId)) {
+                UUID bid = asUuid(row.get("borrowerId"));
+                if (plpBorrowerId.equals(bid)) {
+                    return row;
+                }
+            }
+        } catch (PlpIntegrationException e) {
+            log.debug("Could not load borrower terms for subProgram={} borrower={}: {}", subProgramId, plpBorrowerId,
+                    e.getMessage());
+        }
+        return Map.of();
     }
 
     private static UUID asUuid(Object value) {

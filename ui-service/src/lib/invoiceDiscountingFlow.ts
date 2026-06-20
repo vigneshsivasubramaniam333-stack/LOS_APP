@@ -40,6 +40,7 @@ export function idFlowSkipsLmsKfs(app: Pick<ApplicationResponse, 'loanProduct' |
 
 export type AnchorDueDiligenceBlock = {
   answers?: Record<string, string>
+  comments?: Record<string, string>
   creditRating?: string
   score?: number
   completedAt?: string
@@ -54,5 +55,5 @@ export function readAnchorDueDiligence(app: ApplicationResponse): AnchorDueDilig
 }
 
 export function underwritingTabLabel(segment?: ApplicationIntakeSegment | null, loanProduct?: string): string {
-  return isInvoiceDiscountingProduct(loanProduct) && segment === 'ANCHOR' ? 'Credit rating' : 'Underwriting'
+  return isInvoiceDiscountingProduct(loanProduct) && segment === 'ANCHOR' ? 'Anchor rating' : 'Underwriting'
 }

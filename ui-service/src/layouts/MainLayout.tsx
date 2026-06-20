@@ -63,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/integrations/provider-matrix', label: 'Integrations', icon: IntegrationsIcon },
       { to: '/underwriting-rules', label: 'Underwriting rules', icon: RulesIcon },
       { to: '/underwriting-scorecards', label: 'Underwriting scorecards', icon: ScorecardsIcon },
+      { to: '/anchor-rating-templates', label: 'Anchor rating templates', icon: ScorecardsIcon },
       { to: '/assignment-rules', label: 'Assignment rules', icon: AssignmentIcon },
       { to: '/users', label: 'Users', icon: UsersIcon },
       { to: '/user-role-mappings', label: 'User–role mappings', icon: MappingsIcon },

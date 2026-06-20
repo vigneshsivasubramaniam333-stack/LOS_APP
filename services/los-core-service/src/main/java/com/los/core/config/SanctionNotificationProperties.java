@@ -19,4 +19,10 @@ public class SanctionNotificationProperties {
 
     /** Term-loan borrower — KFS, agreement, and sanction details. */
     private String termLoanTemplateCode = "SANCTION_APPROVED_TERM_LOAN";
+
+    /** Public URL for the PLP anchor portal sign-in page. */
+    private String anchorPortalUrl = "http://localhost:3200/plp-anchor/";
+
+    /** Temporary password provisioned for LOS-integrated anchor portal users. */
+    private String defaultTemporaryPassword = "ChangeMe@PLP2026";
 }

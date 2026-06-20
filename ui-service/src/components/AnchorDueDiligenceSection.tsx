@@ -13,9 +13,11 @@ import { AppSectionCard } from '@/components/ui/AppSectionCard'
 import { loanProductLabel } from '@/catalog/loanProducts'
 import { formatMoney } from '@/lib/format'
 import {
+  anchorRatingLabel,
   ANCHOR_DUE_DILIGENCE_QUESTIONS,
-  creditRatingLabel,
   creditRatingTone,
+  mapQuestionsFromApi,
+  type DueDiligenceQuestion,
 } from '@/lib/anchorDueDiligenceChecklist'
 import { readAnchorDueDiligence } from '@/lib/invoiceDiscountingFlow'
 import type { ApplicationResponse } from '@/types/application'
@@ -32,6 +34,116 @@ function statusChip(status: string): { label: string; cls: string } {
   return { label: status, cls: 'bt-section-card__chip' }
 }
 
+function QuestionComment({
+  questionKey,
+  comment,
+  disabled,
+  onSave,
+  onRemove,
+}: {
+  questionKey: string
+  comment: string
+  disabled: boolean
+  onSave: (key: string, value: string) => void
+  onRemove: (key: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(comment)
+  const hasComment = Boolean(comment.trim())
+
+  useEffect(() => {
+    if (!editing) setDraft(comment)
+  }, [comment, editing])
+
+  if (!editing && hasComment) {
+    return (
+      <div className="mt-3 rounded-lg border border-slate-200/90 bg-slate-50 px-3.5 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Team note</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{comment}</p>
+          </div>
+          {!disabled ? (
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                onClick={() => {
+                  setDraft(comment)
+                  setEditing(true)
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className="text-xs font-medium text-slate-500 hover:text-red-600"
+                onClick={() => onRemove(questionKey)}
+              >
+                Remove
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  if (!editing && !hasComment) {
+    if (disabled) return null
+    return (
+      <button
+        type="button"
+        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600"
+        onClick={() => setEditing(true)}
+      >
+        <span aria-hidden>+</span> Add team note (optional)
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3.5 py-3">
+      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        Team note <span className="font-normal normal-case text-slate-400">(optional — not scored)</span>
+      </label>
+      <textarea
+        className={`${inputCls} mt-2 min-h-[72px] resize-y`}
+        value={draft}
+        disabled={disabled}
+        placeholder="Why this response was chosen, context for reviewers…"
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          className="bt-btn bt-btn-secondary bt-btn-sm"
+          onClick={() => {
+            const trimmed = draft.trim()
+            if (trimmed) onSave(questionKey, trimmed)
+            else onRemove(questionKey)
+            setEditing(false)
+          }}
+        >
+          Save note
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          className="bt-btn bt-btn-secondary bt-btn-sm !bg-transparent !border-transparent text-slate-500"
+          onClick={() => {
+            setDraft(comment)
+            setEditing(false)
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function AnchorDueDiligenceSection({
   applicationId,
   app,
@@ -42,7 +154,10 @@ export function AnchorDueDiligenceSection({
   onRefetch: () => void
 }) {
   const stored = readAnchorDueDiligence(app)
+  const [questions, setQuestions] = useState<DueDiligenceQuestion[]>(ANCHOR_DUE_DILIGENCE_QUESTIONS)
+  const [ratingBands, setRatingBands] = useState<{ rating: string; label: string }[]>([])
   const [answers, setAnswers] = useState<Record<string, string>>(() => stored.answers ?? {})
+  const [comments, setComments] = useState<Record<string, string>>(() => stored.comments ?? {})
   const [creditRating, setCreditRating] = useState(stored.creditRating ?? '')
   const [score, setScore] = useState<number | null>(stored.score ?? null)
   const [kycPass, setKycPass] = useState<boolean | null>(null)
@@ -51,11 +166,31 @@ export function AnchorDueDiligenceSection({
   const [savedMsg, setSavedMsg] = useState<string | null>(null)
 
   const answeredCount = useMemo(
-    () => ANCHOR_DUE_DILIGENCE_QUESTIONS.filter((q) => Boolean(answers[q.key]?.trim())).length,
-    [answers],
+    () => questions.filter((q) => Boolean(answers[q.key]?.trim())).length,
+    [answers, questions],
   )
-  const totalQuestions = ANCHOR_DUE_DILIGENCE_QUESTIONS.length
-  const progressPct = Math.round((answeredCount / totalQuestions) * 100)
+  const totalQuestions = questions.length
+  const progressPct = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0
+
+  const applyBlock = useCallback((block: Record<string, unknown>) => {
+    if (block.questions) setQuestions(mapQuestionsFromApi(block.questions))
+    if (Array.isArray(block.ratingBands)) {
+      setRatingBands(
+        (block.ratingBands as Record<string, unknown>[]).map((b) => ({
+          rating: String(b.rating ?? ''),
+          label: String(b.label ?? b.rating ?? ''),
+        })),
+      )
+    }
+    if (block.answers && typeof block.answers === 'object') {
+      setAnswers(block.answers as Record<string, string>)
+    }
+    if (block.comments && typeof block.comments === 'object') {
+      setComments(block.comments as Record<string, string>)
+    }
+    if (block.creditRating != null) setCreditRating(String(block.creditRating))
+    if (block.score != null) setScore(Number(block.score))
+  }, [])
 
   const loadKyc = useCallback(async () => {
     try {
@@ -69,30 +204,29 @@ export function AnchorDueDiligenceSection({
   const refreshDd = useCallback(async () => {
     try {
       const block = await getAnchorDueDiligenceFlow(applicationId)
-      if (block.answers && typeof block.answers === 'object') {
-        setAnswers(block.answers as Record<string, string>)
-      }
-      if (block.creditRating != null) setCreditRating(String(block.creditRating))
-      if (block.score != null) setScore(Number(block.score))
+      applyBlock(block)
     } catch {
       /* use app snapshot */
     }
-  }, [applicationId])
+  }, [applicationId, applyBlock])
 
   useEffect(() => {
     void loadKyc()
     void refreshDd()
   }, [loadKyc, refreshDd, app.updatedAt])
 
+  async function persistChecklist() {
+    return saveAnchorDueDiligenceFlow(applicationId, { answers, comments })
+  }
+
   async function onSave() {
     setBusy(true)
     setError(null)
     setSavedMsg(null)
     try {
-      const block = await saveAnchorDueDiligenceFlow(applicationId, answers)
-      if (block.creditRating != null) setCreditRating(String(block.creditRating))
-      if (block.score != null) setScore(Number(block.score))
-      setSavedMsg('Rating updated from checklist responses.')
+      const block = await persistChecklist()
+      applyBlock(block)
+      setSavedMsg('Anchor rating updated from checklist responses.')
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not save checklist')
     } finally {
@@ -104,7 +238,7 @@ export function AnchorDueDiligenceSection({
     setBusy(true)
     setError(null)
     try {
-      await saveAnchorDueDiligenceFlow(applicationId, answers)
+      await persistChecklist()
       await completeAnchorUnderwritingFlow(applicationId)
       await onRefetch()
     } catch (e) {
@@ -131,8 +265,7 @@ export function AnchorDueDiligenceSection({
     }
   }
 
-  const pendingManual =
-    app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW'
+  const pendingManual = app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW'
   const decisionDone =
     app.status === 'SANCTION_PENDING' ||
     app.status === 'SANCTIONED' ||
@@ -147,7 +280,7 @@ export function AnchorDueDiligenceSection({
       <div className="bt-section-card bt-section-card--hero p-4 text-sm text-slate-800">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Credit rating</h2>
+            <h2 className="text-base font-semibold text-slate-900">Anchor rating</h2>
             <p className="mt-1 text-xs text-slate-600">
               Due diligence checklist for anchor onboarding — invoice discounting.
             </p>
@@ -179,7 +312,7 @@ export function AnchorDueDiligenceSection({
       {(creditRating || score != null) && (
         <AppSectionCard
           tone={ratingTone === 'default' ? 'violet' : ratingTone}
-          title="Computed credit rating"
+          title="Computed anchor rating"
           badge={
             creditRating ? (
               <span className={`bt-section-card__chip bt-section-card__chip--${ratingTone === 'default' ? 'info' : ratingTone}`}>
@@ -191,7 +324,9 @@ export function AnchorDueDiligenceSection({
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-white/60 bg-white/70 p-3">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Rating</dt>
-              <dd className="mt-1 text-lg font-semibold text-slate-900">{creditRatingLabel(creditRating)}</dd>
+              <dd className="mt-1 text-lg font-semibold text-slate-900">
+                {anchorRatingLabel(creditRating, ratingBands)}
+              </dd>
             </div>
             <div className="rounded-lg border border-white/60 bg-white/70 p-3">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Score</dt>
@@ -230,7 +365,7 @@ export function AnchorDueDiligenceSection({
                 onClick={() => void onCompleteUnderwriting()}
                 className="bt-btn bt-btn-primary bt-btn-sm disabled:opacity-50"
               >
-                Complete credit rating
+                Complete anchor rating
               </button>
             </div>
           ) : null
@@ -241,7 +376,11 @@ export function AnchorDueDiligenceSection({
             Complete KYC before filling the due diligence checklist.
           </div>
         ) : null}
-        {error ? <div className="mb-4"><ErrorState message={error} /></div> : null}
+        {error ? (
+          <div className="mb-4">
+            <ErrorState message={error} />
+          </div>
+        ) : null}
         {savedMsg ? (
           <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-sm text-emerald-900">
             {savedMsg}
@@ -262,15 +401,13 @@ export function AnchorDueDiligenceSection({
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {ANCHOR_DUE_DILIGENCE_QUESTIONS.map((q, idx) => {
+          {questions.map((q, idx) => {
             const filled = Boolean(answers[q.key]?.trim())
             return (
               <div
                 key={q.key}
                 className={`rounded-xl border p-4 transition-colors ${
-                  filled
-                    ? 'border-indigo-200/80 bg-indigo-50/30'
-                    : 'border-slate-200 bg-white'
+                  filled ? 'border-indigo-200/80 bg-indigo-50/30' : 'border-slate-200 bg-white'
                 }`}
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
@@ -298,6 +435,19 @@ export function AnchorDueDiligenceSection({
                     ))}
                   </select>
                 </label>
+                <QuestionComment
+                  questionKey={q.key}
+                  comment={comments[q.key] ?? ''}
+                  disabled={decisionDone || busy}
+                  onSave={(key, value) => setComments((prev) => ({ ...prev, [key]: value }))}
+                  onRemove={(key) =>
+                    setComments((prev) => {
+                      const next = { ...prev }
+                      delete next[key]
+                      return next
+                    })
+                  }
+                />
               </div>
             )
           })}
@@ -305,12 +455,7 @@ export function AnchorDueDiligenceSection({
 
         {!decisionDone && kycPass === true ? (
           <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onSave()}
-              className="bt-btn bt-btn-secondary disabled:opacity-50"
-            >
+            <button type="button" disabled={busy} onClick={() => void onSave()} className="bt-btn bt-btn-secondary disabled:opacity-50">
               Save & compute rating
             </button>
             <button
@@ -319,7 +464,7 @@ export function AnchorDueDiligenceSection({
               onClick={() => void onCompleteUnderwriting()}
               className="bt-btn bt-btn-primary disabled:opacity-50"
             >
-              Complete credit rating
+              Complete anchor rating
             </button>
           </div>
         ) : null}
@@ -352,7 +497,7 @@ export function AnchorDueDiligenceSection({
       ) : null}
 
       {app.status === 'SANCTION_PENDING' ? (
-        <AppSectionCard tone="success" title="Credit rating complete">
+        <AppSectionCard tone="success" title="Anchor rating complete">
           <p className="text-sm text-slate-700">
             Anchor has been pushed to PLP. Open the <strong>Sanction</strong> tab to set the program limit and finish
             PLP program setup.

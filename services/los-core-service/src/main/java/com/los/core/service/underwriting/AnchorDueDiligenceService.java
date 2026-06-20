@@ -20,44 +20,40 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Anchor (invoice discounting) underwriting via due-diligence checklist and derived credit rating.
+ * Anchor (invoice discounting) underwriting via due-diligence checklist and derived anchor rating.
  * Replaces bureau/scorecard underwriting for anchor onboarding.
  */
 @Service
 @RequiredArgsConstructor
 public class AnchorDueDiligenceService {
 
-    static final List<String> QUESTION_KEYS = List.of(
-            "externalCreditRating",
-            "financialPerformance",
-            "businessVintage",
-            "gstCompliance",
-            "industryRisk",
-            "adverseNewsFlow",
-            "legalLitigation",
-            "managementTrackRecord"
-    );
-
     private final LoanApplicationRepository applicationRepository;
     private final IKycOrchestrationService kycOrchestrationService;
     private final AuditService auditService;
     private final PlpAnchorSanctionHookService plpAnchorSanctionHookService;
+    private final AnchorRatingPolicyEngine ratingPolicyEngine;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getDueDiligence(UUID applicationId) {
         LoanApplication app = findOrThrow(applicationId);
         assertAnchorFlow(app);
-        return readDueDiligenceBlock(app);
+        Map<String, Object> result = new LinkedHashMap<>(readDueDiligenceBlock(app));
+        result.put("questions", ratingPolicyEngine.questionsForUi());
+        result.put("ratingBands", ratingPolicyEngine.ratingBandsForUi());
+        return result;
     }
 
     @Transactional
-    public Map<String, Object> saveDueDiligence(UUID applicationId, Map<String, Object> answers) {
+    public Map<String, Object> saveDueDiligence(UUID applicationId, Map<String, Object> body) {
         LoanApplication app = findOrThrow(applicationId);
         assertAnchorFlow(app);
         assertKycReady(app, applicationId);
 
-        Map<String, Object> normalized = normalizeAnswers(answers);
-        Map<String, Object> block = computeRatingBlock(normalized, false);
+        Map<String, Object> answers = normalizeAnswers(extractAnswers(body));
+        Map<String, Object> comments = normalizeComments(extractComments(body));
+        Map<String, Object> block = ratingPolicyEngine.computeBlock(answers, comments, false);
+        findActiveTemplateMeta(block);
+        block.put("updatedAt", Instant.now().toString());
         mergeDueDiligence(app, block);
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
@@ -66,7 +62,7 @@ public class AnchorDueDiligenceService {
                 Map.of("creditRating", String.valueOf(block.get("creditRating")),
                         "score", String.valueOf(block.get("score"))),
                 "Anchor due diligence checklist saved");
-        return block;
+        return enrichForUi(block);
     }
 
     @Transactional
@@ -85,7 +81,8 @@ public class AnchorDueDiligenceService {
                     "SAVE_DUE_DILIGENCE",
                     null);
         }
-        for (String key : QUESTION_KEYS) {
+        List<String> questionKeys = ratingPolicyEngine.questionKeys(ratingPolicyEngine.activeConfig());
+        for (String key : questionKeys) {
             if (!answers.containsKey(key) || String.valueOf(answers.get(key)).isBlank()) {
                 throw new BusinessRuleException(
                         "All due diligence questions must be answered",
@@ -95,7 +92,14 @@ public class AnchorDueDiligenceService {
             }
         }
 
-        block = computeRatingBlock(answers, true);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> comments = block.get("comments") instanceof Map<?, ?> m
+                ? new LinkedHashMap<>((Map<String, Object>) m)
+                : Map.of();
+        block = ratingPolicyEngine.computeBlock(answers, comments, true);
+        findActiveTemplateMeta(block);
+        block.put("completedAt", Instant.now().toString());
+        block.put("updatedAt", Instant.now().toString());
         mergeDueDiligence(app, block);
         String rating = String.valueOf(block.get("creditRating"));
         int score = ((Number) block.get("score")).intValue();
@@ -111,8 +115,8 @@ public class AnchorDueDiligenceService {
             applicationRepository.save(app);
             auditService.logEvent(applicationId, "FLOW", "ANCHOR_UW_COMPLETE", null, null,
                     Map.of("decision", "REJECTED", "creditRating", rating, "score", String.valueOf(score)),
-                    "Anchor underwriting rejected — credit rating D");
-            return underwritingResult(app, block, "REJECTED");
+                    "Anchor underwriting rejected — rating D");
+            return underwritingResult(app, enrichForUi(block), "REJECTED");
         }
 
         if ("C".equals(rating)) {
@@ -122,8 +126,8 @@ public class AnchorDueDiligenceService {
             applicationRepository.save(app);
             auditService.logEvent(applicationId, "FLOW", "ANCHOR_UW_COMPLETE", null, null,
                     Map.of("decision", "MANUAL_REVIEW", "creditRating", rating, "score", String.valueOf(score)),
-                    "Anchor underwriting referred — credit rating C");
-            return underwritingResult(app, block, "MANUAL_REVIEW");
+                    "Anchor underwriting referred — rating C");
+            return underwritingResult(app, enrichForUi(block), "MANUAL_REVIEW");
         }
 
         app.setCreditDecision("APPROVED");
@@ -140,7 +144,7 @@ public class AnchorDueDiligenceService {
                 Map.of("decision", "APPROVED", "creditRating", rating, "score", String.valueOf(score),
                         "status", "SANCTION_PENDING"),
                 "Anchor underwriting approved — proceed to sanction");
-        return underwritingResult(app, block, "APPROVED");
+        return underwritingResult(app, enrichForUi(block), "APPROVED");
     }
 
     @Transactional
@@ -174,11 +178,35 @@ public class AnchorDueDiligenceService {
         return app;
     }
 
+    /** Backward-compatible scoring for unit tests (uses built-in default template). */
+    static Map<String, Object> computeRatingBlock(Map<String, Object> answers, boolean requireComplete) {
+        Map<String, Object> block = AnchorRatingPolicyEngine.computeBlock(
+                AnchorRatingPolicyEngine.defaultConfig(), answers, Map.of());
+        if (requireComplete) {
+            block.put("completedAt", Instant.now().toString());
+        }
+        block.put("updatedAt", Instant.now().toString());
+        return block;
+    }
+
+    private void findActiveTemplateMeta(Map<String, Object> block) {
+        ratingPolicyEngine.findActiveTemplate().ifPresent(t -> {
+            block.put("templateId", t.getId().toString());
+            block.put("templateVersion", t.getVersion());
+        });
+    }
+
+    private Map<String, Object> enrichForUi(Map<String, Object> block) {
+        Map<String, Object> out = new LinkedHashMap<>(block);
+        out.put("questions", ratingPolicyEngine.questionsForUi());
+        out.put("ratingBands", ratingPolicyEngine.ratingBandsForUi());
+        return out;
+    }
+
     private void triggerPlpAnchorPush(UUID applicationId) {
         try {
             plpAnchorSanctionHookService.onAnchorCreditRatingCompleted(applicationId);
         } catch (Exception e) {
-            // Credit decision is preserved — PLP sync can be retried from sanction refresh.
             org.slf4j.LoggerFactory.getLogger(AnchorDueDiligenceService.class)
                     .error("[PLP-ANCHOR-RATING] PLP anchor sync failed for {} — credit rating decision preserved: {}",
                             applicationId, e.getMessage(), e);
@@ -218,7 +246,6 @@ public class AnchorDueDiligenceService {
         if (app.getStatus() != ApplicationStatus.KYC_IN_PROGRESS
                 && app.getStatus() != ApplicationStatus.UNDERWRITING
                 && app.getStatus() != ApplicationStatus.SANCTION_PENDING) {
-            // Allow re-save while in underwriting manual review
             if (!(app.getStatus() == ApplicationStatus.UNDERWRITING && "MANUAL_REVIEW".equals(app.getCreditDecision()))) {
                 throw new BusinessRuleException(
                         "Due diligence is not available in status " + app.getStatus(),
@@ -244,87 +271,70 @@ public class AnchorDueDiligenceService {
         if (!(raw instanceof Map<?, ?> map)) {
             return emptyBlock();
         }
-        return new LinkedHashMap<>((Map<String, Object>) map);
+        Map<String, Object> block = new LinkedHashMap<>((Map<String, Object>) map);
+        if (!(block.get("comments") instanceof Map<?, ?>)) {
+            block.put("comments", new LinkedHashMap<>());
+        }
+        return block;
     }
 
     private static Map<String, Object> emptyBlock() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("answers", new LinkedHashMap<>());
+        m.put("comments", new LinkedHashMap<>());
         m.put("creditRating", "");
         m.put("score", 0);
         return m;
     }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> extractAnswers(Map<String, Object> body) {
+        if (body == null) return Map.of();
+        if (body.get("answers") instanceof Map<?, ?> m) {
+            return (Map<String, Object>) m;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : body.entrySet()) {
+            if (!"comments".equals(e.getKey())) {
+                out.put(e.getKey(), e.getValue());
+            }
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> extractComments(Map<String, Object> body) {
+        if (body == null || !(body.get("comments") instanceof Map<?, ?> m)) {
+            return Map.of();
+        }
+        return (Map<String, Object>) m;
+    }
+
     private static Map<String, Object> normalizeAnswers(Map<String, Object> answers) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (answers != null) {
-            for (String key : QUESTION_KEYS) {
-                if (answers.containsKey(key) && answers.get(key) != null) {
-                    out.put(key, String.valueOf(answers.get(key)).trim());
+            for (Map.Entry<String, Object> e : answers.entrySet()) {
+                if (e.getValue() != null && !"comments".equals(e.getKey())) {
+                    out.put(e.getKey(), String.valueOf(e.getValue()).trim());
                 }
             }
         }
         return out;
     }
 
-    static Map<String, Object> computeRatingBlock(Map<String, Object> answers, boolean requireComplete) {
-        int score = 0;
-        score += scoreExternalRating(stringVal(answers, "externalCreditRating"));
-        score += scoreChoice(stringVal(answers, "financialPerformance"),
-                Map.of("STRONG", 15, "SATISFACTORY", 10, "WEAK", 4, "DISTRESSED", 0));
-        score += scoreChoice(stringVal(answers, "businessVintage"),
-                Map.of("GTE_10", 12, "Y5_9", 9, "Y3_4", 5, "LT_3", 0));
-        score += scoreChoice(stringVal(answers, "gstCompliance"),
-                Map.of("FULL", 12, "MINOR_DELAYS", 7, "SIGNIFICANT_GAPS", 0));
-        score += scoreChoice(stringVal(answers, "industryRisk"),
-                Map.of("LOW", 10, "MEDIUM", 6, "HIGH", 2));
-        score += scoreChoice(stringVal(answers, "adverseNewsFlow"),
-                Map.of("NONE", 12, "MINOR", 6, "MATERIAL", 0));
-        score += scoreChoice(stringVal(answers, "legalLitigation"),
-                Map.of("NONE", 10, "RESOLVED", 6, "ONGOING_MATERIAL", 0));
-        score += scoreChoice(stringVal(answers, "managementTrackRecord"),
-                Map.of("STRONG", 12, "ADEQUATE", 8, "CONCERNS", 2));
-
-        String rating = ratingFromScore(score);
-        Map<String, Object> block = new LinkedHashMap<>();
-        block.put("answers", new LinkedHashMap<>(answers));
-        block.put("score", score);
-        block.put("creditRating", rating);
-        block.put("updatedAt", Instant.now().toString());
-        if (requireComplete) {
-            block.put("completedAt", Instant.now().toString());
+    private static Map<String, Object> normalizeComments(Map<String, Object> comments) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (comments != null) {
+            for (Map.Entry<String, Object> e : comments.entrySet()) {
+                if (e.getValue() != null) {
+                    String trimmed = String.valueOf(e.getValue()).trim();
+                    if (!trimmed.isBlank()) {
+                        out.put(e.getKey(), trimmed);
+                    }
+                }
+            }
         }
-        return block;
-    }
-
-    private static String ratingFromScore(int score) {
-        if (score >= 80) return "A";
-        if (score >= 65) return "B";
-        if (score >= 50) return "C";
-        return "D";
-    }
-
-    private static int scoreExternalRating(String v) {
-        return switch (v) {
-            case "AAA", "AA" -> 17;
-            case "A" -> 15;
-            case "BBB" -> 12;
-            case "BB" -> 8;
-            case "B" -> 5;
-            case "C", "D" -> 0;
-            case "NOT_RATED" -> 6;
-            default -> 0;
-        };
-    }
-
-    private static int scoreChoice(String v, Map<String, Integer> table) {
-        if (v.isBlank()) return 0;
-        return table.getOrDefault(v, 0);
-    }
-
-    private static String stringVal(Map<String, Object> m, String key) {
-        Object v = m.get(key);
-        return v == null ? "" : String.valueOf(v).trim().toUpperCase();
+        return out;
     }
 
     private static void mergeDueDiligence(LoanApplication app, Map<String, Object> block) {

@@ -561,3 +561,64 @@ button.bt-master-list-item {
   color: var(--bt-gray-400);
   letter-spacing: 0.05em;
 }
+
+/* Config editor grids (anchor rating templates, etc.) */
+.bt-form-grid {
+  display: grid;
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.bt-form-grid-2 {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .bt-form-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.bt-form-grid-span-2 {
+  grid-column: 1 / -1;
+}
+
+.bt-config-card {
+  border: 1px solid var(--bt-gray-200);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.bt-config-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bt-gray-100);
+}
+
+.bt-config-card-kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bt-gray-400);
+}
+
+.bt-config-card-title {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bt-gray-900);
+  line-height: 1.35;
+}
+
+.bt-config-card-subtitle {
+  margin: 2px 0 0;
+  color: var(--bt-gray-400);
+}

@@ -29,6 +29,7 @@ import { KycQueuePage } from '@/pages/KycQueuePage'
 import { UnderwritingQueuePage } from '@/pages/UnderwritingQueuePage'
 import { WorkflowsPage } from '@/pages/WorkflowsPage'
 import { UnderwritingRulesPage } from '@/pages/UnderwritingRulesPage'
+import { AnchorRatingTemplatesPage } from '@/pages/AnchorRatingTemplatesPage'
 import { ScorecardsPage } from '@/pages/ScorecardsPage'
 import { AssignmentRulesPage } from '@/pages/AssignmentRulesPage'
 import { UserRoleMappingsPage } from '@/pages/UserRoleMappingsPage'
@@ -116,6 +117,14 @@ export default function App() {
           element={
             <AdminConfigGate>
               <UnderwritingRulesPage />
+            </AdminConfigGate>
+          }
+        />
+        <Route
+          path="anchor-rating-templates"
+          element={
+            <AdminConfigGate>
+              <AnchorRatingTemplatesPage />
             </AdminConfigGate>
           }
         />

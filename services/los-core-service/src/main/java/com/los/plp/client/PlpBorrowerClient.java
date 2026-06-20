@@ -98,6 +98,12 @@ public class PlpBorrowerClient {
         return parseDataList(raw);
     }
 
+    /** Borrower memberships on a sub-program (includes per-borrower term overrides when set). */
+    public List<Map<String, Object>> listSubProgramBorrowers(UUID subProgramId) {
+        String raw = get("/api/v1/sub-programs/" + subProgramId + "/borrowers");
+        return parseDataList(raw);
+    }
+
     /** Program detail including aggregate limits ({@code GET /api/v1/programs/{id}}). */
     public Map<String, Object> getProgram(UUID programId) {
         String raw = get("/api/v1/programs/" + programId);

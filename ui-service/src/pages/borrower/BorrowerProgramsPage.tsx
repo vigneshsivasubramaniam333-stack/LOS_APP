@@ -3,9 +3,15 @@ import { Navigate } from 'react-router-dom'
 import { getBorrowerPrograms, type BorrowerProgramEnrollment } from '@/api/borrowerPrograms'
 import { getBorrowerDashboard } from '@/api/borrowerPortal'
 import { ApiError } from '@/api/http'
+import { ProgramConfigDetailsPanel } from '@/components/borrower/ProgramConfigDetailsPanel'
 import { BtBadge } from '@/components/ui/BtBadge'
 import { BtCard } from '@/components/ui/BtCard'
 import { BtPageHeader } from '@/components/ui/BtPageHeader'
+import {
+  buildBorrowerTermsRowsFromEnrollment,
+  buildProgramConfigurationRowsFromEnrollment,
+  buildSubProgramConfigurationRowsFromEnrollment,
+} from '@/utils/programDetailsDisplay'
 
 function formatCurrency(amount: number | null | undefined): string {
   if (amount == null || Number.isNaN(Number(amount))) return '—'
@@ -104,6 +110,11 @@ function EnrollmentCard({ row }: { row: BorrowerProgramEnrollment }) {
               </div>
             </div>
           </div>
+          <ProgramConfigDetailsPanel
+            className="mt-3"
+            rows={buildProgramConfigurationRowsFromEnrollment(row)}
+            label="Show more program details"
+          />
         </div>
       ) : null}
 
@@ -136,6 +147,11 @@ function EnrollmentCard({ row }: { row: BorrowerProgramEnrollment }) {
             </div>
           </div>
         </div>
+        <ProgramConfigDetailsPanel
+          className="mt-3"
+          rows={buildSubProgramConfigurationRowsFromEnrollment(row)}
+          label="Show more sub-program details"
+        />
       </div>
 
       <div className="px-5 py-4">
@@ -174,6 +190,12 @@ function EnrollmentCard({ row }: { row: BorrowerProgramEnrollment }) {
         ) : (
           <p className="text-sm text-[var(--bt-gray-400)]">Limit details unavailable.</p>
         )}
+        <ProgramConfigDetailsPanel
+          className="mt-3"
+          rows={buildBorrowerTermsRowsFromEnrollment(row)}
+          label="Show your pricing terms"
+          hideLabel="Hide your pricing terms"
+        />
       </div>
     </BtCard>
   )

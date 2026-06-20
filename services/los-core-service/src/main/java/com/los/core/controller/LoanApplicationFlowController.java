@@ -84,15 +84,11 @@ public class LoanApplicationFlowController {
     }
 
     @PostMapping("/{applicationId}/anchor/due-diligence")
-    @Operation(summary = "Save anchor due diligence answers and compute credit rating")
+    @Operation(summary = "Save anchor due diligence answers and compute anchor rating")
     public ResponseEntity<Map<String, Object>> saveAnchorDueDiligence(
             @PathVariable UUID applicationId,
             @RequestBody Map<String, Object> body) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> answers = body != null && body.get("answers") instanceof Map<?, ?> m
-                ? (Map<String, Object>) m
-                : body != null ? body : Map.of();
-        return ResponseEntity.ok(flowService.saveAnchorDueDiligence(applicationId, answers));
+        return ResponseEntity.ok(flowService.saveAnchorDueDiligence(applicationId, body != null ? body : Map.of()));
     }
 
     @PostMapping("/{applicationId}/anchor/underwrite")

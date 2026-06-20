@@ -51,4 +51,12 @@ class StyledWorkflowEmailTemplatesTest {
         assertThat(StyledWorkflowEmailTemplates.termLoanSanctionApprovedEmail()).contains("{{sanctionedAmount}}");
         assertThat(StyledWorkflowEmailTemplates.termLoanSanctionApprovedEmail()).contains("Key Fact Statement");
     }
+
+    @Test
+    void anchorSanctionEmail_includesPortalCredentials() {
+        String html = StyledWorkflowEmailTemplates.anchorSanctionApprovedEmail();
+        assertThat(html).contains("{{anchorPortalUrl}}");
+        assertThat(html).contains("{{loginEmail}}");
+        assertThat(html).contains("{{temporaryPassword}}");
+    }
 }

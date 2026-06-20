@@ -125,7 +125,12 @@ public final class StyledWorkflowEmailTemplates {
                         <br><br><strong>Sanctioned limit:</strong> {{sanctionedAmount}}
                         <br><strong>Interest rate:</strong> {{interestRate}}% p.a.
                         <br><strong>Tenure:</strong> {{tenureMonths}} month(s)
-                        <br><br>Your program is now active on the PLP platform. Sign in to the anchor portal to view program details and begin onboarding borrowers.
+                        <br><br><strong>Anchor portal access</strong>
+                        <br><strong>Sign-in URL:</strong> <a href="{{anchorPortalUrl}}" target="_blank" style="color:#1d4ed8;text-decoration:underline;">{{anchorPortalUrl}}</a>
+                        <br><strong>Username:</strong> {{loginEmail}}
+                        <br><strong>Temporary password:</strong> {{temporaryPassword}}
+                        <br><br>For security, you must set a new password when you sign in for the first time.
+                        <br><br>Your program is now active on the PLP platform. Use the anchor portal to view program details and begin onboarding borrowers.
                         """);
     }
 

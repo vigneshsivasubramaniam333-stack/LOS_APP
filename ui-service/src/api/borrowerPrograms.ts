@@ -26,6 +26,18 @@ export interface BorrowerProgramEnrollment {
   borrowerUtilizedLimit: number | null
   borrowerAvailableLimit: number | null
   membershipStatus: string
+
+  programParameters?: Record<string, unknown> | null
+  programConfig?: Record<string, unknown> | null
+  lmsEntryIn?: string | null
+  encoreProductCode?: string | null
+
+  borrowerInterestRate?: number | null
+  borrowerDiscountMarginPercent?: number | null
+  borrowerCreditPeriodDays?: number | null
+  borrowerDiscountHold?: string | null
+  borrowerPaymentMethod?: string | null
+  borrowerOverdueInterestRate?: number | null
 }
 
 export interface BorrowerProgramsResponse {

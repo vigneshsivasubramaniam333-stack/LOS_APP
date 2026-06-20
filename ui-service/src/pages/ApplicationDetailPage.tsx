@@ -160,7 +160,7 @@ export function ApplicationDetailPage() {
         title="Application details"
         description={
           app && anchorSkipsPostSanctionSteps(app)
-            ? 'Review KYC, due diligence credit rating, and sanction for this anchor onboarding case.'
+            ? 'Review KYC, anchor rating, and sanction for this anchor onboarding case.'
             : app && isInvoiceDiscountingBorrowerApp(app)
               ? 'Review KYC, underwriting, CAM, sanction, terms eSign, and PLP program linkage for this invoice discounting borrower.'
               : 'Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan.'
@@ -512,7 +512,7 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
         {app.intakeSegment === 'ANCHOR' && isInvoiceDiscountingProduct(app.loanProduct) ? (
           <>
             <Detail
-              label="Credit rating"
+              label="Anchor rating"
               value={(() => {
                 const dd = (app.financialInfo as Record<string, unknown> | null)?.anchorDueDiligence as
                   | { creditRating?: string; score?: number }

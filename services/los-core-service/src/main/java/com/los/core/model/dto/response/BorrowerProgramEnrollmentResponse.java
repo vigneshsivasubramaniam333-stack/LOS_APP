@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Value;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 @Value
 @Builder
@@ -33,4 +34,16 @@ public class BorrowerProgramEnrollmentResponse {
     BigDecimal borrowerUtilizedLimit;
     BigDecimal borrowerAvailableLimit;
     String membershipStatus;
+
+    Map<String, Object> programParameters;
+    Map<String, Object> programConfig;
+    String lmsEntryIn;
+    String encoreProductCode;
+
+    BigDecimal borrowerInterestRate;
+    BigDecimal borrowerDiscountMarginPercent;
+    Integer borrowerCreditPeriodDays;
+    String borrowerDiscountHold;
+    String borrowerPaymentMethod;
+    BigDecimal borrowerOverdueInterestRate;
 }

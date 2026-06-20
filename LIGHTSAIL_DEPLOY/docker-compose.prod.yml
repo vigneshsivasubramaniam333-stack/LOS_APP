@@ -57,6 +57,8 @@ services:
       - .env.prod
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # UAT/sandbox only: set LOS_DEMO_ENABLED=true in .env.prod to enable Reset demo data in the UI
+      LOS_DEMO_ENABLED: ${LOS_DEMO_ENABLED:-false}
       SERVER_PORT: 8083
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}

@@ -57,7 +57,8 @@ public class SanctionApprovedNotifier {
 
         String templateCode = resolveTemplateCode(anchorFlow, idBorrowerFlow);
         String displayName = ApplicationPartyResolver.resolveDisplayName(app);
-        Map<String, Object> templateData = buildTemplateData(app, sanctionRecord, anchorFlow, idBorrowerFlow, kfs, displayName);
+        Map<String, Object> templateData = buildTemplateData(
+                app, sanctionRecord, anchorFlow, idBorrowerFlow, kfs, displayName, email.trim());
 
         List<String> recipients = List.of(email.trim());
         var actions = workflowNotificationResolverService.resolveForApplication(
@@ -111,13 +112,14 @@ public class SanctionApprovedNotifier {
         return sanctionNotificationProperties.getTermLoanTemplateCode();
     }
 
-    private static Map<String, Object> buildTemplateData(
+    private Map<String, Object> buildTemplateData(
             LoanApplication app,
             SanctionRecord sanctionRecord,
             boolean anchorFlow,
             boolean idBorrowerFlow,
             KfsDocument kfs,
-            String displayName) {
+            String displayName,
+            String loginEmail) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("borrowerName", displayName != null && !displayName.isBlank() ? displayName : "Customer");
         data.put("applicationNumber", app.getApplicationNumber() != null ? app.getApplicationNumber() : "");
@@ -144,6 +146,11 @@ public class SanctionApprovedNotifier {
         data.put("sanctionFlow", anchorFlow ? "ANCHOR" : (idBorrowerFlow ? "ID_BORROWER" : "TERM_LOAN"));
         data.put("kfsGenerated", kfs != null);
         data.put("kfsVersion", kfs != null && kfs.getVersion() != null ? kfs.getVersion() : "");
+        if (anchorFlow) {
+            data.put("loginEmail", loginEmail != null ? loginEmail : "");
+            data.put("temporaryPassword", sanctionNotificationProperties.getDefaultTemporaryPassword());
+            data.put("anchorPortalUrl", sanctionNotificationProperties.getAnchorPortalUrl());
+        }
         return data;
     }
 

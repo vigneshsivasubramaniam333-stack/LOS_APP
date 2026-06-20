@@ -5,6 +5,46 @@ export type DueDiligenceQuestion = {
   options: { value: string; label: string }[]
 }
 
+export function mapQuestionsFromApi(raw: unknown): DueDiligenceQuestion[] {
+  if (!Array.isArray(raw) || raw.length === 0) return ANCHOR_DUE_DILIGENCE_QUESTIONS
+  const mapped: DueDiligenceQuestion[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    const key = String(row.key ?? '').trim()
+    const label = String(row.label ?? '').trim()
+    if (!key || !label) continue
+    const options: { value: string; label: string }[] = []
+    if (Array.isArray(row.options)) {
+      for (const opt of row.options) {
+        if (!opt || typeof opt !== 'object') continue
+        const o = opt as Record<string, unknown>
+        const value = String(o.value ?? '').trim()
+        const optLabel = String(o.label ?? value).trim()
+        if (value) options.push({ value, label: optLabel })
+      }
+    }
+    if (options.length === 0) continue
+    mapped.push({
+      key,
+      label,
+      hint: row.hint != null ? String(row.hint) : undefined,
+      options,
+    })
+  }
+  return mapped.length > 0 ? mapped : ANCHOR_DUE_DILIGENCE_QUESTIONS
+}
+
+export function anchorRatingLabel(
+  rating: string | undefined,
+  bands?: { rating: string; label: string }[],
+): string {
+  if (!rating) return '—'
+  const fromBand = bands?.find((b) => b.rating === rating)?.label
+  if (fromBand) return fromBand
+  return creditRatingLabel(rating)
+}
+
 export const ANCHOR_DUE_DILIGENCE_QUESTIONS: DueDiligenceQuestion[] = [
   {
     key: 'externalCreditRating',

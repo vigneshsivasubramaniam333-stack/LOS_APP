@@ -52,11 +52,9 @@ export async function getAnchorDueDiligenceFlow(applicationId: string): Promise<
 
 export async function saveAnchorDueDiligenceFlow(
   applicationId: string,
-  answers: Record<string, string>,
+  payload: { answers: Record<string, string>; comments?: Record<string, string> },
 ): Promise<Record<string, unknown>> {
-  const { data } = await http.post<Record<string, unknown>>(`/flow/${applicationId}/anchor/due-diligence`, {
-    answers,
-  })
+  const { data } = await http.post<Record<string, unknown>>(`/flow/${applicationId}/anchor/due-diligence`, payload)
   return data
 }
 
