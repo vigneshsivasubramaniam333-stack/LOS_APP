@@ -2,13 +2,13 @@
 
 ## UAT configuration
 
-Set on `los-core-service`:
+`docker-compose.prod.yml` passes `LOS_DEMO_ENABLED` to `los-core` (default **`true`** for Credinnov sandbox). Override in `.env.prod` if needed:
 
 ```bash
 LOS_DEMO_ENABLED=true
 ```
 
-Default is `false`. Do not enable in production.
+Set `LOS_DEMO_ENABLED=false` in real production. Local dev uses the `local` Spring profile, which enables demo mode without this variable.
 
 Verify: `GET /api/v1/demo/status` → `"demoEnabled": true`.
 

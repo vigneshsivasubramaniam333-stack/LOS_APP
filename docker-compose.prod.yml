@@ -104,6 +104,9 @@ services:
       PLP_INTEGRATION_PASSWORD: ${PLP_INTEGRATION_PASSWORD:-Bltest@123}
       PLP_LENDER_ID: ${PLP_LENDER_ID:-2d6e05e3-423f-4946-8027-8cbb4f01aefa}
 
+      # UAT/sandbox: enables Reset demo data button (GET /api/v1/demo/status). Set false in production.
+      LOS_DEMO_ENABLED: ${LOS_DEMO_ENABLED:-true}
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
