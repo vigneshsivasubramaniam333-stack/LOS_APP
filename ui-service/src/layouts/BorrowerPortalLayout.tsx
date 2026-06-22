@@ -39,7 +39,7 @@ const invoiceDiscountingNav: NavItem[] = [
 ]
 
 const accountNav: NavItem[] = [
-  { to: '/borrower/documents', label: 'Signed documents', icon: DocumentsIcon },
+  { to: '/borrower/documents', label: 'Documents', icon: DocumentsIcon },
   { to: '/borrower/profile', label: 'Profile', icon: ProfileIcon },
 ]
 

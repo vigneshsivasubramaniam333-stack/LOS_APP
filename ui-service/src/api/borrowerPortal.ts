@@ -88,6 +88,35 @@ export async function getBorrowerApplicationDetail(id: string): Promise<Borrower
   return data
 }
 
+export interface BorrowerDocumentItem {
+  id: string
+  source: 'UPLOAD' | 'ESIGN'
+  category: 'KYC' | 'SIGNED'
+  documentType: string
+  fileName: string
+  contentType: string
+  fileSize: number
+  createdAt: string | null
+}
+
+export async function listBorrowerDocuments(applicationId: string): Promise<BorrowerDocumentItem[]> {
+  const { data } = await http.get<BorrowerDocumentItem[]>(`/borrower/applications/${applicationId}/documents`)
+  return data ?? []
+}
+
+/** Inline preview for borrower-visible documents (upload or eSign signed PDF). */
+export async function fetchBorrowerDocumentPreviewBlob(
+  applicationId: string,
+  doc: BorrowerDocumentItem,
+): Promise<Blob> {
+  const path =
+    doc.source === 'ESIGN'
+      ? `/borrower/applications/${applicationId}/documents/esign/${doc.id}/content`
+      : `/borrower/applications/${applicationId}/documents/${doc.id}/content`
+  const { data } = await http.get<Blob>(path, { responseType: 'blob' })
+  return data
+}
+
 export async function downloadInvoiceDiscountingTermsPdf(applicationId: string): Promise<Blob> {
   const { data } = await http.get<Blob>(`/borrower/applications/${applicationId}/terms/pdf`, {
     responseType: 'blob',

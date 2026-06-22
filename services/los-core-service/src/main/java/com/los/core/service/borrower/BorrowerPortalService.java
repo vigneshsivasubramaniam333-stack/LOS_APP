@@ -21,16 +21,21 @@ import com.los.lms.dto.RepaymentScheduleEntry;
 import com.los.lms.dto.RepaymentScheduleResponse;
 import com.los.lms.service.LmsService;
 import com.los.core.model.dto.response.DocumentResponse;
+import com.los.core.model.entity.Document;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.entity.SanctionRecord;
 import com.los.core.model.entity.LosUser;
+import com.los.core.model.entity.schema.los2.EsignRequest;
 import com.los.core.model.enums.ApplicationStatus;
+import com.los.core.repository.DocumentRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.LosUserRepository;
 import com.los.core.repository.SanctionRecordRepository;
+import com.los.core.repository.schema.los2.EsignRequestRepository;
 import com.los.core.service.demo.DemoApplicationPurgeService;
 import com.los.core.service.document.IDocumentService;
+import com.los.core.service.esign.EsignRequestStatuses;
 import com.los.core.service.kfs.KfsPdfGenerationService;
 import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
@@ -46,10 +51,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -68,6 +76,8 @@ public class BorrowerPortalService {
     private final BorrowerApplicationStatusService statusService;
     private final BorrowerLifecycleTimelineService timelineService;
     private final IDocumentService documentService;
+    private final DocumentRepository documentRepository;
+    private final EsignRequestRepository esignRequestRepository;
     private final KfsService kfsService;
     private final DemoApplicationPurgeService demoApplicationPurgeService;
     private final LmsService lmsService;
@@ -347,11 +357,15 @@ public class BorrowerPortalService {
 
     public List<BorrowerDocumentItemResponse> listDocumentsSafe(UUID borrowerUserId, UUID applicationId) {
         loadOwned(borrowerUserId, applicationId);
-        List<DocumentResponse> docs = documentService.getDocuments(applicationId);
         List<BorrowerDocumentItemResponse> out = new ArrayList<>();
-        for (DocumentResponse d : docs) {
+        for (DocumentResponse d : documentService.getDocuments(applicationId)) {
+            if (!BorrowerDocumentVisibility.isVisibleUploadType(d.getDocumentType())) {
+                continue;
+            }
             out.add(BorrowerDocumentItemResponse.builder()
                     .id(d.getId())
+                    .source("UPLOAD")
+                    .category(BorrowerDocumentVisibility.categoryForUploadType(d.getDocumentType()))
                     .documentType(d.getDocumentType() != null ? d.getDocumentType() : "DOCUMENT")
                     .fileName(d.getFileName())
                     .contentType(d.getContentType())
@@ -359,8 +373,115 @@ public class BorrowerPortalService {
                     .createdAt(d.getCreatedAt())
                     .build());
         }
+        for (EsignRequest e : esignRequestRepository.findByApplicationIdOrderByCreatedAtDesc(applicationId)) {
+            if (!EsignRequestStatuses.SIGNED.equalsIgnoreCase(e.getStatus())) {
+                continue;
+            }
+            if (e.getSignedDocumentUrl() == null || e.getSignedDocumentUrl().isBlank()) {
+                continue;
+            }
+            Instant when = e.getSignedAt() != null ? e.getSignedAt() : e.getCreatedAt();
+            out.add(BorrowerDocumentItemResponse.builder()
+                    .id(e.getId())
+                    .source("ESIGN")
+                    .category("SIGNED")
+                    .documentType(e.getDocumentType() != null ? e.getDocumentType() : "SIGNED_DOCUMENT")
+                    .fileName(esignFileName(e))
+                    .contentType("application/pdf")
+                    .fileSize(signedPdfSize(e.getSignedDocumentUrl()))
+                    .createdAt(when)
+                    .build());
+        }
+        out.sort(Comparator.comparing(BorrowerDocumentItemResponse::getCreatedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
         return out;
     }
+
+    public BorrowerDocumentContent previewUploadDocument(UUID borrowerUserId, UUID applicationId, UUID documentId) {
+        loadOwned(borrowerUserId, applicationId);
+        Document doc = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + documentId));
+        if (!applicationId.equals(doc.getApplicationId())) {
+            throw new ForbiddenException("Document does not belong to this application.");
+        }
+        if (!BorrowerDocumentVisibility.isVisibleUploadType(doc.getDocumentType())) {
+            throw new ForbiddenException("This document is not available on the borrower portal.");
+        }
+        byte[] data = documentService.downloadDocument(documentId);
+        return new BorrowerDocumentContent(data, resolveContentType(doc.getContentType(), doc.getFileName()), doc.getFileName());
+    }
+
+    public BorrowerDocumentContent previewEsignDocument(UUID borrowerUserId, UUID applicationId, UUID esignRequestId) {
+        loadOwned(borrowerUserId, applicationId);
+        EsignRequest req = esignRequestRepository.findById(esignRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Signed document not found: " + esignRequestId));
+        if (!applicationId.equals(req.getApplicationId())) {
+            throw new ForbiddenException("Signed document does not belong to this application.");
+        }
+        if (!EsignRequestStatuses.SIGNED.equalsIgnoreCase(req.getStatus())) {
+            throw new ResourceNotFoundException("Signed document is not available yet.");
+        }
+        byte[] data = readSignedPdfBytes(req.getSignedDocumentUrl());
+        return new BorrowerDocumentContent(data, "application/pdf", esignFileName(req));
+    }
+
+    private static String esignFileName(EsignRequest e) {
+        String dt = e.getDocumentType();
+        if (dt == null || dt.isBlank()) {
+            return "signed-document.pdf";
+        }
+        return "signed-" + dt.toLowerCase(Locale.ROOT).replace('_', '-') + ".pdf";
+    }
+
+    private static long signedPdfSize(String signedDocumentUrl) {
+        try {
+            Path p = Path.of(signedDocumentUrl.trim());
+            if (Files.isRegularFile(p)) {
+                return Files.size(p);
+            }
+        } catch (Exception ignored) {
+            // size unknown
+        }
+        return 0L;
+    }
+
+    private static byte[] readSignedPdfBytes(String signedDocumentUrl) {
+        if (signedDocumentUrl == null || signedDocumentUrl.isBlank()) {
+            throw new ResourceNotFoundException("Signed document file is not available.");
+        }
+        try {
+            Path p = Path.of(signedDocumentUrl.trim());
+            if (!Files.isRegularFile(p)) {
+                throw new ResourceNotFoundException("Signed document file is not available.");
+            }
+            return Files.readAllBytes(p);
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResourceNotFoundException("Could not read signed document.");
+        }
+    }
+
+    private static String resolveContentType(String stored, String fileName) {
+        if (stored != null && !stored.isBlank() && !"application/octet-stream".equalsIgnoreCase(stored.trim())) {
+            return stored.trim();
+        }
+        if (fileName != null) {
+            String lower = fileName.toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".pdf")) {
+                return "application/pdf";
+            }
+            if (lower.endsWith(".png")) {
+                return "image/png";
+            }
+            if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+                return "image/jpeg";
+            }
+        }
+        return "application/octet-stream";
+    }
+
+    public record BorrowerDocumentContent(byte[] bytes, String contentType, String fileName) {}
 
     public BorrowerKfsSummaryResponse kfsForBorrower(UUID borrowerUserId, UUID applicationId) {
         LoanApplication app = loadOwned(borrowerUserId, applicationId);

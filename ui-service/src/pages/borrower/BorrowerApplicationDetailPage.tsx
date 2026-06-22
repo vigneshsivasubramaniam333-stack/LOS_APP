@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { BorrowerDocumentsPanel } from '@/components/borrower/BorrowerDocumentsPanel'
 import { downloadKfsPdfBlob } from '@/api/kfsApi'
 import {
   downloadInvoiceDiscountingTermsPdf,
@@ -11,7 +12,7 @@ import { ApiError } from '@/api/http'
 import { loanProductLabel } from '@/catalog/loanProducts'
 import { isUuid } from '@/lib/format'
 
-type Tab = 'overview' | 'kfs' | 'loan'
+type Tab = 'overview' | 'documents' | 'kfs' | 'loan'
 
 function money(n: number | null | undefined) {
   if (n == null || Number.isNaN(Number(n))) return '—'
@@ -129,6 +130,9 @@ export function BorrowerApplicationDetailPage() {
             <button type="button" className={tabClass(tab === 'overview')} onClick={() => setTab('overview')}>
               Overview
             </button>
+            <button type="button" className={tabClass(tab === 'documents')} onClick={() => setTab('documents')}>
+              Documents
+            </button>
             {showKfsTab ? (
               <button type="button" className={tabClass(tab === 'kfs')} onClick={() => setTab('kfs')}>
                 KFS &amp; agreement
@@ -141,7 +145,18 @@ export function BorrowerApplicationDetailPage() {
             ) : null}
           </div>
         </nav>
-      ) : null}
+      ) : (
+        <nav className="border-b border-slate-200 text-sm" aria-label="Application sections">
+          <div className="-mb-px flex flex-wrap gap-6 sm:gap-8">
+            <button type="button" className={tabClass(tab === 'overview')} onClick={() => setTab('overview')}>
+              Overview
+            </button>
+            <button type="button" className={tabClass(tab === 'documents')} onClick={() => setTab('documents')}>
+              Documents
+            </button>
+          </div>
+        </nav>
+      )}
 
       {tab === 'overview' ? (
         <div className="space-y-5">
@@ -265,6 +280,15 @@ export function BorrowerApplicationDetailPage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'documents' && id ? (
+        <div className="bt-card p-5 sm:p-6">
+          <h2 className="bt-card-title">Documents</h2>
+          <div className="mt-4">
+            <BorrowerDocumentsPanel applicationId={id} />
           </div>
         </div>
       ) : null}
