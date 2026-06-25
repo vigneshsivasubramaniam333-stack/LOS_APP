@@ -120,15 +120,21 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
         WorkflowConfig config = workflowRepository.findById(workflowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workflow not found: " + workflowId));
 
-        // Deactivate existing active workflow for same borrower type + product + intake segment
-        workflowRepository.findByBorrowerTypeAndLoanProductAndIntakeSegmentAndActiveTrue(
-                        config.getBorrowerType(), config.getLoanProduct(), config.getIntakeSegment())
-                .ifPresent(existing -> {
-                    existing.setActive(false);
-                    workflowRepository.save(existing);
-                });
+        String intakeSegment = normalizeIntakeSegment(config.getIntakeSegment());
+        Instant now = Instant.now();
+        int deactivated = workflowRepository.deactivateOtherActiveWorkflows(
+                config.getBorrowerType(), config.getLoanProduct(), intakeSegment, workflowId, now);
+        if (deactivated > 0) {
+            log.info(
+                    "Deactivated {} other active workflow(s) for {}/{}/{}",
+                    deactivated,
+                    config.getBorrowerType(),
+                    config.getLoanProduct(),
+                    intakeSegment);
+        }
 
         config.setActive(true);
+        config.setUpdatedAt(now);
         workflowRepository.save(config);
         log.info("Workflow activated: {}", config.getName());
     }
@@ -265,6 +271,13 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
                 })
                 .sum();
         return totalSteps > 0 ? (int) (parallelStepCount * 100 / totalSteps) : 0;
+    }
+
+    private static String normalizeIntakeSegment(String intakeSegment) {
+        if (intakeSegment == null || intakeSegment.isBlank()) {
+            return IntakeSegment.BORROWER.name();
+        }
+        return intakeSegment;
     }
 
     private WorkflowConfigResponse toResponse(WorkflowConfig config) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listWorkflowEventTemplateMappings } from '@/api/workflowEventTemplateMappings'
 import {
   activateWorkflow,
@@ -82,6 +82,7 @@ export function WorkflowsPage() {
   const [toggling, setToggling] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [listSearch, setListSearch] = useState('')
 
   function messageForWorkflowDeleteError(e: unknown): string {
     if (e instanceof ApiError && e.reason === 'WORKFLOW_ACTIVE_DELETE_FORBIDDEN') {
@@ -112,6 +113,25 @@ export function WorkflowsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load is async; setState after await
     void load()
   }, [load])
+
+  const filteredList = useMemo(() => {
+    const items = list ?? []
+    const q = listSearch.trim().toLowerCase()
+    if (!q) return items
+    return items.filter((w) => {
+      const borrowerLabel = (BORROWER_TYPE_LABELS[w.borrowerType as BorrowerType] ?? w.borrowerType).toLowerCase()
+      const productLabel = loanProductLabel(w.loanProduct).toLowerCase()
+      const segmentLabel = (w.intakeSegment === 'ANCHOR' ? 'anchor' : 'borrower').toLowerCase()
+      return (
+        w.name.toLowerCase().includes(q)
+        || w.borrowerType.toLowerCase().includes(q)
+        || borrowerLabel.includes(q)
+        || w.loanProduct.toLowerCase().includes(q)
+        || productLabel.includes(q)
+        || segmentLabel.includes(q)
+      )
+    })
+  }, [list, listSearch])
 
   useEffect(() => {
     let cancelled = false
@@ -377,19 +397,26 @@ export function WorkflowsPage() {
           <MasterDetailLayout>
             <MasterListPanel
               title="Workflows"
-              count={list.length}
+              count={filteredList.length}
+              search={listSearch}
+              onSearchChange={setListSearch}
+              searchPlaceholder="Search workflows…"
               action={
                 <button type="button" onClick={resetFormToNew} className="bt-btn bt-btn-primary bt-btn-sm">
                   New workflow
                 </button>
               }
               empty={
-                list.length === 0 && !isCreating ? (
-                  <div className="bt-master-list-empty">No workflows yet. Click &quot;New workflow&quot; to add one.</div>
+                filteredList.length === 0 && !isCreating ? (
+                  <div className="bt-master-list-empty">
+                    {list.length === 0
+                      ? 'No workflows yet. Click "New workflow" to add one.'
+                      : 'No workflows match your search.'}
+                  </div>
                 ) : undefined
               }
             >
-              {list.map((w) => (
+              {filteredList.map((w) => (
                 <MasterListItem
                   key={w.id}
                   active={selected?.id === w.id && !isCreating}

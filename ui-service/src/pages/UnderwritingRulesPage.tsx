@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   activateUnderwritingRule,
   createUnderwritingRule,
@@ -55,6 +55,7 @@ export function UnderwritingRulesPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [listSearch, setListSearch] = useState('')
 
   const [name, setName] = useState('')
   const [borrowerType, setBorrowerType] = useState<BorrowerType>('INDIVIDUAL')
@@ -91,6 +92,24 @@ export function UnderwritingRulesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async load
     void load()
   }, [load])
+
+  const filteredRows = useMemo(() => {
+    const items = rows ?? []
+    const q = listSearch.trim().toLowerCase()
+    if (!q) return items
+    return items.filter((r) => {
+      const borrowerLabel = (BORROWER_TYPE_LABELS[r.borrowerType as BorrowerType] ?? r.borrowerType).toLowerCase()
+      const productLabel = loanProductLabel(r.loanProduct).toLowerCase()
+      return (
+        r.name.toLowerCase().includes(q)
+        || r.borrowerType.toLowerCase().includes(q)
+        || borrowerLabel.includes(q)
+        || r.loanProduct.toLowerCase().includes(q)
+        || productLabel.includes(q)
+        || String(r.priority).includes(q)
+      )
+    })
+  }, [rows, listSearch])
 
   function applyRule(r: UnderwritingRuleSetResponse) {
     setSelected(r)
@@ -277,14 +296,24 @@ export function UnderwritingRulesPage() {
         <MasterDetailLayout>
           <MasterListPanel
             title="Rule sets"
-            count={rows.length}
+            count={filteredRows.length}
+            search={listSearch}
+            onSearchChange={setListSearch}
+            searchPlaceholder="Search rule sets…"
             action={
               <button type="button" onClick={startNew} className="bt-btn bt-btn-primary bt-btn-sm">
                 New rule set
               </button>
             }
+            empty={
+              filteredRows.length === 0 && !isCreating ? (
+                <div className="bt-master-list-empty">
+                  {rows.length === 0 ? 'No rule sets yet.' : 'No rule sets match your search.'}
+                </div>
+              ) : undefined
+            }
           >
-            {rows.map((r) => (
+            {filteredRows.map((r) => (
               <MasterListItem
                 key={r.id}
                 active={selected?.id === r.id && !isCreating}
