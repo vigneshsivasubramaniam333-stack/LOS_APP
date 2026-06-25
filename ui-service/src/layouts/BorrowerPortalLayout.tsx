@@ -36,6 +36,7 @@ const lendingNav: NavItem[] = [
 
 const invoiceDiscountingNav: NavItem[] = [
   { to: '/borrower/invoice-discounting', label: 'Invoice discounting', icon: InvoiceIcon },
+  { to: '/borrower/invoice-discounting/payments/cart', label: 'Payment cart', icon: InvoiceIcon },
 ]
 
 const accountNav: NavItem[] = [

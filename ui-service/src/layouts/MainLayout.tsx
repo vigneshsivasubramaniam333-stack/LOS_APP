@@ -53,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/kyc', label: 'KYC in progress', icon: KycIcon },
       { to: '/underwriting', label: 'Underwriting', icon: UnderwritingIcon },
       { to: '/plp/programs', label: 'PLP Programs', icon: ProgramsIcon },
+      { to: '/pg-settlements', label: 'PG settlements', icon: RulesIcon },
     ],
   },
   {
@@ -62,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/workflows', label: 'Workflows', icon: WorkflowsIcon },
       { to: '/integrations/provider-matrix', label: 'Integrations', icon: IntegrationsIcon },
       { to: '/underwriting-rules', label: 'Underwriting rules', icon: RulesIcon },
+      { to: '/repayment-config', label: 'Repayment defaults', icon: RulesIcon },
       { to: '/underwriting-scorecards', label: 'Underwriting scorecards', icon: ScorecardsIcon },
       { to: '/anchor-rating-templates', label: 'Anchor rating templates', icon: ScorecardsIcon },
       { to: '/assignment-rules', label: 'Assignment rules', icon: AssignmentIcon },

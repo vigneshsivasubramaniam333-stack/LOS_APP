@@ -32,4 +32,9 @@ public class BorrowerInvoiceItemResponse {
     BigDecimal maxFinanceableAmount;
     /** Default amount to pre-fill on the finance request form. */
     BigDecimal suggestedFinanceAmount;
+    /** PRUS amount after PayU success, pending settlement. */
+    BigDecimal pipAmount;
+    /** Original digital invoice filename when attached by anchor. */
+    String digitalInvoiceFileName;
+    String digitalInvoiceContentType;
 }

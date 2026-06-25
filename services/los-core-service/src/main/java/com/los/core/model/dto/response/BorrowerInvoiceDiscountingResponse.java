@@ -16,6 +16,8 @@ import java.util.List;
 public class BorrowerInvoiceDiscountingResponse {
     boolean available;
     String message;
+    /** SMART_COLLECT or PAYU_PG when available. */
+    String paymentMethod;
     List<BorrowerInvoiceItemResponse> invoices;
     List<BorrowerInvoiceLoanResponse> loans;
 }

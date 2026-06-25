@@ -18,6 +18,9 @@ export interface BorrowerInvoiceItem {
   financeable: boolean
   maxFinanceableAmount: number | null
   suggestedFinanceAmount: number | null
+  pipAmount?: number | null
+  digitalInvoiceFileName?: string | null
+  digitalInvoiceContentType?: string | null
 }
 
 export interface BorrowerInvoiceRepayment {
@@ -50,6 +53,7 @@ export interface BorrowerInvoiceLoan {
 export interface BorrowerInvoiceDiscounting {
   available: boolean
   message: string | null
+  paymentMethod?: string | null
   invoices: BorrowerInvoiceItem[]
   loans: BorrowerInvoiceLoan[]
 }
@@ -91,6 +95,57 @@ export async function repayInvoiceLoan(
   const { data } = await http.post<BorrowerInvoiceDiscounting>(
     `/borrower/invoice-discounting/loans/${loanId}/repay`,
     { amount },
+  )
+  return data
+}
+
+export interface PaymentCartLine {
+  id: string
+  invoiceId: string
+  invoiceNumber?: string | null
+  amountToPay: number
+}
+
+export interface PayuInitiatePayload {
+  baseUrl: string
+  key: string
+  txnid: string
+  amount: string
+  productinfo: string
+  firstname: string
+  email: string
+  phone?: string
+  udf1?: string
+  hash: string
+  surl: string
+  furl: string
+}
+
+export async function getPaymentCart(): Promise<PaymentCartLine[]> {
+  const { data } = await http.get<PaymentCartLine[]>('/borrower/invoice-discounting/payments/cart')
+  return data
+}
+
+export async function getPaymentCartCount(): Promise<number> {
+  const { data } = await http.get<number>('/borrower/invoice-discounting/payments/cart/count')
+  return data
+}
+
+export async function addPaymentCartLine(invoiceId: string): Promise<void> {
+  await http.post('/borrower/invoice-discounting/payments/cart/lines', { invoiceId })
+}
+
+export async function addPaymentCartBulk(invoiceIds: string[]): Promise<void> {
+  await http.post('/borrower/invoice-discounting/payments/cart/lines/bulk', { invoiceIds })
+}
+
+export async function removePaymentCartLine(lineId: string): Promise<void> {
+  await http.delete(`/borrower/invoice-discounting/payments/cart/lines/${lineId}`)
+}
+
+export async function initiatePayuPayment(): Promise<PayuInitiatePayload> {
+  const { data } = await http.post<PayuInitiatePayload>(
+    '/borrower/invoice-discounting/payments/payu/initiate',
   )
   return data
 }

@@ -504,6 +504,62 @@ public class LmsService {
     }
 
     /**
+     * Admin PG settlement after successful PayU collection (PRUS/PIP). Posts repayment to LMS with settlement UTR.
+     */
+    @Transactional
+    public LoanAccountSummary recordPgSettlementRepayment(String applicationNumber, BigDecimal amount, String utr) {
+        if (applicationNumber == null || applicationNumber.isBlank()) {
+            throw new IllegalArgumentException("applicationNumber is required");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Repayment amount must be positive");
+        }
+        if (utr == null || utr.isBlank()) {
+            throw new IllegalArgumentException("Settlement UTR is required");
+        }
+
+        Optional<LmsLoanHandover> handoverOpt = handoverRepository.findByApplicationNumber(applicationNumber);
+        String encoreAccountId = handoverOpt.map(LmsLoanHandover::getEncoreAccountId).orElse(null);
+        String encoreTxnId = null;
+        if (encoreLmsApi.isActive() && encoreAccountId != null) {
+            try {
+                encoreTxnId = encoreLmsApi.repay(encoreAccountId, amount, "ScheduledRepayment");
+            } catch (Exception e) {
+                log.error("Encore PG settlement repayment failed for {}: {}", applicationNumber, e.getMessage());
+            }
+        }
+
+        LmsRepaymentCallback entity = LmsRepaymentCallback.builder()
+                .applicationNumber(applicationNumber)
+                .encoreAccountId(encoreAccountId)
+                .transactionId(encoreTxnId)
+                .repaymentType("PG_SETTLEMENT")
+                .amount(amount)
+                .paymentDate(LocalDate.now())
+                .paymentMode("PAYU_PG_SETTLED")
+                .utrNumber(utr.trim())
+                .status("PROCESSED")
+                .build();
+        repaymentRepository.save(entity);
+
+        summaryRepository.findByApplicationNumber(applicationNumber).ifPresent(summary -> {
+            summary.setPaidEmis((summary.getPaidEmis() != null ? summary.getPaidEmis() : 0) + 1);
+            summary.setTotalPaid((summary.getTotalPaid() != null ? summary.getTotalPaid() : BigDecimal.ZERO).add(amount));
+            BigDecimal outstanding = summary.getOutstandingPrincipal() != null
+                    ? summary.getOutstandingPrincipal() : BigDecimal.ZERO;
+            summary.setOutstandingPrincipal(outstanding.subtract(amount).max(BigDecimal.ZERO));
+            summary.setLastPaymentDate(LocalDate.now());
+            if (summary.getNextEmiDate() != null) {
+                summary.setNextEmiDate(summary.getNextEmiDate().plusMonths(1));
+            }
+            summaryRepository.save(summary);
+        });
+
+        log.info("PG settlement repayment recorded for {}: amount={}, utr={}", applicationNumber, amount, utr);
+        return getAccountSummary(applicationNumber);
+    }
+
+    /**
      * Get payment history for a loan (from database).
      */
     public List<RepaymentCallbackRequest> getPaymentHistory(String applicationNumber) {

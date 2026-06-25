@@ -1,6 +1,11 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { getLoanAccount, postRepayment, type BorrowerLoanAccount } from '@/api/borrowerPortal'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  getLoanAccount,
+  initiateLoanPayuPayment,
+  postRepayment,
+  type BorrowerLoanAccount,
+} from '@/api/borrowerPortal'
 import { ApiError } from '@/api/http'
 import { isUuid } from '@/lib/format'
 
@@ -19,11 +24,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Post-disbursement loan account view with a "Make a repayment" action. Account data and the
- * repayment are served by the LMS-backed borrower endpoints (with local fallback).
+ * Post-disbursement loan account view. PayU when configured on the loan product; otherwise LMS manual repay.
  */
 export function BorrowerLoanAccountPage() {
   const { loanId } = useParams<{ loanId: string }>()
+  const navigate = useNavigate()
   const [account, setAccount] = useState<BorrowerLoanAccount | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,6 +36,8 @@ export function BorrowerLoanAccountPage() {
   const [payErr, setPayErr] = useState<string | null>(null)
   const [payOk, setPayOk] = useState<string | null>(null)
   const [paying, setPaying] = useState(false)
+
+  const usePayu = account?.payuCheckoutAvailable === true || account?.repaymentMechanism === 'PAYU_PG'
 
   const refresh = useCallback(async () => {
     if (!loanId || !isUuid(loanId)) return
@@ -61,6 +68,11 @@ export function BorrowerLoanAccountPage() {
     }
     setPaying(true)
     try {
+      if (usePayu) {
+        const payu = await initiateLoanPayuPayment(loanId, value)
+        navigate(`/borrower/loans/${loanId}/payments/payu`, { state: { payu } })
+        return
+      }
       const updated = await postRepayment(loanId, value)
       setAccount(updated)
       setAmount('')
@@ -107,9 +119,20 @@ export function BorrowerLoanAccountPage() {
           </div>
 
           <div className="max-w-lg bt-card p-5 sm:p-6">
-            <h2 className="text-sm font-semibold text-bl-navy">Make a repayment</h2>
+            {account.repaymentMechanism === 'PAYU_PG' && !account.payuCheckoutAvailable ? (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                PayU is configured for this product but merchant credentials are missing on LOS (
+                <code className="text-xs">los.payu.*</code> / <code className="text-xs">PAYU_MERCHANT_KEY</code>).
+                Contact your administrator.
+              </div>
+            ) : null}
+            <h2 className="text-sm font-semibold text-bl-navy">
+              {usePayu ? 'Pay via PayU' : 'Make a repayment'}
+            </h2>
             <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Amount is posted to the loan management system and your outstanding balance is updated.
+              {usePayu
+                ? 'You will be redirected to PayU. Repayment posts to your loan after admin settlement (PRUS).'
+                : 'Amount is posted to the loan management system and your outstanding balance is updated.'}
             </p>
             {payErr ? <p className="mt-3 text-sm text-rose-700">{payErr}</p> : null}
             {payOk ? <p className="mt-3 text-sm text-emerald-700">{payOk}</p> : null}
@@ -131,7 +154,7 @@ export function BorrowerLoanAccountPage() {
                 disabled={paying}
                 className="bt-btn bt-btn-primary disabled:opacity-50"
               >
-                {paying ? 'Processing…' : 'Pay now'}
+                {paying ? 'Processing…' : usePayu ? 'Pay via PayU' : 'Pay now'}
               </button>
             </form>
           </div>

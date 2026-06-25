@@ -40,6 +40,8 @@ import com.los.core.service.kfs.KfsPdfGenerationService;
 import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
 import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
+import com.los.core.service.repayment.LoanProductRepaymentDefaultService;
+import com.los.core.payment.service.LosLoanPayuPaymentService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -86,6 +88,8 @@ public class BorrowerPortalService {
     private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
     private final SanctionRecordRepository sanctionRecordRepository;
     private final KfsPdfGenerationService kfsPdfGenerationService;
+    private final LoanProductRepaymentDefaultService loanProductRepaymentDefaultService;
+    private final LosLoanPayuPaymentService losLoanPayuPaymentService;
 
     public void requireBorrower(String role) {
         if (role == null || !ROLE.equalsIgnoreCase(role.trim())) {
@@ -554,6 +558,11 @@ public class BorrowerPortalService {
         LoanAccountSummary s = lmsService.getAccountSummary(app.getApplicationNumber());
         String acct = s.getLmsReferenceId() != null ? s.getLmsReferenceId()
                 : (app.getLmsReferenceId() != null ? app.getLmsReferenceId() : app.getApplicationNumber());
+        String loanProduct = app.getLoanProduct();
+        String repaymentMechanism = loanProductRepaymentDefaultService.resolveMechanism(loanProduct);
+        boolean payuCheckoutAvailable = LosLoanPayuPaymentService.PAYMENT_METHOD_PAYU.equals(repaymentMechanism)
+                && losLoanPayuPaymentService.isPayuConfigured()
+                && !InvoiceDiscountingApplicationRules.isInvoiceDiscounting(app);
         return BorrowerLoanAccountResponse.builder()
                 .loanAccountNumber(acct)
                 .loanStatus(s.getLoanStatus() != null ? s.getLoanStatus() : "ACTIVE")
@@ -570,6 +579,9 @@ public class BorrowerPortalService {
                 .lastPaymentDate(s.getLastPaymentDate())
                 .dpd(s.getDpd())
                 .servicingActive(true)
+                .loanProduct(loanProduct)
+                .repaymentMechanism(repaymentMechanism)
+                .payuCheckoutAvailable(payuCheckoutAvailable)
                 .build();
     }
 
@@ -736,6 +748,11 @@ public class BorrowerPortalService {
         LoanApplication app = loadOwned(borrowerUserId, loanId);
         if (app.getStatus() != ApplicationStatus.DISBURSED) {
             throw new ForbiddenException("Repayments are available after disbursement.");
+        }
+        String mechanism = loanProductRepaymentDefaultService.resolveMechanism(app.getLoanProduct());
+        if (LosLoanPayuPaymentService.PAYMENT_METHOD_PAYU.equals(mechanism)
+                && !InvoiceDiscountingApplicationRules.isInvoiceDiscounting(app)) {
+            throw new BusinessRuleException("This loan uses PayU — use Pay via PayU on the loan account page.");
         }
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessRuleException("Enter a valid repayment amount.");

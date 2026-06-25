@@ -1,8 +1,11 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import {
   acceptInvoice,
+  addPaymentCartBulk,
+  addPaymentCartLine,
   getInvoiceDiscounting,
+  getPaymentCart,
   repayInvoiceLoan,
   requestInvoiceFinance,
   type BorrowerInvoiceDiscounting,
@@ -11,6 +14,11 @@ import {
 } from '@/api/borrowerInvoiceDiscounting'
 import { getBorrowerDashboard } from '@/api/borrowerPortal'
 import { BorrowerInvoiceLoanCard } from '@/components/borrower/BorrowerInvoiceLoanCard'
+import { LosDigitalInvoiceAttachment } from '@/components/borrower/LosDigitalInvoiceAttachment'
+import {
+  BorrowerInvoiceActionsMenu,
+  type InvoiceActionItem,
+} from '@/components/borrower/BorrowerInvoiceActionsMenu'
 import { ApiError } from '@/api/http'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -49,6 +57,12 @@ export function BorrowerInvoiceDiscountingPage() {
   const [financeAmounts, setFinanceAmounts] = useState<Record<string, string>>({})
   const [repayAmounts, setRepayAmounts] = useState<Record<string, string>>({})
   const [expandedLoanInvoiceIds, setExpandedLoanInvoiceIds] = useState<Set<string>>(() => new Set())
+  const [selectedForCart, setSelectedForCart] = useState<Set<string>>(() => new Set())
+  const [addingToCart, setAddingToCart] = useState(false)
+  const [lifecycleTab, setLifecycleTab] = useState<'active' | 'closed'>('active')
+  const [cartInvoiceIds, setCartInvoiceIds] = useState<Set<string>>(() => new Set())
+
+  const usePayu = data?.paymentMethod === 'PAYU_PG'
 
   const invoiceById = useMemo(() => {
     const map = new Map<string, BorrowerInvoiceItem>()
@@ -70,6 +84,15 @@ export function BorrowerInvoiceDiscountingPage() {
     return map
   }, [data?.loans])
 
+  const visibleInvoices = useMemo(() => {
+    const all = data?.invoices ?? []
+    return all.filter((inv) => {
+      const s = (inv.status ?? '').toUpperCase()
+      const closed = s === 'REJECTED' || s === 'CLOSED'
+      return lifecycleTab === 'closed' ? closed : !closed
+    })
+  }, [data?.invoices, lifecycleTab])
+
   const toggleLoanDetails = (invoiceId: string) => {
     setExpandedLoanInvoiceIds((prev) => {
       const next = new Set(prev)
@@ -77,6 +100,140 @@ export function BorrowerInvoiceDiscountingPage() {
       else next.add(invoiceId)
       return next
     })
+  }
+
+  const hasRepayableLoan = (invoiceId: string) =>
+    (loansByInvoiceId.get(invoiceId) ?? []).some((l) => l.repayable)
+
+  const isInCart = (invoiceId: string) => cartInvoiceIds.has(invoiceId)
+
+  const canAddToCart = (inv: BorrowerInvoiceItem) =>
+    usePayu &&
+    hasRepayableLoan(inv.invoiceId) &&
+    !(inv.pipAmount && inv.pipAmount > 0) &&
+    !isInCart(inv.invoiceId)
+
+  const repayableAmountForInvoice = (invoiceId: string) => {
+    const loan = (loansByInvoiceId.get(invoiceId) ?? []).find((l) => l.repayable)
+    if (!loan) return 0
+    return loan.outstandingAmount ?? loan.totalRepayable ?? 0
+  }
+
+  const cartSelectableIds = useMemo(
+    () => (data?.invoices ?? []).filter((inv) => canAddToCart(inv)).map((inv) => inv.invoiceId),
+    [data?.invoices, usePayu, loansByInvoiceId, cartInvoiceIds],
+  )
+
+  const selectionSummary = useMemo(() => {
+    let total = 0
+    for (const id of selectedForCart) {
+      total += repayableAmountForInvoice(id)
+    }
+    return { count: selectedForCart.size, total }
+  }, [selectedForCart, loansByInvoiceId])
+
+  const allCartSelectableSelected =
+    cartSelectableIds.length > 0 && cartSelectableIds.every((id) => selectedForCart.has(id))
+
+  const toggleCartSelect = (invoiceId: string) => {
+    setSelectedForCart((prev) => {
+      const next = new Set(prev)
+      if (next.has(invoiceId)) next.delete(invoiceId)
+      else next.add(invoiceId)
+      return next
+    })
+  }
+
+  const toggleSelectAllCart = () => {
+    if (allCartSelectableSelected) {
+      setSelectedForCart(new Set())
+      return
+    }
+    setSelectedForCart(new Set(cartSelectableIds))
+  }
+
+  const refreshCartInvoiceIds = useCallback(async () => {
+    if (!usePayu) {
+      setCartInvoiceIds(new Set())
+      return
+    }
+    try {
+      const lines = await getPaymentCart()
+      setCartInvoiceIds(new Set(lines.map((l) => l.invoiceId)))
+    } catch {
+      setCartInvoiceIds(new Set())
+    }
+  }, [usePayu])
+
+  useEffect(() => {
+    void refreshCartInvoiceIds()
+  }, [refreshCartInvoiceIds])
+
+  useEffect(() => {
+    setSelectedForCart((prev) => {
+      const next = new Set([...prev].filter((id) => !cartInvoiceIds.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [cartInvoiceIds])
+
+  const addToCart = async (invoiceId: string) => {
+    setAddingToCart(true)
+    setActionErr(null)
+    setActionOk(null)
+    try {
+      await addPaymentCartLine(invoiceId)
+      setActionOk('Added to payment cart.')
+      await refreshCartInvoiceIds()
+      setSelectedForCart((prev) => {
+        const next = new Set(prev)
+        next.delete(invoiceId)
+        return next
+      })
+    } catch (ex) {
+      setActionErr(ex instanceof ApiError ? ex.message : 'Could not add to cart.')
+    } finally {
+      setAddingToCart(false)
+    }
+  }
+
+  const addSelectedToCart = async () => {
+    if (selectedForCart.size === 0) return
+    setAddingToCart(true)
+    setActionErr(null)
+    setActionOk(null)
+    try {
+      await addPaymentCartBulk(Array.from(selectedForCart))
+      setActionOk(`Added ${selectedForCart.size} invoice(s) to payment cart.`)
+      setSelectedForCart(new Set())
+      await refreshCartInvoiceIds()
+    } catch (ex) {
+      setActionErr(ex instanceof ApiError ? ex.message : 'Bulk add failed.')
+    } finally {
+      setAddingToCart(false)
+    }
+  }
+
+  const buildInvoiceActions = (
+    inv: BorrowerInvoiceItem,
+    linkedLoans: BorrowerInvoiceLoan[],
+  ): InvoiceActionItem[] => {
+    const items: InvoiceActionItem[] = []
+    if (linkedLoans.length > 0) {
+      items.push({
+        id: 'view-loan',
+        label: expandedLoanInvoiceIds.has(inv.invoiceId) ? 'Hide Loan' : 'View Loan',
+        onClick: () => toggleLoanDetails(inv.invoiceId),
+      })
+    }
+    if (canAddToCart(inv)) {
+      items.push({
+        id: 'add-cart',
+        label: 'Add to cart',
+        onClick: () => void addToCart(inv.invoiceId),
+        disabled: addingToCart,
+      })
+    }
+    return items
   }
 
   const applyFinanceDefaults = useCallback((payload: BorrowerInvoiceDiscounting) => {
@@ -150,6 +307,11 @@ export function BorrowerInvoiceDiscountingPage() {
       setActionErr('Enter a valid finance amount greater than 0.')
       return
     }
+    const cap = inv.maxFinanceableAmount ?? inv.availableAmount ?? inv.eligibleAmount ?? 0
+    if (cap > 0 && value > cap) {
+      setActionErr(`Finance amount cannot exceed ${money(cap)} (available for this invoice).`)
+      return
+    }
     setBusyId(inv.invoiceId)
     try {
       const updated = await requestInvoiceFinance(inv.invoiceId, value)
@@ -212,95 +374,185 @@ export function BorrowerInvoiceDiscountingPage() {
       {data && data.available ? (
         <>
           <p className="text-sm text-slate-600">
+            {data.invoices.length} invoice(s), {data.loans.length} invoice-discounting loan(s).
+            {usePayu ? (
+              <>
+                {' '}
+                Repayments use PayU —{' '}
+                <Link to="/borrower/invoice-discounting/payments/cart" className="font-medium text-sky-700 hover:underline">
+                  open payment cart
+                </Link>
+                .
+              </>
+            ) : null}
+          </p>
+          <p className="text-sm text-slate-500">
             Purchase-flow invoices must be accepted before requesting finance.
           </p>
 
+          {usePayu && selectionSummary.count > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50/80 px-4 py-3">
+              <p className="text-sm text-slate-700">
+                <span className="font-semibold text-sky-900">{selectionSummary.count}</span> invoice
+                {selectionSummary.count === 1 ? '' : 's'} selected
+                <span className="mx-2 text-slate-300" aria-hidden>
+                  |
+                </span>
+                Total repayment:{' '}
+                <span className="font-semibold tabular-nums text-slate-900">{money(selectionSummary.total)}</span>
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedForCart(new Set())}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800"
+                >
+                  Clear selection
+                </button>
+                <button
+                  type="button"
+                  disabled={addingToCart}
+                  onClick={() => void addSelectedToCart()}
+                  className="bt-btn bt-btn-primary bt-btn-sm disabled:opacity-50"
+                >
+                  Add selected to cart
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <section className="space-y-4">
-            <h2 className="text-sm font-semibold text-bl-navy">Your invoices</h2>
-            {data.invoices.length === 0 ? (
-              <p className="text-sm text-slate-500">No invoices found for your account yet.</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-bl-navy">Your invoices</h2>
+              <div className="flex gap-2">
+                {(['active', 'closed'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setLifecycleTab(tab)}
+                    className={`rounded-lg px-3 py-1 text-xs font-medium capitalize ${
+                      lifecycleTab === tab ? 'bg-bl-primary text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {visibleInvoices.length === 0 ? (
+              <p className="text-sm text-slate-500">No {lifecycleTab} invoices found for your account.</p>
             ) : (
-              <div className="bt-card overflow-x-auto shadow-sm">
-                <table className="min-w-full text-sm">
+              <div className="bt-card shadow-sm">
+                <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border-collapse">
                   <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-600">
                     <tr>
-                      <th className="px-5 py-3.5">Invoice</th>
-                      <th className="px-5 py-3.5">Due date</th>
-                      <th className="px-5 py-3.5">Amount</th>
-                      <th className="px-5 py-3.5">Available</th>
-                      <th className="px-5 py-3.5">Status</th>
-                      <th className="px-5 py-3.5">Action</th>
+                      {usePayu ? (
+                        <th className="px-3 py-3 w-10 text-center align-middle">
+                          {cartSelectableIds.length > 0 ? (
+                            <input
+                              type="checkbox"
+                              checked={allCartSelectableSelected}
+                              onChange={toggleSelectAllCart}
+                              aria-label="Select all repayable invoices"
+                            />
+                          ) : null}
+                        </th>
+                      ) : null}
+                      <th className="px-5 py-3 align-middle">Invoice</th>
+                      <th className="px-5 py-3 align-middle whitespace-nowrap">Due date</th>
+                      <th className="px-5 py-3 align-middle text-right whitespace-nowrap">Amount</th>
+                      <th className="px-5 py-3 align-middle text-right whitespace-nowrap">Available</th>
+                      {usePayu ? <th className="px-5 py-3 align-middle text-right whitespace-nowrap">PRUS</th> : null}
+                      <th className="px-5 py-3 align-middle text-center whitespace-nowrap">Copy</th>
+                      <th className="px-5 py-3 align-middle whitespace-nowrap">Status</th>
+                      <th className="px-3 py-3 align-middle text-right w-44">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="">
-                    {data.invoices.flatMap((inv) => {
+                  <tbody className="divide-y divide-slate-100">
+                    {visibleInvoices.flatMap((inv) => {
                       const linkedLoans = loansByInvoiceId.get(inv.invoiceId) ?? []
                       const rows = [
-                        <tr key={inv.invoiceId} className="align-middle ">
-                        <td className="whitespace-nowrap px-5 py-4 font-medium text-bl-navy">{inv.invoiceNumber ?? '—'}</td>
-                        <td className="whitespace-nowrap px-5 py-4 text-slate-600">{inv.dueDate ?? '—'}</td>
-                        <td className="px-5 py-4 tabular-nums text-slate-700">{money(inv.invoiceAmount)}</td>
-                        <td className="px-5 py-4 tabular-nums text-slate-700">{money(inv.availableAmount)}</td>
-                        <td className="px-5 py-4">
+                        <tr key={inv.invoiceId} className="align-middle hover:bg-slate-50/60">
+                        {usePayu ? (
+                          <td className="px-3 py-3 text-center align-middle">
+                            {isInCart(inv.invoiceId) ? (
+                              <span
+                                className="inline-block rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800"
+                                title="Already in payment cart"
+                              >
+                                In cart
+                              </span>
+                            ) : canAddToCart(inv) ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedForCart.has(inv.invoiceId)}
+                                onChange={() => toggleCartSelect(inv.invoiceId)}
+                                aria-label={`Select invoice ${inv.invoiceNumber ?? ''}`}
+                              />
+                            ) : null}
+                          </td>
+                        ) : null}
+                        <td className="whitespace-nowrap px-5 py-3 align-middle font-medium text-bl-navy">{inv.invoiceNumber ?? '—'}</td>
+                        <td className="whitespace-nowrap px-5 py-3 align-middle text-slate-600">{inv.dueDate ?? '—'}</td>
+                        <td className="px-5 py-3 align-middle text-right tabular-nums text-slate-700">{money(inv.invoiceAmount)}</td>
+                        <td className="px-5 py-3 align-middle text-right tabular-nums text-slate-700">{money(inv.availableAmount)}</td>
+                        {usePayu ? (
+                          <td className="px-5 py-3 align-middle text-right tabular-nums text-amber-700 text-xs font-medium">
+                            {inv.pipAmount && inv.pipAmount > 0 ? money(inv.pipAmount) : '—'}
+                          </td>
+                        ) : null}
+                        <td className="px-5 py-3 align-middle text-center">
+                          <LosDigitalInvoiceAttachment
+                            invoiceId={inv.invoiceId}
+                            fileName={inv.digitalInvoiceFileName}
+                          />
+                        </td>
+                        <td className="px-5 py-3 align-middle">
                           <span
                             className={`inline-block rounded-full border px-2 py-0.5 text-xs ${statusBadge(inv.status)}`}
                           >
                             {inv.friendlyStatus || inv.status || '—'}
                           </span>
                         </td>
-                        <td className="px-5 py-4">
-                          <div className="flex flex-col items-start gap-2">
-                            {linkedLoans.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleLoanDetails(inv.invoiceId)}
-                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                title={expandedLoanInvoiceIds.has(inv.invoiceId) ? 'Hide linked loan details' : 'View linked loan details'}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden>
-                                  {expandedLoanInvoiceIds.has(inv.invoiceId) ? (
-                                    <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-4.38 1.5 1.5 0 0 0 0-1.5 10.029 10.029 0 0 0-3.3-4.38 1.5 1.5 0 0 0-1.5 0 10.029 10.029 0 0 0-3.3 4.38 1.5 1.5 0 0 0 1.5 0 10.029 10.029 0 0 0 4.38 3.3l1.745 1.745a.75.75 0 0 0 1.06-1.06l-14.5-14.5Z" clipRule="evenodd" />
-                                  ) : (
-                                    <>
-                                      <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-                                      <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" />
-                                    </>
-                                  )}
-                                </svg>
-                                {expandedLoanInvoiceIds.has(inv.invoiceId) ? 'Hide loan' : 'View loan'}
-                              </button>
-                            ) : null}
+                        <td className="px-3 py-3 align-middle">
+                          <div className="flex w-44 flex-col items-stretch gap-1.5">
+                            <div className="flex justify-end">
+                              <BorrowerInvoiceActionsMenu
+                                items={buildInvoiceActions(inv, linkedLoans)}
+                                busy={addingToCart || busyId === inv.invoiceId}
+                              />
+                            </div>
                             {inv.acceptable ? (
                               <button
                                 type="button"
                                 onClick={() => void onAccept(inv)}
                                 disabled={busyId === inv.invoiceId}
-                                className="rounded-md border border-sky-600 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+                                className="w-full rounded-md border border-sky-600 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
                               >
                                 {busyId === inv.invoiceId ? '…' : 'Accept invoice'}
                               </button>
                             ) : inv.financeable ? (
-                              <form onSubmit={(e) => onFinance(e, inv)} className="flex flex-wrap items-center gap-3">
+                              <form onSubmit={(e) => onFinance(e, inv)} className="flex flex-col gap-1.5">
                                 <input
                                   type="number"
                                   min="1"
+                                  max={inv.maxFinanceableAmount ?? inv.availableAmount ?? undefined}
                                   step="0.01"
                                   value={financeAmounts[inv.invoiceId] ?? defaultFinanceAmount(inv)}
                                   onChange={(e) =>
                                     setFinanceAmounts((m) => ({ ...m, [inv.invoiceId]: e.target.value }))
                                   }
-                                  className="w-28 rounded border border-slate-300 px-2 py-1 text-sm focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
+                                  className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
                                 />
                                 <button
                                   type="submit"
                                   disabled={busyId === inv.invoiceId}
-                                  className="bt-btn bt-btn-primary bt-btn-sm disabled:opacity-50"
+                                  className="bt-btn bt-btn-primary bt-btn-sm w-full disabled:opacity-50"
                                 >
                                   {busyId === inv.invoiceId ? '…' : 'Request finance'}
                                 </button>
                               </form>
-                            ) : linkedLoans.length === 0 ? (
-                              <span className="text-xs text-slate-400">Not available</span>
                             ) : null}
                           </div>
                         </td>
@@ -309,21 +561,32 @@ export function BorrowerInvoiceDiscountingPage() {
                       if (linkedLoans.length > 0 && expandedLoanInvoiceIds.has(inv.invoiceId)) {
                         rows.push(
                           <tr key={`${inv.invoiceId}-loans`}>
-                            <td colSpan={6} className="px-5 pb-4 bg-slate-50/40">
+                            <td colSpan={usePayu ? 9 : 7} className="px-5 py-4 bg-slate-50/40 align-middle">
                               <div className="space-y-4">
-                                {linkedLoans.map((loan) => (
-                                  <BorrowerInvoiceLoanCard
-                                    key={loan.loanId}
-                                    loan={loan}
-                                    invoice={invoiceById.get(inv.invoiceId)}
-                                    busyId={busyId}
-                                    repayAmount={repayAmounts[loan.loanId] ?? ''}
-                                    onRepayAmountChange={(value) =>
-                                      setRepayAmounts((m) => ({ ...m, [loan.loanId]: value }))
-                                    }
-                                    onRepay={onRepay}
-                                  />
-                                ))}
+                                {linkedLoans.map((loan) =>
+                                  usePayu ? (
+                                    <div key={loan.loanId} className="text-xs text-slate-600 border border-slate-200 rounded-lg p-3">
+                                      Loan {loan.loanNumber ?? loan.loanId} — {loan.friendlyStatus}
+                                      {inv.pipAmount && inv.pipAmount > 0 ? (
+                                        <span className="ml-2 text-amber-700 font-medium">
+                                          PRUS: {money(inv.pipAmount)}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : (
+                                    <BorrowerInvoiceLoanCard
+                                      key={loan.loanId}
+                                      loan={loan}
+                                      invoice={invoiceById.get(inv.invoiceId)}
+                                      busyId={busyId}
+                                      repayAmount={repayAmounts[loan.loanId] ?? ''}
+                                      onRepayAmountChange={(value) =>
+                                        setRepayAmounts((m) => ({ ...m, [loan.loanId]: value }))
+                                      }
+                                      onRepay={onRepay}
+                                    />
+                                  ),
+                                )}
                               </div>
                             </td>
                           </tr>,
@@ -333,6 +596,7 @@ export function BorrowerInvoiceDiscountingPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </section>

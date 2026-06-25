@@ -34,6 +34,10 @@ export function LoginPage() {
     try {
       const u = await postLogin(email.trim(), password)
       login(u)
+      if (u.passwordResetRequired) {
+        nav('/change-password', { replace: true })
+        return
+      }
       nav(pickDestAfterLogin(from, u.role), { replace: true })
     } catch (er) {
       if (er instanceof ApiError) {

@@ -198,6 +198,9 @@ export interface BorrowerLoanAccount {
   lastPaymentDate: string | null
   dpd: number
   servicingActive: boolean
+  loanProduct?: string | null
+  repaymentMechanism?: string | null
+  payuCheckoutAvailable?: boolean
 }
 
 /** Loan account summary after disbursement (LMS-backed with local fallback). */
@@ -209,6 +212,35 @@ export async function getLoanAccount(loanId: string): Promise<BorrowerLoanAccoun
 /** Make a repayment against a disbursed loan; returns the refreshed account. */
 export async function postRepayment(loanId: string, amount: number): Promise<BorrowerLoanAccount> {
   const { data } = await http.post<BorrowerLoanAccount>(`/borrower/loans/${loanId}/repay`, { amount })
+  return data
+}
+
+export interface LoanPayuInitiatePayload {
+  baseUrl: string
+  key: string
+  txnid: string
+  amount: string
+  productinfo: string
+  firstname: string
+  email: string
+  phone?: string | null
+  udf1?: string
+  udf2?: string
+  surl: string
+  furl: string
+  hash: string
+  transactionId: string
+  applicationId?: string
+}
+
+export async function initiateLoanPayuPayment(
+  loanId: string,
+  amount: number,
+): Promise<LoanPayuInitiatePayload> {
+  const { data } = await http.post<LoanPayuInitiatePayload>(
+    `/borrower/loans/${loanId}/payments/payu/initiate`,
+    { amount },
+  )
   return data
 }
 

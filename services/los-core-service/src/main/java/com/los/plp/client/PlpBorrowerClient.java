@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +54,43 @@ public class PlpBorrowerClient {
         return parseList(raw);
     }
 
+    /** Digital invoice bytes for a PLP invoice (lender machine identity). */
+    public DigitalInvoiceFile downloadDigitalInvoice(UUID invoiceId) {
+        String bearer = "Bearer " + plpIntegrationClient.currentBearerToken();
+        String path = "/api/v1/invoices/" + invoiceId + "/digital-invoice/download";
+        try {
+            return plpRestClient.get()
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, bearer)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().isError()) {
+                            throw new PlpIntegrationException(
+                                    "PLP HTTP " + response.getStatusCode().value() + " on " + path);
+                        }
+                        byte[] body;
+                        try (InputStream in = response.getBody()) {
+                            body = in != null ? in.readAllBytes() : new byte[0];
+                        } catch (IOException e) {
+                            throw new PlpIntegrationException("PLP: failed to read digital invoice bytes: " + e.getMessage());
+                        }
+                        String ct = response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE);
+                        String cd = response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+                        return new DigitalInvoiceFile(body, ct, filenameFromContentDisposition(cd));
+                    });
+        } catch (RestClientResponseException e) {
+            log.warn("[PLP][borrower] GET {} -> HTTP {} {}", path, e.getStatusCode(),
+                    truncate(e.getResponseBodyAsString()));
+            throw new PlpIntegrationException("PLP HTTP " + e.getStatusCode() + " on " + path);
+        } catch (PlpIntegrationException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[PLP][borrower] GET {} failed: {}", path, e.getMessage());
+            throw new PlpIntegrationException(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+        }
+    }
+
+    public record DigitalInvoiceFile(byte[] body, String contentType, String fileName) {}
+
     /** All loans for a borrower (lender scope passes borrowerId as a query filter). PLP wraps in {status,data}. */
     public List<Map<String, Object>> listLoans(UUID plpBorrowerId) {
         String raw = get("/api/v1/loans?borrowerId=" + plpBorrowerId);
@@ -90,6 +129,54 @@ public class PlpBorrowerClient {
         body.put("amount", amount);
         String raw = post("/api/v1/loans/" + plpLoanId + "/repay", body);
         return parseData(raw);
+    }
+
+    /** Effective repayment method for invoice discounting (SMART_COLLECT or PAYU_PG). */
+    public String getPaymentMethod(UUID plpBorrowerId) {
+        Map<String, Object> data =
+                parseData(get("/api/v1/portal/borrower/payments/checkout/payment-method?borrowerId=" + plpBorrowerId));
+        Object pm = data.get("paymentMethod");
+        return pm != null ? pm.toString() : "SMART_COLLECT";
+    }
+
+    public List<Map<String, Object>> listPaymentCart(UUID plpBorrowerId) {
+        return parseDataList(get("/api/v1/portal/borrower/payments/checkout/lines?borrowerId=" + plpBorrowerId));
+    }
+
+    public long paymentCartCount(UUID plpBorrowerId) {
+        String raw = get("/api/v1/portal/borrower/payments/checkout/count?borrowerId=" + plpBorrowerId);
+        Map<String, Object> wrapper = parseWrapper(raw);
+        Object data = wrapper.get("data");
+        if (data instanceof Number num) {
+            return num.longValue();
+        }
+        try {
+            return data != null ? Long.parseLong(data.toString()) : 0L;
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    public void addPaymentCartLine(UUID plpBorrowerId, UUID invoiceId) {
+        post(
+                "/api/v1/portal/borrower/payments/checkout/lines?borrowerId=" + plpBorrowerId,
+                Map.of("invoiceId", invoiceId.toString()));
+    }
+
+    public void addPaymentCartBulk(UUID plpBorrowerId, List<UUID> invoiceIds) {
+        post(
+                "/api/v1/portal/borrower/payments/checkout/lines/bulk?borrowerId=" + plpBorrowerId,
+                Map.of("invoiceIds", invoiceIds.stream().map(UUID::toString).toList()));
+    }
+
+    public void removePaymentCartLine(UUID plpBorrowerId, UUID lineId) {
+        delete("/api/v1/portal/borrower/payments/checkout/lines/" + lineId + "?borrowerId=" + plpBorrowerId);
+    }
+
+    public Map<String, Object> initiatePayuPayment(UUID plpBorrowerId) {
+        return parseData(post(
+                "/api/v1/portal/borrower/payments/payu/initiate?borrowerId=" + plpBorrowerId,
+                Map.of("portalSource", "LOS")));
     }
 
     /** All sub-programs (lender machine identity). */
@@ -176,6 +263,24 @@ public class PlpBorrowerClient {
         }
     }
 
+    private void delete(String path) {
+        String bearer = "Bearer " + plpIntegrationClient.currentBearerToken();
+        try {
+            plpRestClient.delete()
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, bearer)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            log.warn("[PLP][borrower] DELETE {} -> HTTP {} {}", path, e.getStatusCode(),
+                    truncate(e.getResponseBodyAsString()));
+            throw new PlpIntegrationException("PLP HTTP " + e.getStatusCode() + " on " + path);
+        } catch (Exception e) {
+            log.warn("[PLP][borrower] DELETE {} failed: {}", path, e.getMessage());
+            throw new PlpIntegrationException(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+        }
+    }
+
     private List<Map<String, Object>> parseList(String raw) {
         if (raw == null || raw.isBlank()) {
             return List.of();
@@ -221,6 +326,17 @@ public class PlpBorrowerClient {
         }
     }
 
+    private Map<String, Object> parseWrapper(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(raw, MAP);
+        } catch (Exception e) {
+            throw new PlpIntegrationException("PLP: failed to parse response: " + e.getMessage());
+        }
+    }
+
     /** Invoice endpoints return the entity directly (not wrapped in {status,data}). */
     private Map<String, Object> parseInvoice(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -245,5 +361,22 @@ public class PlpBorrowerClient {
             return "";
         }
         return s.length() <= 512 ? s : s.substring(0, 512) + "...";
+    }
+
+    private static String filenameFromContentDisposition(String cd) {
+        if (cd == null || cd.isBlank()) {
+            return "digital-invoice";
+        }
+        int fn = cd.toLowerCase(java.util.Locale.ROOT).indexOf("filename=");
+        if (fn < 0) {
+            return "digital-invoice";
+        }
+        String rest = cd.substring(fn + "filename=".length()).trim();
+        if (rest.startsWith("\"")) {
+            int end = rest.indexOf('"', 1);
+            return end > 0 ? rest.substring(1, end) : rest.replace("\"", "");
+        }
+        int semi = rest.indexOf(';');
+        return (semi > 0 ? rest.substring(0, semi) : rest).trim();
     }
 }

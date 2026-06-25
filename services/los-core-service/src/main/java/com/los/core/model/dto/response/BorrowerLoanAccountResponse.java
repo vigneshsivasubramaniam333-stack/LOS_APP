@@ -29,4 +29,15 @@ public class BorrowerLoanAccountResponse {
     int dpd;
     /** True when post-disbursement servicing data is available (loan is disbursed). */
     boolean servicingActive;
+    /** LOS catalog loan product code (e.g. PERSONAL_LOAN). */
+    String loanProduct;
+    /**
+     * Effective repayment mechanism from {@code loan_product_repayment_defaults}
+     * (SMART_COLLECT, PAYU_PG, …). Invoice discounting uses PLP instead.
+     */
+    String repaymentMechanism;
+    /**
+     * False until LOS personal/term loan PayU checkout is wired (v1 stores config only).
+     */
+    boolean payuCheckoutAvailable;
 }

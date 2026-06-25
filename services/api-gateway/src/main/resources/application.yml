@@ -161,6 +161,18 @@ spring:
           uri: lb://los-core-service
           predicates:
             - Path=/api/v1/vkyc/**
+        - id: los-borrower
+          uri: lb://los-core-service
+          predicates:
+            - Path=/api/v1/borrower/**
+        - id: los-admin-pg
+          uri: lb://los-core-service
+          predicates:
+            - Path=/api/v1/admin/**
+        - id: los-payu-webhooks
+          uri: lb://los-core-service
+          predicates:
+            - Path=/api/v1/webhooks/los-payments/**
 
         # Notification Service
         - id: notifications

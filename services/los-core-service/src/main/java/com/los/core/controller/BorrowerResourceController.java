@@ -1,5 +1,6 @@
 package com.los.core.controller;
 
+import com.los.core.model.dto.request.BorrowerLoanPayuInitiateRequest;
 import com.los.core.model.dto.request.BorrowerRepaymentRequest;
 import com.los.core.model.dto.response.BorrowerDashboardResponse;
 import com.los.core.model.dto.response.BorrowerLoanAccountResponse;
@@ -9,6 +10,7 @@ import com.los.core.model.dto.response.BorrowerServicingDataResponse;
 import com.los.core.model.dto.response.BorrowerStatementLineResponse;
 import com.los.core.model.dto.response.BorrowerTransactionItemResponse;
 import com.los.core.service.borrower.BorrowerPortalService;
+import com.los.core.payment.service.LosLoanPayuPaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -32,6 +35,7 @@ import java.util.UUID;
 public class BorrowerResourceController {
 
     private final BorrowerPortalService borrowerPortalService;
+    private final LosLoanPayuPaymentService losLoanPayuPaymentService;
 
     @GetMapping("/dashboard")
     @Operation(summary = "Borrower dashboard summary")
@@ -107,5 +111,17 @@ public class BorrowerResourceController {
         UUID uid = UUID.fromString(userId);
         borrowerPortalService.requireBorrower(role);
         return ResponseEntity.ok(borrowerPortalService.makeRepayment(uid, loanId, request.getAmount()));
+    }
+
+    @PostMapping("/loans/{loanId}/payments/payu/initiate")
+    @Operation(summary = "Initiate PayU repayment for a disbursed LOS loan (personal/term — not invoice discounting)")
+    public ResponseEntity<Map<String, Object>> initiatePayu(
+            @PathVariable UUID loanId,
+            @Valid @RequestBody BorrowerLoanPayuInitiateRequest request,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        borrowerPortalService.requireBorrower(role);
+        return ResponseEntity.ok(losLoanPayuPaymentService.initiatePayu(uid, loanId, request.getAmount()));
     }
 }

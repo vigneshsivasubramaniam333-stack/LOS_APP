@@ -107,6 +107,12 @@ services:
       # UAT/sandbox: enables Reset demo data button (GET /api/v1/demo/status). Set false in production.
       LOS_DEMO_ENABLED: ${LOS_DEMO_ENABLED:-true}
 
+      PAYU_MERCHANT_KEY: ${PAYU_MERCHANT_KEY:-g8yc8J}
+      PAYU_MERCHANT_SALT: ${PAYU_MERCHANT_SALT:-BBc2U41mOZPLuteAYBW9wJ2Lnm9V9rQV}
+      PAYU_GATEWAY_URL: ${PAYU_GATEWAY_URL:-https://test.payu.in/_payment}
+      LOS_PUBLIC_API_BASE_URL: ${LOS_PUBLIC_API_BASE_URL:-http://credinnov-sandbox.senseitech.com/los}
+      LOS_BORROWER_UI_URL: ${LOS_BORROWER_UI_URL:-http://credinnov-sandbox.senseitech.com/los/borrower}
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

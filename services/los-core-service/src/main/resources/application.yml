@@ -45,6 +45,8 @@ spring:
     password: ${RABBITMQ_PASSWORD:los_rabbit_2026}
 
 los:
+  auth:
+    default-temporary-password: ${LOS_DEFAULT_TEMPORARY_PASSWORD:Temp@123}
   # Local: use spring.profiles.active=local (see application-local.yml) so the UI can call /api without 401.
   # Production: leave false; replace permitAll in WebSecurityConfig with authenticated() when IAM is ready.
   security:
@@ -53,6 +55,16 @@ los:
   demo:
     enabled: ${LOS_DEMO_ENABLED:false}
     preserved-user-emails: ${LOS_DEMO_PRESERVED_USER_EMAILS:sahil@gmail.com,borrower@credinnov.com}
+
+  payu:
+    merchant-key: ${PAYU_MERCHANT_KEY:g8yc8J}
+    merchant-salt: ${PAYU_MERCHANT_SALT:BBc2U41mOZPLuteAYBW9wJ2Lnm9V9rQV}
+    gateway-url: ${PAYU_GATEWAY_URL:https://test.payu.in/_payment}
+    verify-command: ${PAYU_VERIFY_COMMAND:verify_payment}
+    post-service-url: ${PAYU_POST_SERVICE_URL:}
+    transaction-id-suffix: ${PAYU_TXN_SUFFIX:LOS}
+    callback-base-url: ${LOS_PUBLIC_API_BASE_URL:http://localhost:8083}
+    borrower-ui-url: ${LOS_BORROWER_UI_URL:http://localhost:5173/los/borrower}
 
   # minio: object storage for documents (default). Use storage: local + file-storage.root for demo without MinIO.
   document:

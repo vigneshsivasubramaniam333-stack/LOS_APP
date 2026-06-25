@@ -18,6 +18,11 @@ import { BorrowerSignedDocumentsPage } from '@/pages/borrower/BorrowerSignedDocu
 import { BorrowerLoanSubPage } from '@/pages/borrower/BorrowerLoanSubPage'
 import { BorrowerLoanAccountPage } from '@/pages/borrower/BorrowerLoanAccountPage'
 import { BorrowerInvoiceDiscountingPage } from '@/pages/borrower/BorrowerInvoiceDiscountingPage'
+import { BorrowerPaymentCartPage } from '@/pages/borrower/payments/BorrowerPaymentCartPage'
+import { BorrowerPayuCheckoutPage } from '@/pages/borrower/payments/BorrowerPayuCheckoutPage'
+import { BorrowerLoanPayuCheckoutPage } from '@/pages/borrower/payments/BorrowerLoanPayuCheckoutPage'
+import { BorrowerLoanPaymentResultPage } from '@/pages/borrower/payments/BorrowerLoanPaymentResultPage'
+import { BorrowerPaymentResultPage } from '@/pages/borrower/payments/BorrowerPaymentResultPage'
 import { BorrowerProgramsPage } from '@/pages/borrower/BorrowerProgramsPage'
 import { BorrowerStatusRedirectPage } from '@/pages/borrower/BorrowerStatusRedirectPage'
 import { SalesNewApplicationPage } from '@/pages/sales/SalesNewApplicationPage'
@@ -29,6 +34,8 @@ import { KycQueuePage } from '@/pages/KycQueuePage'
 import { UnderwritingQueuePage } from '@/pages/UnderwritingQueuePage'
 import { WorkflowsPage } from '@/pages/WorkflowsPage'
 import { UnderwritingRulesPage } from '@/pages/UnderwritingRulesPage'
+import { RepaymentDefaultsPage } from '@/pages/RepaymentDefaultsPage'
+import { PgSettlementsPage } from '@/pages/PgSettlementsPage'
 import { AnchorRatingTemplatesPage } from '@/pages/AnchorRatingTemplatesPage'
 import { ScorecardsPage } from '@/pages/ScorecardsPage'
 import { AssignmentRulesPage } from '@/pages/AssignmentRulesPage'
@@ -37,6 +44,7 @@ import { UsersPage } from '@/pages/UsersPage'
 import { IntegrationProviderMatrixPage } from '@/pages/IntegrationProviderMatrixPage'
 import { AdminConfigGate } from '@/auth/AdminConfigGate'
 import { LoginPage } from '@/pages/auth/LoginPage'
+import { StaffChangePasswordPage } from '@/pages/auth/StaffChangePasswordPage'
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
 import { PlpProgramsPage } from '@/pages/plp/PlpProgramsPage'
@@ -48,6 +56,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/change-password" element={<StaffChangePasswordPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/borrower/login" element={<BorrowerLoginPage />} />
@@ -70,9 +79,14 @@ export default function App() {
         <Route path="applications/:id" element={<BorrowerApplicationDetailPage />} />
         <Route path="programs" element={<BorrowerProgramsPage />} />
         <Route path="invoice-discounting" element={<BorrowerInvoiceDiscountingPage />} />
+        <Route path="invoice-discounting/payments/cart" element={<BorrowerPaymentCartPage />} />
+        <Route path="invoice-discounting/payments/payu" element={<BorrowerPayuCheckoutPage />} />
+        <Route path="invoice-discounting/payments/result" element={<BorrowerPaymentResultPage />} />
         <Route path="documents" element={<BorrowerSignedDocumentsPage />} />
         <Route path="profile" element={<BorrowerProfilePage />} />
         <Route path="loans/:loanId/account" element={<BorrowerLoanAccountPage />} />
+        <Route path="loans/:loanId/payments/payu" element={<BorrowerLoanPayuCheckoutPage />} />
+        <Route path="loans/:loanId/payments/result" element={<BorrowerLoanPaymentResultPage />} />
         <Route path="loans/:loanId/repayment" element={<BorrowerLoanSubPage mode="repayment" />} />
         <Route path="loans/:loanId/statement" element={<BorrowerLoanSubPage mode="statement" />} />
         <Route path="loans/:loanId/transactions" element={<BorrowerLoanSubPage mode="transactions" />} />
@@ -120,6 +134,15 @@ export default function App() {
             </AdminConfigGate>
           }
         />
+        <Route
+          path="repayment-config"
+          element={
+            <AdminConfigGate>
+              <RepaymentDefaultsPage />
+            </AdminConfigGate>
+          }
+        />
+        <Route path="pg-settlements" element={<PgSettlementsPage />} />
         <Route
           path="anchor-rating-templates"
           element={

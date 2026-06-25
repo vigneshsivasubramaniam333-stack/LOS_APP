@@ -83,6 +83,12 @@ services:
       ENCORE_API_PASSWORD: ${ENCORE_API_PASSWORD:-password1}
       ENCORE_REST_AUTH_TOKEN: ${ENCORE_REST_AUTH_TOKEN:-}
       LMS_CALLBACK_HMAC_SECRET: ${LMS_CALLBACK_HMAC_SECRET:-}
+
+      PAYU_MERCHANT_KEY: ${PAYU_MERCHANT_KEY:-g8yc8J}
+      PAYU_MERCHANT_SALT: ${PAYU_MERCHANT_SALT:-BBc2U41mOZPLuteAYBW9wJ2Lnm9V9rQV}
+      PAYU_GATEWAY_URL: ${PAYU_GATEWAY_URL:-https://test.payu.in/_payment}
+      LOS_PUBLIC_API_BASE_URL: ${LOS_PUBLIC_API_BASE_URL:-http://localhost:8083}
+      LOS_BORROWER_UI_URL: ${LOS_BORROWER_UI_URL:-http://localhost:5173/los/borrower}
     depends_on:
       discovery-service:
         condition: service_healthy

@@ -83,6 +83,7 @@ public class BorrowerInvoiceDiscountingService {
             return BorrowerInvoiceDiscountingResponse.builder()
                     .available(true)
                     .message(null)
+                    .paymentMethod(plpBorrowerClient.getPaymentMethod(plpBorrowerId.get()))
                     .invoices(invoices)
                     .loans(loans)
                     .build();
@@ -152,6 +153,15 @@ public class BorrowerInvoiceDiscountingService {
             }
             throw new BusinessRuleException("This invoice is not eligible for a finance request right now.");
         }
+        BigDecimal max = firstNonNullPositive(
+                asBig(invoice.get("availableAmount")),
+                asBig(invoice.get("eligibleAmount")),
+                asBig(invoice.get("netAmount")),
+                asBig(invoice.get("invoiceAmount")));
+        if (max != null && amount.compareTo(max) > 0) {
+            throw new BusinessRuleException(
+                    "Finance amount cannot exceed " + max.toPlainString() + " (available for this invoice).");
+        }
         UUID programId = asUuid(invoice.get("programId"));
         try {
             plpBorrowerClient.requestFinance(plpBorrowerId, invoiceId, amount, programId);
@@ -159,6 +169,60 @@ public class BorrowerInvoiceDiscountingService {
             throw new BusinessRuleException("Could not submit the finance request: " + e.getMessage());
         }
         return overview(borrowerUserId);
+    }
+
+    public List<Map<String, Object>> listPaymentCart(UUID borrowerUserId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        return plpBorrowerClient.listPaymentCart(plpBorrowerId);
+    }
+
+    public long paymentCartCount(UUID borrowerUserId) {
+        return resolvePlpBorrowerId(borrowerUserId).map(plpBorrowerClient::paymentCartCount).orElse(0L);
+    }
+
+    public void addPaymentCartLine(UUID borrowerUserId, UUID invoiceId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        plpBorrowerClient.addPaymentCartLine(plpBorrowerId, invoiceId);
+    }
+
+    public void addPaymentCartBulk(UUID borrowerUserId, List<UUID> invoiceIds) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        plpBorrowerClient.addPaymentCartBulk(plpBorrowerId, invoiceIds);
+    }
+
+    public void removePaymentCartLine(UUID borrowerUserId, UUID lineId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        plpBorrowerClient.removePaymentCartLine(plpBorrowerId, lineId);
+    }
+
+    public Map<String, Object> initiatePayuPayment(UUID borrowerUserId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        return plpBorrowerClient.initiatePayuPayment(plpBorrowerId);
+    }
+
+    /** Download digital invoice copy (proxied from PLP) when the invoice belongs to this borrower. */
+    public PlpBorrowerClient.DigitalInvoiceFile downloadDigitalInvoice(UUID borrowerUserId, UUID invoiceId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Invoice discounting is not set up for your account yet."));
+        Optional<Map<String, Object>> inv = findInvoice(plpBorrowerId, invoiceId);
+        if (inv.isEmpty()) {
+            throw new ResourceNotFoundException("Invoice not found");
+        }
+        String fileName = asString(inv.get().get("digitalInvoiceFileName"));
+        if (fileName == null || fileName.isBlank()) {
+            throw new BusinessRuleException("Digital invoice file not available");
+        }
+        try {
+            return plpBorrowerClient.downloadDigitalInvoice(invoiceId);
+        } catch (PlpIntegrationException e) {
+            throw new BusinessRuleException("Could not download digital invoice: " + e.getMessage());
+        }
     }
 
     /** Repay an invoice-discounting loan; returns the refreshed overview. */
@@ -269,6 +333,9 @@ public class BorrowerInvoiceDiscountingService {
                 .financeable(canFinance)
                 .maxFinanceableAmount(max)
                 .suggestedFinanceAmount(canFinance ? max : null)
+                .pipAmount(asBig(inv.get("pipAmount")))
+                .digitalInvoiceFileName(asString(inv.get("digitalInvoiceFileName")))
+                .digitalInvoiceContentType(asString(inv.get("digitalInvoiceContentType")))
                 .build();
     }
 
@@ -316,6 +383,8 @@ public class BorrowerInvoiceDiscountingService {
             case "FINANCING_REQUESTED" -> "Finance requested";
             case "PARTIALLY_DISCOUNTED" -> "Partially financed";
             case "FULLY_DISCOUNTED" -> "Fully financed";
+            case "REJECTED" -> "Rejected";
+            case "CLOSED" -> "Closed";
             default -> humanize(status);
         };
     }

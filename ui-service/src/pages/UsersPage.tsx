@@ -32,6 +32,7 @@ export function UsersPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionOk, setActionOk] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const [name, setName] = useState('')
@@ -95,6 +96,7 @@ export function UsersPage() {
 
   async function onSave() {
     setActionError(null)
+    setActionOk(null)
     if (!name.trim() || !email.trim()) {
       setActionError('Name and email are required.')
       return
@@ -106,6 +108,9 @@ export function UsersPage() {
         setRows((p) => (p ? [c, ...p] : [c]))
         setIsCreating(false)
         applyRow(c)
+        setActionOk(
+          `User created. Temporary password: Temp@123 — they must change it on first sign-in.`,
+        )
       } else {
         if (!selected) return
         const u = await updateLosUser(selected.id, toRequest())
@@ -127,6 +132,8 @@ export function UsersPage() {
       />
       {loading && <LoadingState label="Loading…" />}
       {loadError && <ErrorState message={loadError} />}
+      {actionOk ? <BtAlert tone="success">{actionOk}</BtAlert> : null}
+      {actionError ? <BtAlert tone="error">{actionError}</BtAlert> : null}
       {rows && !loading && (
         <MasterDetailLayout>
           <MasterListPanel
@@ -163,7 +170,7 @@ export function UsersPage() {
               title={isCreating ? 'New user' : name}
               description={
                 isCreating
-                  ? 'Add a local LOS user for assignment rules and role mapping.'
+                  ? 'Add a local LOS user for assignment rules and role mapping. A temporary password (Temp@123) is assigned automatically; the user must change it on first sign-in.'
                   : 'Update contact details and availability for this user.'
               }
               badge={
