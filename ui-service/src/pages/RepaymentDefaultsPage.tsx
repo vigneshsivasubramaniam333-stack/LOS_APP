@@ -51,7 +51,6 @@ export function RepaymentDefaultsPage() {
   const plpManagedProduct = INVOICE_DISCOUNTING_PRODUCT_CODE
 
   const displayProducts = useMemo(() => {
-    const fromApi = new Set(rows.map((r) => r.loanProduct))
     const ordered: string[] = []
     for (const code of LOAN_PRODUCT_CODES) {
       if (code === plpManagedProduct) continue
@@ -123,7 +122,7 @@ export function RepaymentDefaultsPage() {
     <div>
       <PageHeader
         title="Repayment defaults"
-        subtitle="Global repayment mechanism per LOS loan product (personal loan, term loan, etc.). Invoice discounting uses PLP — not configured here."
+        description="Global repayment mechanism per LOS loan product (personal loan, term loan, etc.). Invoice discounting uses PLP — not configured here."
       />
 
       <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/80 p-5">

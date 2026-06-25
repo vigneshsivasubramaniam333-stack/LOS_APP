@@ -69,7 +69,7 @@ export function PgSettlementsPage() {
     <div>
       <PageHeader
         title="PG settlements (PRUS)"
-        subtitle="Settle successful PayU collections for LOS personal/term loans. Posts repayments to LMS with your bank UTR. Invoice discounting settlements remain in PLP Platform Admin."
+        description="Settle successful PayU collections for LOS personal/term loans. Posts repayments to LMS with your bank UTR. Invoice discounting settlements remain in PLP Platform Admin."
       />
 
       {error ? (
