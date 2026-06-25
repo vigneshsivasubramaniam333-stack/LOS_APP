@@ -54,6 +54,42 @@ curl -s -X POST http://127.0.0.1/plp-api/api/v1/auth/login \
   -d '{"email":"admin@credinnov.com","password":"Bltest@123"}'
 ```
 
+## PayU redirect to localhost (invoice discounting from LOS)
+
+PayU **surl/furl** for invoice discounting are built by **PLP `lending-service`** (`PLP_PUBLIC_API_BASE_URL`), not LOS. If the browser redirects to `http://localhost:8180/api/v1/webhooks/payments/payu/success`, PLP is still using the local Docker default.
+
+On EC2, after pulling PLP `credinnov`:
+
+```bash
+cd /vol/PLP-APP
+# Option A — sandbox compose override (recommended)
+docker compose -f docker-compose.yml -f docker-compose.sandbox.yml -f docker-compose.ui.yml up -d --build lending-service
+
+# Option B — persist in .env (copy from .env.example)
+grep PLP_PUBLIC_API_BASE_URL .env || cat >> .env <<'EOF'
+PLP_PUBLIC_API_BASE_URL=http://credinnov-sandbox.senseitech.com/plp-api
+PLP_BORROWER_UI_URL=http://credinnov-sandbox.senseitech.com/plp-borrower
+LOS_BORROWER_UI_URL=http://credinnov-sandbox.senseitech.com/los/borrower
+EOF
+docker compose -f docker-compose.yml -f docker-compose.ui.yml up -d --build lending-service
+```
+
+Verify inside the container:
+
+```bash
+docker exec plp-lending printenv PLP_PUBLIC_API_BASE_URL
+# expect: http://credinnov-sandbox.senseitech.com/plp-api
+```
+
+**LOS term-loan PayU** uses `LOS_PUBLIC_API_BASE_URL` on `los_core` (already defaulted in `docker-compose.prod.yml` to `http://credinnov-sandbox.senseitech.com/los`).
+
+Whitelist in PayU dashboard:
+
+- `http://credinnov-sandbox.senseitech.com/plp-api/api/v1/webhooks/payments/payu/success`
+- `http://credinnov-sandbox.senseitech.com/plp-api/api/v1/webhooks/payments/payu/failure`
+- `http://credinnov-sandbox.senseitech.com/los/api/v1/webhooks/los-payments/payu/success`
+- `http://credinnov-sandbox.senseitech.com/los/api/v1/webhooks/los-payments/payu/failure`
+
 ## Deploy on EC2
 
 ```bash
@@ -63,8 +99,7 @@ docker compose -f docker-compose.prod.yml up -d --build los-core ui-service
 
 # PLP
 cd /vol/PLP-APP && git fetch && git checkout credinnov && git pull origin credinnov
-docker compose -f docker-compose.yml -f docker-compose.ui.yml up -d --build iam-service
-docker compose -f docker-compose.yml -f docker-compose.ui.yml up -d platform-ui anchor-portal borrower-portal
+docker compose -f docker-compose.yml -f docker-compose.sandbox.yml -f docker-compose.ui.yml up -d --build
 ```
 
 Flyway runs migrations on service startup. To re-run on existing DB, restart `los_core` and `plp-iam` (or run SQL manually if migrations already applied).
