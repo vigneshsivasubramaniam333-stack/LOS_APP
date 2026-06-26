@@ -595,13 +595,18 @@ export function BorrowerInvoiceDiscountingPage({
                               <div className="space-y-4">
                                 {linkedLoans.map((loan) =>
                                   usePayu ? (
-                                    <div key={loan.loanId} className="text-xs text-slate-600 border border-slate-200 rounded-lg p-3">
-                                      Loan {loan.loanNumber ?? loan.loanId} — {loan.friendlyStatus}
+                                    <div key={loan.loanId} className="space-y-2">
                                       {inv.pipAmount && inv.pipAmount > 0 ? (
-                                        <span className="ml-2 text-amber-700 font-medium">
-                                          PRUS: {money(inv.pipAmount)}
-                                        </span>
+                                        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                                          <span className="uppercase tracking-wide">PRUS</span>
+                                          <span className="tabular-nums">{money(inv.pipAmount)}</span>
+                                        </div>
                                       ) : null}
+                                      <BorrowerInvoiceLoanCard
+                                        loan={loan}
+                                        invoice={invoiceById.get(inv.invoiceId)}
+                                        readOnly
+                                      />
                                     </div>
                                   ) : (
                                     <BorrowerInvoiceLoanCard

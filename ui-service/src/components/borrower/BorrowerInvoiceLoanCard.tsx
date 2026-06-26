@@ -50,10 +50,12 @@ function statusBadge(status: string | null): string {
 type Props = {
   loan: BorrowerInvoiceLoan
   invoice?: BorrowerInvoiceItem
-  busyId: string | null
-  repayAmount: string
-  onRepayAmountChange: (value: string) => void
-  onRepay: (e: FormEvent, loan: BorrowerInvoiceLoan) => void
+  busyId?: string | null
+  repayAmount?: string
+  onRepayAmountChange?: (value: string) => void
+  onRepay?: (e: FormEvent, loan: BorrowerInvoiceLoan) => void
+  /** Hide the inline repay form (e.g. PayU borrowers repay via the payment cart). */
+  readOnly?: boolean
 }
 
 export function BorrowerInvoiceLoanCard({
@@ -63,6 +65,7 @@ export function BorrowerInvoiceLoanCard({
   repayAmount,
   onRepayAmountChange,
   onRepay,
+  readOnly = false,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [repayments, setRepayments] = useState<BorrowerInvoiceRepayment[] | null>(null)
@@ -184,7 +187,7 @@ export function BorrowerInvoiceLoanCard({
         ) : null}
       </div>
 
-      {loan.repayable ? (
+      {loan.repayable && !readOnly && onRepay && onRepayAmountChange ? (
         <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
           <form onSubmit={(e) => onRepay(e, loan)} className="flex flex-wrap items-end gap-3">
             <label className="block text-xs font-medium text-slate-600">
@@ -193,7 +196,7 @@ export function BorrowerInvoiceLoanCard({
                 type="number"
                 min="1"
                 step="0.01"
-                value={repayAmount}
+                value={repayAmount ?? ''}
                 onChange={(e) => onRepayAmountChange(e.target.value)}
                 placeholder={loan.outstandingAmount ? String(loan.outstandingAmount) : '0.00'}
                 className="mt-1 block w-36 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
