@@ -153,14 +153,14 @@ export function LosDigitalInvoiceAttachment({ invoiceId, fileName }: Props) {
 
   return (
     <>
-      <div className="inline-flex items-center justify-center gap-1">
+      <div className="relative inline-flex items-center justify-start gap-1 whitespace-nowrap align-middle">
         <button
           type="button"
           onClick={() => void onPreview()}
           disabled={loading}
           title="Preview invoice copy"
           aria-label={`Preview ${fileName}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-sky-700 disabled:opacity-50"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-sky-700 disabled:opacity-50"
         >
           <IconEye className="h-4 w-4" />
         </button>
@@ -170,12 +170,19 @@ export function LosDigitalInvoiceAttachment({ invoiceId, fileName }: Props) {
           disabled={loading}
           title="Download invoice copy"
           aria-label={`Download ${fileName}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-sky-700 disabled:opacity-50"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-sky-700 disabled:opacity-50"
         >
           <IconDownload className="h-4 w-4" />
         </button>
+        {error ? (
+          <span
+            className="absolute left-1/2 top-full z-10 mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-rose-600 px-1.5 py-0.5 text-[10px] text-white shadow"
+            title={error}
+          >
+            {error}
+          </span>
+        ) : null}
       </div>
-      {error ? <p className="mt-0.5 text-[10px] text-rose-600">{error}</p> : null}
       {preview ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"

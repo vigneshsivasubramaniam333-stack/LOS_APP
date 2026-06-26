@@ -43,6 +43,58 @@ public class BorrowerProgramsService {
         return ownershipService.isInvoiceDiscountingLinked(borrowerUserId);
     }
 
+    public InvoiceDiscountingFlowFlags resolveInvoiceDiscountingFlowFlags(UUID borrowerUserId) {
+        if (!isInvoiceDiscountingLinked(borrowerUserId)) {
+            return InvoiceDiscountingFlowFlags.none();
+        }
+        Optional<UUID> plpBorrowerId = ownershipService.resolvePlpBorrowerId(borrowerUserId);
+        if (plpBorrowerId.isEmpty() || !plpBorrowerClient.isEnabled()) {
+            return InvoiceDiscountingFlowFlags.linkedOnly();
+        }
+        try {
+            List<Map<String, Object>> subPrograms = plpBorrowerClient.listSubPrograms();
+            boolean pbf = false;
+            boolean sbd = false;
+            boolean po = false;
+            for (Map<String, Object> sp : subPrograms) {
+                UUID spId = asUuid(sp.get("id"));
+                if (spId == null) {
+                    continue;
+                }
+                try {
+                    if (plpBorrowerClient.getBorrowerLimitSummary(spId, plpBorrowerId.get()).isEmpty()) {
+                        continue;
+                    }
+                } catch (PlpIntegrationException e) {
+                    continue;
+                }
+                String flow = asString(sp.get("flowType"));
+                if (flow == null || flow.isBlank() || "PURCHASE_BILL_DISCOUNTING".equalsIgnoreCase(flow)) {
+                    pbf = true;
+                } else if ("SALES_BILL_DISCOUNTING".equalsIgnoreCase(flow)) {
+                    sbd = true;
+                } else if ("PURCHASE_ORDER_DISCOUNTING".equalsIgnoreCase(flow)) {
+                    po = true;
+                }
+            }
+            return new InvoiceDiscountingFlowFlags(true, pbf, sbd, po);
+        } catch (PlpIntegrationException e) {
+            log.warn("Could not resolve invoice flow enrollments for {}: {}", borrowerUserId, e.getMessage());
+            return InvoiceDiscountingFlowFlags.linkedOnly();
+        }
+    }
+
+    public record InvoiceDiscountingFlowFlags(
+            boolean anyLinked, boolean purchaseBill, boolean salesBill, boolean purchaseOrder) {
+        static InvoiceDiscountingFlowFlags none() {
+            return new InvoiceDiscountingFlowFlags(false, false, false, false);
+        }
+
+        static InvoiceDiscountingFlowFlags linkedOnly() {
+            return new InvoiceDiscountingFlowFlags(true, true, false, false);
+        }
+    }
+
     public BorrowerProgramsResponse listPrograms(UUID borrowerUserId) {
         losUserRepository.findById(borrowerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));

@@ -58,8 +58,20 @@ export interface BorrowerInvoiceDiscounting {
   loans: BorrowerInvoiceLoan[]
 }
 
-export async function getInvoiceDiscounting(): Promise<BorrowerInvoiceDiscounting> {
-  const { data } = await http.get<BorrowerInvoiceDiscounting>('/borrower/invoice-discounting')
+export async function getInvoiceDiscounting(flowType?: string): Promise<BorrowerInvoiceDiscounting> {
+  const { data } = await http.get<BorrowerInvoiceDiscounting>('/borrower/invoice-discounting', {
+    params: flowType ? { flowType } : undefined,
+  })
+  return data
+}
+
+export async function createInvoiceDiscountingInvoice(
+  body: Record<string, unknown>,
+): Promise<BorrowerInvoiceDiscounting> {
+  const { data } = await http.post<BorrowerInvoiceDiscounting>(
+    '/borrower/invoice-discounting/invoices',
+    body,
+  )
   return data
 }
 

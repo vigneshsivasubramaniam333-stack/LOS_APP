@@ -182,4 +182,6 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
             """, nativeQuery = true)
     java.util.List<LoanApplication> findOthersByMobile(@org.springframework.data.repository.query.Param("selfId") UUID selfId,
                                                        @org.springframework.data.repository.query.Param("mobileDigits") String mobileDigits);
+
+    long countByCustomerId(UUID customerId);
 }

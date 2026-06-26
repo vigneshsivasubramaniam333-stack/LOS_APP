@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
@@ -40,11 +41,23 @@ public class BorrowerInvoiceDiscountingController {
     @GetMapping
     @Operation(summary = "Borrower invoices and invoice-discounting loans")
     public ResponseEntity<BorrowerInvoiceDiscountingResponse> overview(
+            @RequestParam(required = false) String flowType,
             @RequestHeader("X-User-Id") String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         UUID uid = UUID.fromString(userId);
         service.requireBorrower(role);
-        return ResponseEntity.ok(service.overview(uid));
+        return ResponseEntity.ok(service.overview(uid, flowType));
+    }
+
+    @PostMapping("/invoices")
+    @Operation(summary = "Create a seller-initiated invoice (SBD/PO)")
+    public ResponseEntity<BorrowerInvoiceDiscountingResponse> createInvoice(
+            @RequestBody java.util.Map<String, Object> body,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        service.requireBorrower(role);
+        return ResponseEntity.ok(service.createInvoice(uid, body));
     }
 
     @PostMapping("/invoices/{invoiceId}/accept")

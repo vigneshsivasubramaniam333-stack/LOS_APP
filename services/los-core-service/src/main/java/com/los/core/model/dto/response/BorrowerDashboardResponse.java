@@ -21,4 +21,7 @@ public class BorrowerDashboardResponse {
     UUID primaryDisbursedApplicationId;
     /** True when this borrower has a synced PLP identity on an invoice-discounting application. */
     boolean invoiceDiscountingLinked;
+    boolean purchaseBillDiscountingLinked;
+    boolean salesBillDiscountingLinked;
+    boolean purchaseOrderDiscountingLinked;
 }

@@ -123,6 +123,8 @@ public class BorrowerPortalService {
         String warn = disbursed > 0
                 ? "You already have an active disbursed loan on file. A second loan may require additional review."
                 : null;
+        BorrowerProgramsService.InvoiceDiscountingFlowFlags flowFlags =
+                borrowerProgramsService.resolveInvoiceDiscountingFlowFlags(borrowerUserId);
         return BorrowerDashboardResponse.builder()
                 .fullName(u.getName())
                 .email(u.getEmail())
@@ -133,7 +135,10 @@ public class BorrowerPortalService {
                 .recentApplications(recent)
                 .secondLoanWarning(warn)
                 .primaryDisbursedApplicationId(firstDisbursed)
-                .invoiceDiscountingLinked(borrowerProgramsService.isInvoiceDiscountingLinked(borrowerUserId))
+                .invoiceDiscountingLinked(flowFlags.anyLinked())
+                .purchaseBillDiscountingLinked(flowFlags.purchaseBill())
+                .salesBillDiscountingLinked(flowFlags.salesBill())
+                .purchaseOrderDiscountingLinked(flowFlags.purchaseOrder())
                 .build();
     }
 

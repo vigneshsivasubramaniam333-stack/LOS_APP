@@ -13,6 +13,7 @@ import { EsignSection } from '@/components/EsignSection'
 import { SanctionKfsSection } from '@/components/SanctionKfsSection'
 import { UnderwritingSection } from '@/components/UnderwritingSection'
 import { AnchorDueDiligenceSection } from '@/components/AnchorDueDiligenceSection'
+import { ApplicationDeletePanel } from '@/components/ApplicationDeletePanel'
 import { useApplication } from '@/hooks/useApplication'
 import { useStepExecutions } from '@/hooks/useStepExecutions'
 import { borrowerStatusPath, buildWhatsAppStatusShareUrl } from '@/lib/borrowerShare'
@@ -165,6 +166,7 @@ export function ApplicationDetailPage() {
               ? 'Review KYC, underwriting, CAM, sanction, terms eSign, and PLP program linkage for this invoice discounting borrower.'
               : 'Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan.'
         }
+        actions={app && id ? <ApplicationDeletePanel applicationId={id} app={app} /> : null}
       />
       <p className="mb-4 text-sm">
         <Link to="/applications" className="font-medium text-[var(--bt-orange)] hover:underline">

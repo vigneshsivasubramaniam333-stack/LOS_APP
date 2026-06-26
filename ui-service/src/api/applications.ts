@@ -136,3 +136,58 @@ export async function openAiLosReview(
   const { data } = await http.post<AiLosOpenResponse>(`/applications/${applicationId}/ai-los/open`, payload)
   return data
 }
+
+export interface ApplicationDeletionPreview {
+  applicationId: string
+  applicationNumber: string
+  loanProduct: string
+  intakeSegment: string
+  status: string | null
+  borrowerApplication: boolean
+  invoiceDiscountingBorrower: boolean
+  plpLinked: boolean
+  requiresDoubleConfirm: boolean
+  warningMessage: string | null
+  summaryMessage: string | null
+}
+
+export interface ApplicationDeletionLogEntry {
+  id: string
+  applicationId: string
+  applicationNumber: string
+  loanProduct: string
+  intakeSegment: string
+  applicationStatus: string
+  borrowerEmail?: string | null
+  deletedByEmail?: string | null
+  deletedByRole?: string | null
+  reason?: string | null
+  plpCleanupAttempted: boolean
+  plpCleanupSummary?: string | null
+  deletedAt: string
+}
+
+export async function getApplicationDeletionPreview(applicationId: string): Promise<ApplicationDeletionPreview> {
+  const { data } = await http.get<ApplicationDeletionPreview>(`/applications/${applicationId}/deletion-preview`)
+  return data
+}
+
+export async function deleteApplication(
+  applicationId: string,
+  body: { reason?: string; confirmActiveLoan?: boolean },
+): Promise<void> {
+  await http.delete(`/applications/${applicationId}`, { data: body })
+}
+
+export async function listApplicationDeletionLogs(page = 0, size = 20): Promise<{
+  content: ApplicationDeletionLogEntry[]
+  totalElements: number
+  totalPages: number
+}> {
+  const { data } = await http.get<{
+    content: ApplicationDeletionLogEntry[]
+    totalElements: number
+    totalPages: number
+  }>('/admin/application-deletions', { params: { page, size } })
+  return data
+}

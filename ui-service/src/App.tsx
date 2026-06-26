@@ -18,6 +18,11 @@ import { BorrowerSignedDocumentsPage } from '@/pages/borrower/BorrowerSignedDocu
 import { BorrowerLoanSubPage } from '@/pages/borrower/BorrowerLoanSubPage'
 import { BorrowerLoanAccountPage } from '@/pages/borrower/BorrowerLoanAccountPage'
 import { BorrowerInvoiceDiscountingPage } from '@/pages/borrower/BorrowerInvoiceDiscountingPage'
+import {
+  BorrowerPurchaseOrderDiscountingPage,
+  BorrowerSalesBillDiscountingPage,
+} from '@/pages/borrower/BorrowerFlowDiscountingPages'
+import { BorrowerSellerInitiatedInvoiceCreatePage } from '@/pages/borrower/BorrowerSellerInitiatedInvoiceCreatePage'
 import { BorrowerPaymentCartPage } from '@/pages/borrower/payments/BorrowerPaymentCartPage'
 import { BorrowerPayuCheckoutPage } from '@/pages/borrower/payments/BorrowerPayuCheckoutPage'
 import { BorrowerLoanPayuCheckoutPage } from '@/pages/borrower/payments/BorrowerLoanPayuCheckoutPage'
@@ -49,6 +54,7 @@ import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
 import { PlpProgramsPage } from '@/pages/plp/PlpProgramsPage'
 import { PlpProgramDetailPage } from '@/pages/plp/PlpProgramDetailPage'
+import { ApplicationDeletionsPage } from '@/pages/ApplicationDeletionsPage'
 
 export default function App() {
   useEffect(() => installBorrowerDraftDemoClearListener(), [])
@@ -78,7 +84,34 @@ export default function App() {
         <Route path="applications" element={<BorrowerApplicationsListPage />} />
         <Route path="applications/:id" element={<BorrowerApplicationDetailPage />} />
         <Route path="programs" element={<BorrowerProgramsPage />} />
-        <Route path="invoice-discounting" element={<BorrowerInvoiceDiscountingPage />} />
+        <Route
+          path="invoice-discounting"
+          element={
+            <BorrowerInvoiceDiscountingPage flowType="PURCHASE_BILL_DISCOUNTING" title="Invoice discounting" />
+          }
+        />
+        <Route path="sales-bill-discounting" element={<BorrowerSalesBillDiscountingPage />} />
+        <Route
+          path="sales-bill-discounting/create"
+          element={
+            <BorrowerSellerInitiatedInvoiceCreatePage
+              flowType="SALES_BILL_DISCOUNTING"
+              title="Create sales bill"
+              backPath="/borrower/sales-bill-discounting"
+            />
+          }
+        />
+        <Route path="purchase-order-discounting" element={<BorrowerPurchaseOrderDiscountingPage />} />
+        <Route
+          path="purchase-order-discounting/create"
+          element={
+            <BorrowerSellerInitiatedInvoiceCreatePage
+              flowType="PURCHASE_ORDER_DISCOUNTING"
+              title="Create purchase order"
+              backPath="/borrower/purchase-order-discounting"
+            />
+          }
+        />
         <Route path="invoice-discounting/payments/cart" element={<BorrowerPaymentCartPage />} />
         <Route path="invoice-discounting/payments/payu" element={<BorrowerPayuCheckoutPage />} />
         <Route path="invoice-discounting/payments/result" element={<BorrowerPaymentResultPage />} />
@@ -180,6 +213,14 @@ export default function App() {
           element={
             <AdminConfigGate>
               <UserRoleMappingsPage />
+            </AdminConfigGate>
+          }
+        />
+        <Route
+          path="application-deletions"
+          element={
+            <AdminConfigGate>
+              <ApplicationDeletionsPage />
             </AdminConfigGate>
           }
         />

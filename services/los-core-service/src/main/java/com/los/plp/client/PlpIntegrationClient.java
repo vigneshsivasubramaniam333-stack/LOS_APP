@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.dto.PlpApiResponse;
 import com.los.plp.dto.PlpLoginResponse;
+import com.los.plp.dto.request.PlpApplicationCleanupRequest;
 import com.los.plp.dto.request.PlpAnchorSyncRequest;
 import com.los.plp.dto.request.PlpBorrowerProgramMappingRequest;
 import com.los.plp.dto.request.PlpBorrowerSyncRequest;
 import com.los.plp.dto.request.PlpProgramSyncRequest;
 import com.los.plp.dto.request.PlpSubProgramBorrowerLinkRequest;
 import com.los.plp.dto.request.PlpSubProgramSyncRequest;
+import com.los.plp.dto.response.PlpApplicationCleanupResponse;
 import com.los.plp.dto.response.PlpAnchorSyncData;
 import com.los.plp.dto.response.PlpBorrowerProgramMappingData;
 import com.los.plp.dto.response.PlpBorrowerSyncData;
@@ -47,6 +49,7 @@ public class PlpIntegrationClient {
     private static final String PATH_BORROWERS = "/api/v1/integrations/los/borrowers";
     private static final String PATH_LINKS = "/api/v1/integrations/los/sub-program-borrower-links";
     private static final String PATH_MAPPINGS = "/api/v1/integrations/los/borrower-program-mappings";
+    private static final String PATH_APPLICATION_CLEANUP = "/api/v1/integrations/los/application-cleanup";
 
     private static final int MAX_LOG_BODY_CHARS = 4096;
 
@@ -56,6 +59,7 @@ public class PlpIntegrationClient {
     private static final TypeReference<PlpApiResponse<PlpBorrowerSyncData>> BORROWER_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpSubProgramBorrowerLinkData>> LINK_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpBorrowerProgramMappingData>> MAPPING_TYPE = new TypeReference<>() {};
+    private static final TypeReference<PlpApiResponse<PlpApplicationCleanupResponse>> CLEANUP_TYPE = new TypeReference<>() {};
 
     @Qualifier("plpRestClient")
     private final RestClient plpRestClient;
@@ -93,6 +97,12 @@ public class PlpIntegrationClient {
     public PlpApiResponse<PlpBorrowerProgramMappingData> syncBorrowerProgramMapping(PlpBorrowerProgramMappingRequest request) {
         request.setSourceSystem(SOURCE_SYSTEM);
         return post(PATH_MAPPINGS, request, MAPPING_TYPE);
+    }
+
+    public PlpApplicationCleanupResponse cleanupApplication(PlpApplicationCleanupRequest request) {
+        request.setSourceSystem(SOURCE_SYSTEM);
+        PlpApiResponse<PlpApplicationCleanupResponse> response = post(PATH_APPLICATION_CLEANUP, request, CLEANUP_TYPE);
+        return response.getData();
     }
 
     public boolean isEnabled() {

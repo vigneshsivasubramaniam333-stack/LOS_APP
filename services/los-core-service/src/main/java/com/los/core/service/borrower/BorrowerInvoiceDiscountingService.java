@@ -55,6 +55,10 @@ public class BorrowerInvoiceDiscountingService {
 
     /** Invoices + invoice-discounting loans for the borrower, or a graceful unavailable payload. */
     public BorrowerInvoiceDiscountingResponse overview(UUID borrowerUserId) {
+        return overview(borrowerUserId, null);
+    }
+
+    public BorrowerInvoiceDiscountingResponse overview(UUID borrowerUserId, String flowType) {
         losUserRepository.findById(borrowerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -68,7 +72,7 @@ public class BorrowerInvoiceDiscountingService {
                             + "set up with the anchor program. Apply for an invoice discounting loan to get started.");
         }
         try {
-            List<Map<String, Object>> rawInvoices = plpBorrowerClient.listInvoices(plpBorrowerId.get());
+            List<Map<String, Object>> rawInvoices = plpBorrowerClient.listInvoices(plpBorrowerId.get(), flowType);
             List<Map<String, Object>> rawLoans = plpBorrowerClient.listLoans(plpBorrowerId.get());
             List<BorrowerInvoiceItemResponse> invoices = new ArrayList<>();
             for (Map<String, Object> inv : rawInvoices) {
@@ -80,10 +84,16 @@ public class BorrowerInvoiceDiscountingService {
                     loans.add(toLoan(loan));
                 }
             }
+            String paymentMethod = "SMART_COLLECT";
+            try {
+                paymentMethod = plpBorrowerClient.getPaymentMethod(plpBorrowerId.get());
+            } catch (PlpIntegrationException e) {
+                log.debug("Payment method unavailable for borrower {}: {}", borrowerUserId, e.getMessage());
+            }
             return BorrowerInvoiceDiscountingResponse.builder()
                     .available(true)
                     .message(null)
-                    .paymentMethod(plpBorrowerClient.getPaymentMethod(plpBorrowerId.get()))
+                    .paymentMethod(paymentMethod)
                     .invoices(invoices)
                     .loans(loans)
                     .build();
@@ -110,7 +120,20 @@ public class BorrowerInvoiceDiscountingService {
         } catch (PlpIntegrationException e) {
             throw new BusinessRuleException("Could not accept invoice: " + e.getMessage());
         }
-        return overview(borrowerUserId);
+        return overview(borrowerUserId, asString(invoice.get("flowType")));
+    }
+
+    public BorrowerInvoiceDiscountingResponse createInvoice(
+            UUID borrowerUserId, Map<String, Object> invoiceBody) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Invoice discounting is not set up for your account yet."));
+        try {
+            Map<String, Object> created = plpBorrowerClient.createBorrowerInvoice(plpBorrowerId, invoiceBody);
+            return overview(borrowerUserId, asString(created.get("flowType")));
+        } catch (PlpIntegrationException e) {
+            throw new BusinessRuleException("Could not create invoice: " + e.getMessage());
+        }
     }
 
     /** Repayment history for an invoice-discounting loan owned by the borrower. */
@@ -168,7 +191,7 @@ public class BorrowerInvoiceDiscountingService {
         } catch (PlpIntegrationException e) {
             throw new BusinessRuleException("Could not submit the finance request: " + e.getMessage());
         }
-        return overview(borrowerUserId);
+        return overview(borrowerUserId, flowType);
     }
 
     public List<Map<String, Object>> listPaymentCart(UUID borrowerUserId) {

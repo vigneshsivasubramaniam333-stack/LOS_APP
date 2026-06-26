@@ -50,8 +50,24 @@ public class PlpBorrowerClient {
 
     /** All invoices visible to a borrower. PLP returns a raw JSON array (not wrapped in {status,data}). */
     public List<Map<String, Object>> listInvoices(UUID plpBorrowerId) {
-        String raw = get("/api/v1/invoices/borrower/" + plpBorrowerId);
+        return listInvoices(plpBorrowerId, null);
+    }
+
+    public List<Map<String, Object>> listInvoices(UUID plpBorrowerId, String flowType) {
+        String path = "/api/v1/invoices/borrower/" + plpBorrowerId;
+        if (flowType != null && !flowType.isBlank()) {
+            path += "?flowType=" + flowType.trim();
+        }
+        String raw = get(path);
         return parseList(raw);
+    }
+
+    /** Borrower creates a seller-initiated invoice (SBD/PO). */
+    public Map<String, Object> createBorrowerInvoice(UUID plpBorrowerId, Map<String, Object> invoiceBody) {
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>(invoiceBody);
+        body.putIfAbsent("borrowerId", plpBorrowerId.toString());
+        String raw = post("/api/v1/invoices", body);
+        return parseInvoice(raw);
     }
 
     /** Digital invoice bytes for a PLP invoice (lender machine identity). */
@@ -212,6 +228,9 @@ public class PlpBorrowerClient {
             if (e.getMessage() != null && e.getMessage().contains("HTTP 404")) {
                 return Optional.empty();
             }
+            if (e.getMessage() != null && e.getMessage().contains("HTTP 500")) {
+                return Optional.empty();
+            }
             if (e.getMessage() != null && e.getMessage().toLowerCase().contains("not enrolled")) {
                 return Optional.empty();
             }
@@ -286,7 +305,21 @@ public class PlpBorrowerClient {
             return List.of();
         }
         try {
-            return objectMapper.readValue(raw, LIST_OF_MAPS);
+            String trimmed = raw.trim();
+            if (trimmed.startsWith("[")) {
+                return objectMapper.readValue(raw, LIST_OF_MAPS);
+            }
+            if (trimmed.startsWith("{")) {
+                Map<String, Object> wrapper = objectMapper.readValue(raw, MAP);
+                Object data = wrapper.get("data");
+                if (data instanceof List<?> list) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> rows = (List<Map<String, Object>>) list;
+                    return rows;
+                }
+                return List.of();
+            }
+            return List.of();
         } catch (Exception e) {
             throw new PlpIntegrationException("PLP: failed to parse invoice list: " + e.getMessage());
         }

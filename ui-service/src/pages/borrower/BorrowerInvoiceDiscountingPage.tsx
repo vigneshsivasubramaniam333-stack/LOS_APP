@@ -46,7 +46,19 @@ function statusBadge(status: string | null): string {
   return 'bg-slate-50 text-slate-600 border-slate-200'
 }
 
-export function BorrowerInvoiceDiscountingPage() {
+export function BorrowerInvoiceDiscountingPage({
+  flowType,
+  title = 'Invoice discounting',
+  description = 'Purchase-flow invoices must be accepted before requesting finance.',
+  createPath,
+  createLabel,
+}: {
+  flowType?: string
+  title?: string
+  description?: string
+  createPath?: string
+  createLabel?: string
+} = {}) {
   const [linked, setLinked] = useState<boolean | null>(null)
   const [data, setData] = useState<BorrowerInvoiceDiscounting | null>(null)
   const [loadErr, setLoadErr] = useState<string | null>(null)
@@ -263,12 +275,20 @@ export function BorrowerInvoiceDiscountingPage() {
     setLoadErr(null)
     try {
       const dash = await getBorrowerDashboard()
-      if (!dash.invoiceDiscountingLinked) {
+      const flowLinked =
+        !flowType || flowType === 'PURCHASE_BILL_DISCOUNTING'
+          ? dash.purchaseBillDiscountingLinked ?? dash.invoiceDiscountingLinked
+          : flowType === 'SALES_BILL_DISCOUNTING'
+            ? dash.salesBillDiscountingLinked
+            : flowType === 'PURCHASE_ORDER_DISCOUNTING'
+              ? dash.purchaseOrderDiscountingLinked
+              : dash.invoiceDiscountingLinked
+      if (!flowLinked) {
         setLinked(false)
         return
       }
       setLinked(true)
-      const payload = await getInvoiceDiscounting()
+      const payload = await getInvoiceDiscounting(flowType)
       setData(payload)
       applyFinanceDefaults(payload)
     } catch (e) {
@@ -276,7 +296,7 @@ export function BorrowerInvoiceDiscountingPage() {
     } finally {
       setLoading(false)
     }
-  }, [applyFinanceDefaults])
+  }, [applyFinanceDefaults, flowType])
 
   useEffect(() => {
     void refresh()
@@ -355,8 +375,15 @@ export function BorrowerInvoiceDiscountingPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Invoice discounting"
-        description="Accept eligible invoices, request finance, track repayments, and manage outstanding loans."
+        title={title}
+        description={description}
+        actions={
+          createPath ? (
+            <Link to={createPath} className="bt-btn bt-btn-primary">
+              {createLabel ?? 'Create'}
+            </Link>
+          ) : undefined
+        }
       />
 
       {loadErr ? <p className="text-sm text-amber-800">{loadErr}</p> : null}
@@ -461,17 +488,18 @@ export function BorrowerInvoiceDiscountingPage() {
                       ) : null}
                       <th className="px-5 py-3 align-middle">Invoice</th>
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Due date</th>
-                      <th className="px-5 py-3 align-middle text-right whitespace-nowrap">Amount</th>
-                      <th className="px-5 py-3 align-middle text-right whitespace-nowrap">Available</th>
-                      {usePayu ? <th className="px-5 py-3 align-middle text-right whitespace-nowrap">PRUS</th> : null}
-                      <th className="px-5 py-3 align-middle text-center whitespace-nowrap">Copy</th>
+                      <th className="px-5 py-3 align-middle whitespace-nowrap">Amount</th>
+                      <th className="px-5 py-3 align-middle whitespace-nowrap">Available</th>
+                      {usePayu ? <th className="px-5 py-3 align-middle whitespace-nowrap">PRUS</th> : null}
+                      <th className="px-5 py-3 align-middle whitespace-nowrap">Copy</th>
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Status</th>
-                      <th className="px-3 py-3 align-middle text-right w-44">Actions</th>
+                      <th className="px-3 py-3 align-middle w-44">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {visibleInvoices.flatMap((inv) => {
                       const linkedLoans = loansByInvoiceId.get(inv.invoiceId) ?? []
+                      const invoiceActions = buildInvoiceActions(inv, linkedLoans)
                       const rows = [
                         <tr key={inv.invoiceId} className="align-middle hover:bg-slate-50/60">
                         {usePayu ? (
@@ -495,14 +523,14 @@ export function BorrowerInvoiceDiscountingPage() {
                         ) : null}
                         <td className="whitespace-nowrap px-5 py-3 align-middle font-medium text-bl-navy">{inv.invoiceNumber ?? '—'}</td>
                         <td className="whitespace-nowrap px-5 py-3 align-middle text-slate-600">{inv.dueDate ?? '—'}</td>
-                        <td className="px-5 py-3 align-middle text-right tabular-nums text-slate-700">{money(inv.invoiceAmount)}</td>
-                        <td className="px-5 py-3 align-middle text-right tabular-nums text-slate-700">{money(inv.availableAmount)}</td>
+                        <td className="px-5 py-3 align-middle tabular-nums text-slate-700">{money(inv.invoiceAmount)}</td>
+                        <td className="px-5 py-3 align-middle tabular-nums text-slate-700">{money(inv.availableAmount)}</td>
                         {usePayu ? (
-                          <td className="px-5 py-3 align-middle text-right tabular-nums text-amber-700 text-xs font-medium">
+                          <td className="px-5 py-3 align-middle tabular-nums text-amber-700 text-xs font-medium">
                             {inv.pipAmount && inv.pipAmount > 0 ? money(inv.pipAmount) : '—'}
                           </td>
                         ) : null}
-                        <td className="px-5 py-3 align-middle text-center">
+                        <td className="px-5 py-3 align-middle whitespace-nowrap">
                           <LosDigitalInvoiceAttachment
                             invoiceId={inv.invoiceId}
                             fileName={inv.digitalInvoiceFileName}
@@ -517,12 +545,12 @@ export function BorrowerInvoiceDiscountingPage() {
                         </td>
                         <td className="px-3 py-3 align-middle">
                           <div className="flex w-44 flex-col items-stretch gap-1.5">
-                            <div className="flex justify-end">
+                            {invoiceActions.length > 0 ? (
                               <BorrowerInvoiceActionsMenu
-                                items={buildInvoiceActions(inv, linkedLoans)}
+                                items={invoiceActions}
                                 busy={addingToCart || busyId === inv.invoiceId}
                               />
-                            </div>
+                            ) : null}
                             {inv.acceptable ? (
                               <button
                                 type="button"
@@ -553,6 +581,8 @@ export function BorrowerInvoiceDiscountingPage() {
                                   {busyId === inv.invoiceId ? '…' : 'Request finance'}
                                 </button>
                               </form>
+                            ) : invoiceActions.length === 0 ? (
+                              <span className="text-xs text-slate-400">—</span>
                             ) : null}
                           </div>
                         </td>

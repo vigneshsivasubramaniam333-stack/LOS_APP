@@ -8,3 +8,7 @@ target/
 node_modules/
 .env
 dist/
+
+# Runtime upload artifacts (borrower/anchor document uploads, digital invoices)
+uploads/
+services/los-core-service/uploads/

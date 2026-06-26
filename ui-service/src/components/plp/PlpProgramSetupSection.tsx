@@ -20,6 +20,7 @@ const PROGRAM_TYPES = [
 const INVOICE_FLOW_TYPES = [
   { value: 'PURCHASE_BILL_DISCOUNTING', label: 'Purchase bill discounting (anchor = seller)' },
   { value: 'SALES_BILL_DISCOUNTING', label: 'Sales bill discounting (anchor = buyer)' },
+  { value: 'PURCHASE_ORDER_DISCOUNTING', label: 'Purchase order discounting (anchor = buyer)' },
 ]
 
 const DEFAULT_ID_INTEREST_RATE = '12'

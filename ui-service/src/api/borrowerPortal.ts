@@ -17,6 +17,9 @@ export interface BorrowerDashboard {
   secondLoanWarning: string | null
   primaryDisbursedApplicationId: string | null
   invoiceDiscountingLinked: boolean
+  purchaseBillDiscountingLinked: boolean
+  salesBillDiscountingLinked: boolean
+  purchaseOrderDiscountingLinked: boolean
 }
 
 export interface BorrowerAppSummary {

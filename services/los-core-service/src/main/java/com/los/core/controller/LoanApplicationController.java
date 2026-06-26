@@ -10,8 +10,11 @@ import com.los.core.model.dto.response.AiLosOpenResponse;
 import com.los.core.model.dto.response.ApplicationResponse;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.exception.ForbiddenException;
-import com.los.core.service.integration.AiLosIntegrationService;
+import com.los.core.model.dto.request.DeleteApplicationRequest;
+import com.los.core.model.dto.response.ApplicationDeletionPreviewResponse;
+import com.los.core.service.loan.ApplicationDeletionService;
 import com.los.core.service.loan.ILoanApplicationService;
+import com.los.core.service.integration.AiLosIntegrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,6 +36,7 @@ public class LoanApplicationController {
 
     private final ILoanApplicationService loanApplicationService;
     private final AiLosIntegrationService aiLosIntegrationService;
+    private final ApplicationDeletionService applicationDeletionService;
 
     private static final java.util.Set<String> MANUAL_BUREAU_ALLOWED_ROLES = java.util.Set.of(
             "ADMIN",
@@ -163,5 +167,24 @@ public class LoanApplicationController {
         String returnUrl = request != null ? request.getReturnUrl() : null;
         String mode = request != null ? request.getMode() : null;
         return ResponseEntity.ok(aiLosIntegrationService.initiateOpen(applicationId, returnUrl, mode));
+    }
+
+    @GetMapping("/{applicationId}/deletion-preview")
+    @Operation(summary = "Preview borrower application deletion warnings and PLP impact")
+    public ResponseEntity<ApplicationDeletionPreviewResponse> deletionPreview(@PathVariable UUID applicationId) {
+        return ResponseEntity.ok(applicationDeletionService.previewDeletion(applicationId));
+    }
+
+    @DeleteMapping("/{applicationId}")
+    @Operation(summary = "Permanently delete a borrower application and related records")
+    public ResponseEntity<Void> deleteApplication(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) DeleteApplicationRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail) {
+        UUID deletedBy = userId != null && !userId.isBlank() ? UUID.fromString(userId) : null;
+        applicationDeletionService.deleteApplication(applicationId, request, deletedBy, userEmail, userRole);
+        return ResponseEntity.noContent().build();
     }
 }

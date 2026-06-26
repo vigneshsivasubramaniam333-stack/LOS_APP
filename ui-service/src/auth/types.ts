@@ -47,6 +47,20 @@ export function canAccessAdminConfigNav(role: string): boolean {
   return role === 'ADMINISTRATOR' || role === 'CREDIT_MANAGER'
 }
 
+/** Roles allowed to delete borrower applications (aligned with los-core ApplicationDeletionService). */
+export function canDeleteApplication(role: string): boolean {
+  const r = String(role ?? '')
+    .trim()
+    .toUpperCase()
+  return (
+    r === 'ADMIN' ||
+    r === 'ADMINISTRATOR' ||
+    r === 'CREDIT_MANAGER' ||
+    r === 'CREDIT_OFFICER' ||
+    r === 'PLATFORM_ADMIN'
+  )
+}
+
 export const BORROWER_ROLE = 'BORROWER'
 
 export function isBorrowerRole(role: string): boolean {

@@ -7,6 +7,7 @@ final class InvoiceDiscountingFlowRules {
 
     private static final String FLOW_PURCHASE_BILL_DISCOUNTING = "PURCHASE_BILL_DISCOUNTING";
     private static final String FLOW_SALES_BILL_DISCOUNTING = "SALES_BILL_DISCOUNTING";
+    private static final String FLOW_PURCHASE_ORDER_DISCOUNTING = "PURCHASE_ORDER_DISCOUNTING";
 
     private InvoiceDiscountingFlowRules() {
     }
@@ -17,6 +18,14 @@ final class InvoiceDiscountingFlowRules {
 
     static boolean isSalesFlow(String flowType) {
         return FLOW_SALES_BILL_DISCOUNTING.equalsIgnoreCase(flowType);
+    }
+
+    static boolean isPurchaseOrderFlow(String flowType) {
+        return FLOW_PURCHASE_ORDER_DISCOUNTING.equalsIgnoreCase(flowType);
+    }
+
+    static boolean isSellerInitiatedFlow(String flowType) {
+        return isSalesFlow(flowType) || isPurchaseOrderFlow(flowType);
     }
 
     static boolean acceptable(String status, String flowType) {
@@ -33,7 +42,7 @@ final class InvoiceDiscountingFlowRules {
         if (isPurchaseFlow(flowType)) {
             return "BORROWER_ACCEPTED".equalsIgnoreCase(status) || "PARTIALLY_DISCOUNTED".equalsIgnoreCase(status);
         }
-        if (isSalesFlow(flowType)) {
+        if (isSellerInitiatedFlow(flowType)) {
             return "ELIGIBLE".equalsIgnoreCase(status) || "PARTIALLY_DISCOUNTED".equalsIgnoreCase(status);
         }
         return "BORROWER_ACCEPTED".equalsIgnoreCase(status) || "PARTIALLY_DISCOUNTED".equalsIgnoreCase(status);

@@ -69,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/assignment-rules', label: 'Assignment rules', icon: AssignmentIcon },
       { to: '/users', label: 'Users', icon: UsersIcon },
       { to: '/user-role-mappings', label: 'User–role mappings', icon: MappingsIcon },
+      { to: '/application-deletions', label: 'Application deletions', icon: RulesIcon },
     ],
   },
 ]

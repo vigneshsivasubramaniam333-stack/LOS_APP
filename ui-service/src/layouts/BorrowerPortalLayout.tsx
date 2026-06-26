@@ -34,11 +34,6 @@ const lendingNav: NavItem[] = [
   { to: '/borrower/applications', label: 'Loan applications', icon: ApplicationsIcon },
 ]
 
-const invoiceDiscountingNav: NavItem[] = [
-  { to: '/borrower/invoice-discounting', label: 'Invoice discounting', icon: InvoiceIcon },
-  { to: '/borrower/invoice-discounting/payments/cart', label: 'Payment cart', icon: InvoiceIcon },
-]
-
 const accountNav: NavItem[] = [
   { to: '/borrower/documents', label: 'Documents', icon: DocumentsIcon },
   { to: '/borrower/profile', label: 'Profile', icon: ProfileIcon },
@@ -78,6 +73,9 @@ export function BorrowerPortalLayout() {
   const [hasDisbursedLoan, setHasDisbursedLoan] = useState(false)
   const [loanId, setLoanId] = useState<string | null>(null)
   const [invoiceDiscountingLinked, setInvoiceDiscountingLinked] = useState(false)
+  const [purchaseBillLinked, setPurchaseBillLinked] = useState(false)
+  const [salesBillLinked, setSalesBillLinked] = useState(false)
+  const [purchaseOrderLinked, setPurchaseOrderLinked] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifs, setNotifs] = useState<Awaited<ReturnType<typeof getBorrowerNotifications>>>([])
 
@@ -90,6 +88,9 @@ export function BorrowerPortalLayout() {
         setHasDisbursedLoan(d.activeLoanCount > 0)
         setLoanId(d.primaryDisbursedApplicationId)
         setInvoiceDiscountingLinked(Boolean(d.invoiceDiscountingLinked))
+        setPurchaseBillLinked(Boolean(d.purchaseBillDiscountingLinked ?? d.invoiceDiscountingLinked))
+        setSalesBillLinked(Boolean(d.salesBillDiscountingLinked))
+        setPurchaseOrderLinked(Boolean(d.purchaseOrderDiscountingLinked))
         const n = await getBorrowerNotifications()
         if (c) setNotifs(n)
       } catch {
@@ -97,6 +98,9 @@ export function BorrowerPortalLayout() {
           setHasDisbursedLoan(false)
           setLoanId(null)
           setInvoiceDiscountingLinked(false)
+          setPurchaseBillLinked(false)
+          setSalesBillLinked(false)
+          setPurchaseOrderLinked(false)
           setNotifs([])
         }
       }
@@ -114,7 +118,28 @@ export function BorrowerPortalLayout() {
   }
 
   const overviewItems = invoiceDiscountingLinked ? [...overviewNav, ...programsNav] : overviewNav
-  const lendingItems = invoiceDiscountingLinked ? [...lendingNav, ...invoiceDiscountingNav] : lendingNav
+  const invoiceNav: NavItem[] = []
+  if (purchaseBillLinked) {
+    invoiceNav.push({ to: '/borrower/invoice-discounting', label: 'Invoice discounting', icon: InvoiceIcon, end: true })
+  }
+  if (salesBillLinked) {
+    invoiceNav.push({ to: '/borrower/sales-bill-discounting', label: 'Sales Bill Discounting', icon: InvoiceIcon })
+  }
+  if (purchaseOrderLinked) {
+    invoiceNav.push({
+      to: '/borrower/purchase-order-discounting',
+      label: 'Purchase Order Discounting',
+      icon: InvoiceIcon,
+    })
+  }
+  if (purchaseBillLinked || salesBillLinked || purchaseOrderLinked) {
+    invoiceNav.push({
+      to: '/borrower/invoice-discounting/payments/cart',
+      label: 'Payment cart',
+      icon: InvoiceIcon,
+    })
+  }
+  const lendingItems = invoiceDiscountingLinked ? [...lendingNav, ...invoiceNav] : lendingNav
 
   return (
     <div className="bt-app-canvas bt-app-shell">
