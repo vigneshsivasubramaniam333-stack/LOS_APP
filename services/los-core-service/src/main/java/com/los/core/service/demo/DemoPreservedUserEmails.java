@@ -14,7 +14,7 @@ public class DemoPreservedUserEmails {
     private final List<String> preservedEmailsLower;
 
     public DemoPreservedUserEmails(
-            @Value("${los.demo.preserved-user-emails:sahil@gmail.com,borrower@credinnov.com}") String csv) {
+            @Value("${los.demo.preserved-user-emails:sahil@gmail.com,borrower@credinnov.com,borrower@optimo.com}") String csv) {
         this.preservedEmailsLower = parseCsv(csv);
     }
 
