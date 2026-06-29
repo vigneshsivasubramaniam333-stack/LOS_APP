@@ -19,6 +19,11 @@ export interface BorrowerInvoiceItem {
   maxFinanceableAmount: number | null
   suggestedFinanceAmount: number | null
   pipAmount?: number | null
+  subProgramId?: string | null
+  isEarlyPayAllowed?: string | null
+  showEarlyPay?: string | null
+  balDueAmount?: number | null
+  earlyPayable?: boolean
   digitalInvoiceFileName?: string | null
   digitalInvoiceContentType?: string | null
 }
@@ -54,6 +59,7 @@ export interface BorrowerInvoiceDiscounting {
   available: boolean
   message: string | null
   paymentMethod?: string | null
+  createdInvoiceId?: string | null
   invoices: BorrowerInvoiceItem[]
   loans: BorrowerInvoiceLoan[]
 }
@@ -75,6 +81,12 @@ export async function createInvoiceDiscountingInvoice(
   return data
 }
 
+export async function uploadInvoiceDigitalCopy(invoiceId: string, file: File): Promise<void> {
+  const formData = new FormData()
+  formData.append('file', file)
+  await http.post(`/borrower/invoice-discounting/invoices/${invoiceId}/digital-invoice`, formData)
+}
+
 export async function acceptInvoice(invoiceId: string): Promise<BorrowerInvoiceDiscounting> {
   const { data } = await http.post<BorrowerInvoiceDiscounting>(
     `/borrower/invoice-discounting/invoices/${invoiceId}/accept`,
@@ -89,6 +101,28 @@ export async function requestInvoiceFinance(
   const { data } = await http.post<BorrowerInvoiceDiscounting>(
     `/borrower/invoice-discounting/invoices/${invoiceId}/finance`,
     { amount },
+  )
+  return data
+}
+
+export async function getEarlyPayTodayParameter(
+  subProgramId: string,
+): Promise<Record<string, unknown>> {
+  const { data } = await http.get<Record<string, unknown>>(
+    '/borrower/invoice-discounting/early-pay/parameters/today',
+    { params: { subProgramId } },
+  )
+  return data
+}
+
+export async function createEarlyPayRequest(body: {
+  invoiceId: string
+  epParameterId: string
+  requestedAmount?: number
+}): Promise<BorrowerInvoiceDiscounting> {
+  const { data } = await http.post<BorrowerInvoiceDiscounting>(
+    '/borrower/invoice-discounting/early-pay/requests',
+    body,
   )
   return data
 }

@@ -18,6 +18,8 @@ public class BorrowerInvoiceDiscountingResponse {
     String message;
     /** SMART_COLLECT or PAYU_PG when available. */
     String paymentMethod;
+    /** Set only after POST /invoices create — PLP invoice id for follow-up actions (e.g. copy upload). */
+    String createdInvoiceId;
     List<BorrowerInvoiceItemResponse> invoices;
     List<BorrowerInvoiceLoanResponse> loans;
 }

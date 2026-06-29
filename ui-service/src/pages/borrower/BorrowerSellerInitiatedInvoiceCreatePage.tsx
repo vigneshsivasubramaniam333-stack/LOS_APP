@@ -1,6 +1,9 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { createInvoiceDiscountingInvoice } from '@/api/borrowerInvoiceDiscounting'
+import {
+  createInvoiceDiscountingInvoice,
+  uploadInvoiceDigitalCopy,
+} from '@/api/borrowerInvoiceDiscounting'
 import { getBorrowerPrograms } from '@/api/borrowerPrograms'
 import { ApiError } from '@/api/http'
 import { PageHeader } from '@/components/PageHeader'
@@ -11,8 +14,15 @@ type Props = {
   backPath: string
 }
 
+function invoiceDueDateError(invoiceDate: string, dueDate: string): string | null {
+  if (!invoiceDate || !dueDate) return null
+  if (dueDate < invoiceDate) return 'Due date cannot be before invoice date'
+  return null
+}
+
 export function BorrowerSellerInitiatedInvoiceCreatePage({ flowType, title, backPath }: Props) {
   const navigate = useNavigate()
+  const digitalInvoiceFileRef = useRef<HTMLInputElement>(null)
   const [enrollments, setEnrollments] = useState<
     { subProgramId: string; programId: string | null; anchorId: string | null; subProgramName: string | null }[]
   >([])
@@ -49,6 +59,7 @@ export function BorrowerSellerInitiatedInvoiceCreatePage({ flowType, title, back
   }, [flowType])
 
   const selected = enrollments.find((e) => e.subProgramId === selectedSubProgramId)
+  const dateErr = invoiceDueDateError(form.invoiceDate, form.dueDate)
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -56,10 +67,14 @@ export function BorrowerSellerInitiatedInvoiceCreatePage({ flowType, title, back
       setError('Select a sub-program you are enrolled in.')
       return
     }
+    if (dateErr) {
+      setError(dateErr)
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
-      await createInvoiceDiscountingInvoice({
+      const result = await createInvoiceDiscountingInvoice({
         invoiceNumber: form.invoiceNumber.trim(),
         programId: selected.programId,
         subProgramId: selected.subProgramId,
@@ -69,6 +84,20 @@ export function BorrowerSellerInitiatedInvoiceCreatePage({ flowType, title, back
         invoiceAmount: Number(form.invoiceAmount),
         taxAmount: Number(form.taxAmount || 0),
       })
+      const digitalFile = digitalInvoiceFileRef.current?.files?.[0]
+      if (result.createdInvoiceId && digitalFile) {
+        try {
+          await uploadInvoiceDigitalCopy(result.createdInvoiceId, digitalFile)
+        } catch (uploadEx) {
+          setError(
+            uploadEx instanceof ApiError
+              ? `Invoice submitted but copy upload failed: ${uploadEx.message}`
+              : 'Invoice submitted but copy upload failed.',
+          )
+          navigate(backPath)
+          return
+        }
+      }
       navigate(backPath)
     } catch (ex) {
       setError(ex instanceof ApiError ? ex.message : 'Could not create invoice.')
@@ -132,9 +161,11 @@ export function BorrowerSellerInitiatedInvoiceCreatePage({ flowType, title, back
               type="date"
               className="bt-input w-full"
               value={form.dueDate}
+              min={form.invoiceDate || undefined}
               onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
               required
             />
+            {dateErr ? <p className="text-xs text-rose-700 mt-1">{dateErr}</p> : null}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -162,7 +193,19 @@ export function BorrowerSellerInitiatedInvoiceCreatePage({ flowType, title, back
             />
           </div>
         </div>
-        <button type="submit" className="bt-btn bt-btn-primary" disabled={submitting}>
+        <div>
+          <label className="bt-label">Invoice copy (optional)</label>
+          <div className="mt-1 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
+            <input
+              ref={digitalInvoiceFileRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="mx-auto block text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-sky-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+            />
+            <p className="mt-2 text-xs text-slate-500">PDF or image, max 10 MB.</p>
+          </div>
+        </div>
+        <button type="submit" className="bt-btn bt-btn-primary" disabled={submitting || !!dateErr}>
           {submitting ? 'Submitting…' : 'Submit for anchor review'}
         </button>
       </form>

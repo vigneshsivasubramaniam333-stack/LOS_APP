@@ -34,4 +34,18 @@ class InvoiceDiscountingFlowRulesTest {
     void sellerInitiatedFlow_partiallyDiscountedIsFinanceable() {
         assertThat(InvoiceDiscountingFlowRules.financeable("PARTIALLY_DISCOUNTED", "PURCHASE_ORDER_DISCOUNTING")).isTrue();
     }
+
+    @Test
+    void earlyPayStatusesBlockFinance() {
+        assertThat(InvoiceDiscountingFlowRules.financeable("DISCOUNTED_EP", "SALES_BILL_DISCOUNTING")).isFalse();
+        assertThat(InvoiceDiscountingFlowRules.financeable("SANCTIONED_EP", "SALES_BILL_DISCOUNTING")).isFalse();
+    }
+
+    @Test
+    void earlyPayable_whenGatesPass() {
+        assertThat(InvoiceDiscountingFlowRules.earlyPayable(
+                "ELIGIBLE", "SALES_BILL_DISCOUNTING", "YES", "YES")).isTrue();
+        assertThat(InvoiceDiscountingFlowRules.earlyPayable(
+                "ELIGIBLE", "PURCHASE_ORDER_DISCOUNTING", "YES", "YES")).isFalse();
+    }
 }

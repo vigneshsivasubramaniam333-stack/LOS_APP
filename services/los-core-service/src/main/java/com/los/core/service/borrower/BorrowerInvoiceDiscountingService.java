@@ -130,7 +130,17 @@ public class BorrowerInvoiceDiscountingService {
                         "Invoice discounting is not set up for your account yet."));
         try {
             Map<String, Object> created = plpBorrowerClient.createBorrowerInvoice(plpBorrowerId, invoiceBody);
-            return overview(borrowerUserId, asString(created.get("flowType")));
+            String flowType = asString(created.get("flowType"));
+            UUID createdId = asUuid(created.get("id"));
+            BorrowerInvoiceDiscountingResponse base = overview(borrowerUserId, flowType);
+            return BorrowerInvoiceDiscountingResponse.builder()
+                    .available(base.isAvailable())
+                    .message(base.getMessage())
+                    .paymentMethod(base.getPaymentMethod())
+                    .createdInvoiceId(createdId != null ? createdId.toString() : null)
+                    .invoices(base.getInvoices())
+                    .loans(base.getLoans())
+                    .build();
         } catch (PlpIntegrationException e) {
             throw new BusinessRuleException("Could not create invoice: " + e.getMessage());
         }
@@ -228,6 +238,39 @@ public class BorrowerInvoiceDiscountingService {
         return plpBorrowerClient.initiatePayuPayment(plpBorrowerId);
     }
 
+    public Map<String, Object> getEarlyPayTodayParameter(UUID borrowerUserId, UUID subProgramId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        try {
+            return plpBorrowerClient.getEarlyPayTodayParameter(plpBorrowerId, subProgramId)
+                    .orElseThrow(() -> new BusinessRuleException("No Early Pay parameter for today"));
+        } catch (PlpIntegrationException e) {
+            throw new BusinessRuleException("Could not load Early Pay parameters: " + e.getMessage());
+        }
+    }
+
+    public BorrowerInvoiceDiscountingResponse createEarlyPayRequest(
+            UUID borrowerUserId, UUID invoiceId, UUID epParameterId, BigDecimal requestedAmount) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException("Invoice discounting is not set up for your account yet."));
+        Optional<Map<String, Object>> inv = findInvoice(plpBorrowerId, invoiceId);
+        if (inv.isEmpty()) {
+            throw new ResourceNotFoundException("Invoice not found");
+        }
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("invoiceId", invoiceId.toString());
+        body.put("epParameterId", epParameterId.toString());
+        if (requestedAmount != null) {
+            body.put("requestedAmount", requestedAmount);
+        }
+        try {
+            plpBorrowerClient.createEarlyPayRequest(plpBorrowerId, body);
+        } catch (PlpIntegrationException e) {
+            throw new BusinessRuleException("Early Pay request failed: " + e.getMessage());
+        }
+        return overview(borrowerUserId, asString(inv.get().get("flowType")));
+    }
+
     /** Download digital invoice copy (proxied from PLP) when the invoice belongs to this borrower. */
     public PlpBorrowerClient.DigitalInvoiceFile downloadDigitalInvoice(UUID borrowerUserId, UUID invoiceId) {
         UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
@@ -245,6 +288,22 @@ public class BorrowerInvoiceDiscountingService {
             return plpBorrowerClient.downloadDigitalInvoice(invoiceId);
         } catch (PlpIntegrationException e) {
             throw new BusinessRuleException("Could not download digital invoice: " + e.getMessage());
+        }
+    }
+
+    /** Upload digital invoice copy for a borrower-owned PLP invoice. */
+    public void uploadDigitalInvoice(UUID borrowerUserId, UUID invoiceId, byte[] bytes, String filename, String contentType) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Invoice discounting is not set up for your account yet."));
+        Optional<Map<String, Object>> inv = findInvoice(plpBorrowerId, invoiceId);
+        if (inv.isEmpty()) {
+            throw new ResourceNotFoundException("Invoice not found");
+        }
+        try {
+            plpBorrowerClient.uploadDigitalInvoice(invoiceId, bytes, filename, contentType);
+        } catch (PlpIntegrationException e) {
+            throw new BusinessRuleException("Could not upload invoice copy: " + e.getMessage());
         }
     }
 
@@ -338,6 +397,10 @@ public class BorrowerInvoiceDiscountingService {
         BigDecimal max = firstNonNullPositive(available, eligible, net, invoiceAmount);
         boolean canFinance = InvoiceDiscountingFlowRules.financeable(status, flowType)
                 && max != null && max.compareTo(BigDecimal.ZERO) > 0;
+        String isEarlyPayAllowed = asString(inv.get("isEarlyPayAllowed"));
+        String showEarlyPay = asString(inv.get("showEarlyPay"));
+        boolean earlyPayable = InvoiceDiscountingFlowRules.earlyPayable(
+                status, flowType, isEarlyPayAllowed, showEarlyPay);
         return BorrowerInvoiceItemResponse.builder()
                 .invoiceId(asString(inv.get("id")))
                 .invoiceNumber(asString(inv.get("invoiceNumber")))
@@ -357,6 +420,11 @@ public class BorrowerInvoiceDiscountingService {
                 .maxFinanceableAmount(max)
                 .suggestedFinanceAmount(canFinance ? max : null)
                 .pipAmount(asBig(inv.get("pipAmount")))
+                .subProgramId(asString(inv.get("subProgramId")))
+                .isEarlyPayAllowed(isEarlyPayAllowed)
+                .showEarlyPay(showEarlyPay)
+                .balDueAmount(asBig(inv.get("balDueAmount")))
+                .earlyPayable(earlyPayable)
                 .digitalInvoiceFileName(asString(inv.get("digitalInvoiceFileName")))
                 .digitalInvoiceContentType(asString(inv.get("digitalInvoiceContentType")))
                 .build();

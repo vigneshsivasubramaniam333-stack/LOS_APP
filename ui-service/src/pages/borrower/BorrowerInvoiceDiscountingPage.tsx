@@ -19,6 +19,7 @@ import {
   BorrowerInvoiceActionsMenu,
   type InvoiceActionItem,
 } from '@/components/borrower/BorrowerInvoiceActionsMenu'
+import { LosEarlyPayRequestModal } from '@/components/borrower/LosEarlyPayRequestModal'
 import { ApiError } from '@/api/http'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -73,6 +74,7 @@ export function BorrowerInvoiceDiscountingPage({
   const [addingToCart, setAddingToCart] = useState(false)
   const [lifecycleTab, setLifecycleTab] = useState<'active' | 'closed'>('active')
   const [cartInvoiceIds, setCartInvoiceIds] = useState<Set<string>>(() => new Set())
+  const [earlyPayInvoice, setEarlyPayInvoice] = useState<BorrowerInvoiceItem | null>(null)
 
   const usePayu = data?.paymentMethod === 'PAYU_PG'
 
@@ -545,12 +547,6 @@ export function BorrowerInvoiceDiscountingPage({
                         </td>
                         <td className="px-3 py-3 align-middle">
                           <div className="flex w-44 flex-col items-stretch gap-1.5">
-                            {invoiceActions.length > 0 ? (
-                              <BorrowerInvoiceActionsMenu
-                                items={invoiceActions}
-                                busy={addingToCart || busyId === inv.invoiceId}
-                              />
-                            ) : null}
                             {inv.acceptable ? (
                               <button
                                 type="button"
@@ -581,7 +577,27 @@ export function BorrowerInvoiceDiscountingPage({
                                   {busyId === inv.invoiceId ? '…' : 'Request finance'}
                                 </button>
                               </form>
-                            ) : invoiceActions.length === 0 ? (
+                            ) : null}
+                            {inv.earlyPayable ? (
+                              <button
+                                type="button"
+                                onClick={() => setEarlyPayInvoice(inv)}
+                                disabled={busyId === inv.invoiceId}
+                                className="w-full rounded-md border border-emerald-600 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                Request Early Pay
+                              </button>
+                            ) : null}
+                            {invoiceActions.length > 0 ? (
+                              <BorrowerInvoiceActionsMenu
+                                items={invoiceActions}
+                                busy={addingToCart || busyId === inv.invoiceId}
+                              />
+                            ) : null}
+                            {!inv.acceptable &&
+                            !inv.financeable &&
+                            !inv.earlyPayable &&
+                            invoiceActions.length === 0 ? (
                               <span className="text-xs text-slate-400">—</span>
                             ) : null}
                           </div>
@@ -637,6 +653,13 @@ export function BorrowerInvoiceDiscountingPage({
           </section>
         </>
       ) : null}
+      {earlyPayInvoice && (
+        <LosEarlyPayRequestModal
+          invoice={earlyPayInvoice}
+          onClose={() => setEarlyPayInvoice(null)}
+          onSuccess={() => void refresh()}
+        />
+      )}
     </div>
   )
 }

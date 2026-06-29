@@ -34,6 +34,11 @@ public class BorrowerInvoiceItemResponse {
     BigDecimal suggestedFinanceAmount;
     /** PRUS amount after PayU success, pending settlement. */
     BigDecimal pipAmount;
+    String subProgramId;
+    String isEarlyPayAllowed;
+    String showEarlyPay;
+    BigDecimal balDueAmount;
+    boolean earlyPayable;
     /** Original digital invoice filename when attached by anchor. */
     String digitalInvoiceFileName;
     String digitalInvoiceContentType;

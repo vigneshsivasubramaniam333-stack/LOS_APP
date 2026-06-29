@@ -107,6 +107,40 @@ public class PlpBorrowerClient {
 
     public record DigitalInvoiceFile(byte[] body, String contentType, String fileName) {}
 
+    /** Upload digital invoice bytes for a PLP invoice (lender machine identity). */
+    public void uploadDigitalInvoice(UUID invoiceId, byte[] bytes, String filename, String contentType) {
+        String bearer = "Bearer " + plpIntegrationClient.currentBearerToken();
+        String path = "/api/v1/invoices/" + invoiceId + "/digital-invoice";
+        org.springframework.core.io.ByteArrayResource resource =
+                new org.springframework.core.io.ByteArrayResource(bytes) {
+                    @Override
+                    public String getFilename() {
+                        return filename != null && !filename.isBlank() ? filename : "invoice.pdf";
+                    }
+                };
+        org.springframework.util.LinkedMultiValueMap<String, Object> body =
+                new org.springframework.util.LinkedMultiValueMap<>();
+        body.add("file", resource);
+        try {
+            plpRestClient.post()
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, bearer)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            log.warn("[PLP][borrower] POST {} -> HTTP {} {}", path, e.getStatusCode(),
+                    truncate(e.getResponseBodyAsString()));
+            throw new PlpIntegrationException("PLP HTTP " + e.getStatusCode() + " on " + path);
+        } catch (PlpIntegrationException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[PLP][borrower] POST {} failed: {}", path, e.getMessage());
+            throw new PlpIntegrationException(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+        }
+    }
+
     /** All loans for a borrower (lender scope passes borrowerId as a query filter). PLP wraps in {status,data}. */
     public List<Map<String, Object>> listLoans(UUID plpBorrowerId) {
         String raw = get("/api/v1/loans?borrowerId=" + plpBorrowerId);
@@ -211,6 +245,17 @@ public class PlpBorrowerClient {
     public Map<String, Object> getProgram(UUID programId) {
         String raw = get("/api/v1/programs/" + programId);
         return parseData(raw);
+    }
+
+    public Optional<Map<String, Object>> getEarlyPayTodayParameter(UUID plpBorrowerId, UUID subProgramId) {
+        String path = "/api/v1/invoices/early-pay/parameters/today?subProgramId="
+                + subProgramId + "&borrowerId=" + plpBorrowerId;
+        return Optional.of(parseData(get(path)));
+    }
+
+    public Map<String, Object> createEarlyPayRequest(UUID plpBorrowerId, Map<String, Object> body) {
+        String path = "/api/v1/invoices/early-pay/requests?borrowerId=" + plpBorrowerId;
+        return parseData(post(path, body));
     }
 
     /**

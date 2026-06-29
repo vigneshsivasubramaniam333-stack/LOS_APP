@@ -39,6 +39,9 @@ final class InvoiceDiscountingFlowRules {
         if ("FINANCING_REQUESTED".equalsIgnoreCase(status)) {
             return false;
         }
+        if ("DISCOUNTED_EP".equalsIgnoreCase(status) || "SANCTIONED_EP".equalsIgnoreCase(status)) {
+            return false;
+        }
         if (isPurchaseFlow(flowType)) {
             return "BORROWER_ACCEPTED".equalsIgnoreCase(status) || "PARTIALLY_DISCOUNTED".equalsIgnoreCase(status);
         }
@@ -46,5 +49,12 @@ final class InvoiceDiscountingFlowRules {
             return "ELIGIBLE".equalsIgnoreCase(status) || "PARTIALLY_DISCOUNTED".equalsIgnoreCase(status);
         }
         return "BORROWER_ACCEPTED".equalsIgnoreCase(status) || "PARTIALLY_DISCOUNTED".equalsIgnoreCase(status);
+    }
+
+    static boolean earlyPayable(String status, String flowType, String isEarlyPayAllowed, String showEarlyPay) {
+        return isSalesFlow(flowType)
+                && "ELIGIBLE".equalsIgnoreCase(status)
+                && "YES".equalsIgnoreCase(isEarlyPayAllowed)
+                && "YES".equalsIgnoreCase(showEarlyPay);
     }
 }

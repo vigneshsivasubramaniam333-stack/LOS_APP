@@ -101,6 +101,19 @@ public class BorrowerInvoiceDiscountingController {
         return ResponseEntity.ok().headers(headers).body(file.body());
     }
 
+    @PostMapping(value = "/invoices/{invoiceId}/digital-invoice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload digital invoice copy (proxied to PLP)")
+    public ResponseEntity<Void> uploadDigitalInvoice(
+            @PathVariable UUID invoiceId,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) throws java.io.IOException {
+        UUID uid = UUID.fromString(userId);
+        service.requireBorrower(role);
+        service.uploadDigitalInvoice(uid, invoiceId, file.getBytes(), file.getOriginalFilename(), file.getContentType());
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/invoices/{invoiceId}/finance")
     @Operation(summary = "Request finance against an eligible invoice")
     public ResponseEntity<BorrowerInvoiceDiscountingResponse> requestFinance(
@@ -111,6 +124,34 @@ public class BorrowerInvoiceDiscountingController {
         UUID uid = UUID.fromString(userId);
         service.requireBorrower(role);
         return ResponseEntity.ok(service.requestFinance(uid, invoiceId, request.getAmount()));
+    }
+
+    @GetMapping("/early-pay/parameters/today")
+    @Operation(summary = "Today's SBD Early Pay parameter (PLP proxy)")
+    public ResponseEntity<java.util.Map<String, Object>> earlyPayTodayParameter(
+            @RequestParam UUID subProgramId,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        service.requireBorrower(role);
+        return ResponseEntity.ok(service.getEarlyPayTodayParameter(uid, subProgramId));
+    }
+
+    @PostMapping("/early-pay/requests")
+    @Operation(summary = "Create SBD Early Pay request (PLP proxy)")
+    public ResponseEntity<BorrowerInvoiceDiscountingResponse> createEarlyPayRequest(
+            @RequestBody java.util.Map<String, Object> body,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        service.requireBorrower(role);
+        UUID invoiceId = UUID.fromString(String.valueOf(body.get("invoiceId")));
+        UUID epParameterId = UUID.fromString(String.valueOf(body.get("epParameterId")));
+        java.math.BigDecimal requested = body.get("requestedAmount") != null
+                ? new java.math.BigDecimal(String.valueOf(body.get("requestedAmount")))
+                : null;
+        return ResponseEntity.ok(
+                service.createEarlyPayRequest(uid, invoiceId, epParameterId, requested));
     }
 
     @PostMapping("/loans/{loanId}/repay")
