@@ -27,6 +27,8 @@ public class ApplicationResponse {
     private BigDecimal requestedAmount;
     private BigDecimal interestRate;
     private Integer tenureMonths;
+    private String lmsProductCode;
+    private String lmsTenureUnit;
     private ApplicationStatus status;
     private Map<String, Object> personalInfo;
     private Map<String, Object> businessInfo;

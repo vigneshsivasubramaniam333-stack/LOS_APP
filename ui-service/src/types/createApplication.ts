@@ -16,6 +16,8 @@ export interface CreateApplicationRequest {
   intakeSegment?: IntakeSegment
   requestedAmount: number
   tenureMonths?: number | null
+  lmsProductCode?: string | null
+  lmsTenureUnit?: string | null
   personalInfo?: Record<string, unknown> | null
   businessInfo?: Record<string, unknown> | null
   financialInfo?: Record<string, unknown> | null

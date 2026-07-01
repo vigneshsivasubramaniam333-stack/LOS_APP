@@ -107,7 +107,7 @@ export function PlpBorrowerProgramSection({
 
   return (
     <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Invoice discounting — anchor &amp; program</h3>
+      <h3 className="bt-card-title">Invoice discounting — anchor &amp; program</h3>
       <p className="mt-1 text-sm text-slate-600">
         Uses the anchor and sub-program selected during application intake. Change only if the credit
         structure should differ from intake.
@@ -148,7 +148,7 @@ export function PlpBorrowerProgramSection({
         <label className="mt-4 block text-sm font-medium text-slate-700">
           Change sub-program (optional)
           <select
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={selectedSubProgramId}
             onChange={(e) => setSelectedSubProgramId(e.target.value)}
           >

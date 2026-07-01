@@ -1,7 +1,6 @@
 package com.los.lms.service;
 
 import com.los.core.model.entity.LoanApplication;
-import com.los.core.model.enums.BorrowerType;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.plp.model.entity.ProgramMaster;
 import com.los.plp.model.entity.SubProgramMaster;
@@ -20,7 +19,7 @@ public class LmsProgramResolver {
     private final SubProgramMasterRepository subProgramMasterRepository;
     private final ProgramMasterRepository programMasterRepository;
     private final LoanApplicationRepository loanApplicationRepository;
-    private final WorkflowLmsProductResolver workflowLmsProductResolver;
+    private final LmsApplicationConfigResolver lmsApplicationConfigResolver;
 
     public Optional<ProgramMaster> resolveForApplication(LoanApplication app) {
         if (app == null || app.getSubProgramId() == null) {
@@ -53,17 +52,6 @@ public class LmsProgramResolver {
     }
 
     public String resolveEncoreProductCode(LoanApplication app, String loanProduct) {
-        Optional<ProgramMaster> program = resolveForApplication(app);
-        if (program.isPresent()) {
-            ProgramMaster p = program.get();
-            if ("INVOICE_DISCOUNTING".equalsIgnoreCase(p.getProductType())
-                    && p.getEncoreProductCode() != null
-                    && !p.getEncoreProductCode().isBlank()) {
-                return p.getEncoreProductCode().trim();
-            }
-        }
-        BorrowerType borrowerType = app != null ? app.getBorrowerType() : null;
-        return workflowLmsProductResolver.resolveEncoreProductCode(
-                borrowerType, loanProduct, loanProduct);
+        return lmsApplicationConfigResolver.resolveEncoreProductCode(app);
     }
 }

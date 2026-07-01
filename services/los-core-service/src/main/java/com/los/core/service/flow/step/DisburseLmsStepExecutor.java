@@ -5,9 +5,11 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
+import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.los.lms.dto.LoanHandoverRequest;
 import com.los.lms.dto.LoanHandoverResponse;
 import com.los.lms.entity.WorkflowLmsProductMapping;
+import com.los.lms.service.LmsApplicationConfigResolver;
 import com.los.lms.service.LmsProgramResolver;
 import com.los.lms.service.LmsService;
 import com.los.lms.service.WorkflowLmsProductResolver;
@@ -39,7 +41,9 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
     private final LmsService lmsService;
     private final WorkflowLmsProductResolver workflowLmsProductResolver;
     private final LmsProgramResolver lmsProgramResolver;
+    private final LmsApplicationConfigResolver lmsApplicationConfigResolver;
     private final AuditService auditService;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
 
     @Override
     public boolean supports(String stepType) {
@@ -51,6 +55,19 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
     public StepResult execute(UUID applicationId, Map<String, Object> context) {
         LoanApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new com.los.core.exception.ResourceNotFoundException("Application not found: " + applicationId));
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            auditService.logEvent(applicationId, "PREREQUISITE_BLOCK", "DISBURSEMENT_BLOCKED",
+                    null,
+                    Map.of("status", app.getStatus().name(), "reason", "INVOICE_DISCOUNTING_BORROWER", "action", "DISBURSE"),
+                    null,
+                    "Disbursement blocked: invoice discounting borrower onboarding does not create a term loan");
+            throw new BusinessRuleException(
+                    "Invoice discounting borrower onboarding is complete after sanction and eSign — no term loan disbursement applies.",
+                    "INVOICE_DISCOUNTING_NO_TERM_LOAN",
+                    "DISBURSE",
+                    Map.of("status", app.getStatus().name())
+            );
+        }
         if (app.getStatus() != ApplicationStatus.READY_FOR_DISBURSEMENT
                 && app.getStatus() != ApplicationStatus.DISBURSEMENT_PENDING
                 && app.getStatus() != ApplicationStatus.ESIGN_COMPLETED) {
@@ -82,8 +99,9 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
         }
 
         String encoreProductCode = lmsProgramResolver.resolveEncoreProductCode(app, loanProduct);
-        log.info("[LMS-DISBURSE] Encore product code {} for DISBURSE step (app={}, loanProduct={})",
-                encoreProductCode, app.getApplicationNumber(), loanProduct);
+        String tenureUnit = lmsApplicationConfigResolver.resolveTenureUnit(app);
+        log.info("[LMS-DISBURSE] Encore product code {} tenureUnit {} for DISBURSE step (app={}, loanProduct={})",
+                encoreProductCode, tenureUnit, app.getApplicationNumber(), loanProduct);
         Optional<WorkflowLmsProductMapping> fullMapping = workflowLmsProductResolver.resolveFullMapping(
                 partnerCode, app.getBorrowerType(), loanProduct);
 
@@ -101,6 +119,7 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
                 .interestRate(rate)
                 .tenureMonths(app.getTenureMonths())
                 .numberOfInstallments(app.getTenureMonths())
+                .tenureUnit(tenureUnit)
                 .emiAmount(emiAmount)
                 .borrowerDetails(com.los.core.service.loan.ApplicationPartyResolver.buildIntegrationPartyMap(app));
 
@@ -108,9 +127,6 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
         fullMapping.ifPresent(m -> {
             if (m.getBranchSetCode() != null) {
                 builder.encoreBranchCode(m.getBranchSetCode());
-            }
-            if (m.getTenureUnit() != null) {
-                builder.tenureUnit(m.getTenureUnit());
             }
             if (m.getPenalInterestRate() != null) {
                 builder.penalInterestRate(m.getPenalInterestRate());

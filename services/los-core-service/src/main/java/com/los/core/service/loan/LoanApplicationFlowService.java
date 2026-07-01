@@ -18,6 +18,7 @@ import com.los.core.service.credit.ICreditDecisionService;
 import com.los.core.service.assignment.AssignmentRuleApplicationService;
 import com.los.core.service.credit.CreditControlService;
 import com.los.core.service.credit.EffectiveUnderwritingContext;
+import com.los.core.service.underwriting.AnchorDueDiligenceService;
 import com.los.core.service.underwriting.MultiRuleEvalResult;
 import com.los.core.model.entity.SanctionRecord;
 import com.los.core.repository.SanctionRecordRepository;
@@ -27,12 +28,15 @@ import com.los.core.service.underwriting.UnderwritingEvaluationService;
 import com.los.core.service.underwriting.UnderwritingRuleEngine;
 import com.los.core.service.flow.step.FlowStepType;
 import com.los.core.service.workflow.ActiveWorkflowConfigService;
+import com.los.core.service.workflow.intake.WorkflowIntakeValidator;
 import com.los.core.service.workflow.coordinator.WorkflowExecutionCoordinator;
 import com.los.core.service.kfs.KfsPdfGenerationService;
 import com.los.core.service.kfs.KfsService;
 import com.los.lms.service.LmsService;
 import com.los.plp.service.PlpAnchorSanctionHookService;
 import com.los.plp.service.PlpSanctionSyncOrchestrator;
+import com.los.plp.support.PlpApplicationSyncFieldMerge;
+import com.los.core.service.sanction.SanctionApprovedNotifier;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.vkyc.VkycWorkflowService;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +86,13 @@ public class LoanApplicationFlowService {
     private final CreditControlService creditControlService;
     private final UnderwritingEvaluationService underwritingEvaluationService;
     private final AssignmentRuleApplicationService assignmentRuleApplicationService;
+    private final com.los.core.service.auth.BorrowerAccountProvisioningService borrowerAccountProvisioningService;
+    private final com.los.core.service.loan.intake.ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
+    private final WorkflowIntakeValidator workflowIntakeValidator;
+    private final AnchorDueDiligenceService anchorDueDiligenceService;
+    private final InvoiceDiscountingSanctionDefaultsService invoiceDiscountingSanctionDefaultsService;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
+    private final SanctionApprovedNotifier sanctionApprovedNotifier;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
      * disbursement) until VKYC is auditor-approved when VKYC is configured and applicable
@@ -130,6 +141,17 @@ public class LoanApplicationFlowService {
         }
         validateSubmitEmail(app);
 
+        WorkflowConfig workflow = activeWorkflowConfigService.findActiveForApplication(app).orElse(null);
+        workflowIntakeValidator.validateAtSubmit(app, workflow);
+
+        // Borrower portal access: ensure the applicant has a LosUser (auto-provision if new) and link the
+        // application to it, so admin/staff-created applications are visible to the borrower. Anchor-segment
+        // applications are skipped (their downstream borrowers are handled via the PLP flow).
+        provisionAndLinkBorrowerIfApplicable(app);
+
+        // Reject re-used email / PAN / GSTN that belong to a different borrower.
+        applicationSubmitIdentityValidator.validateNoDuplicateIdentity(app);
+
         app.setStatus(ApplicationStatus.KYC_IN_PROGRESS);
         app.setSubmittedAt(Instant.now());
         app.setCurrentStepStartedAt(Instant.now());
@@ -174,6 +196,32 @@ public class LoanApplicationFlowService {
                     "SUBMIT_APPLICATION",
                     Map.of("field", "personalInfo.email"));
         }
+    }
+
+    /**
+     * Finds or creates the borrower {@link com.los.core.model.entity.LosUser} for a non-anchor application
+     * from its email/mobile/name and links the application to it (so it appears in the borrower portal).
+     * No-op for anchor-segment applications and when no email is present. Never overwrites an existing
+     * user's credentials; newly created borrowers must reset their temporary password on first login.
+     */
+    private void provisionAndLinkBorrowerIfApplicable(LoanApplication app) {
+        if (app.getIntakeSegment() == IntakeSegment.ANCHOR) {
+            return;
+        }
+        String email = ApplicationPartyResolver.resolveEmail(app);
+        if (email.isBlank()) {
+            return;
+        }
+        String mobile = ApplicationPartyResolver.resolveMobile(app);
+        String name = ApplicationPartyResolver.resolveDisplayName(app);
+        borrowerAccountProvisioningService.findOrCreateBorrower(name, email, mobile)
+                .ifPresent(user -> {
+                    app.setCustomerId(user.getId());
+                    Map<String, Object> pi = app.getPersonalInfo() != null
+                            ? new HashMap<>(app.getPersonalInfo()) : new HashMap<>();
+                    pi.put("borrowerUserId", user.getId().toString());
+                    app.setPersonalInfo(pi);
+                });
     }
 
     // ========================== STEP 2: KYC WORKFLOW ==========================
@@ -230,9 +278,39 @@ public class LoanApplicationFlowService {
      */
     @Transactional
     public Map<String, Object> pullBureauReport(UUID applicationId) {
+        LoanApplication app = findOrThrow(applicationId);
+        if (InvoiceDiscountingApplicationRules.isAnchorFlow(app)) {
+            throw new BusinessRuleException(
+                    "Credit bureau pull is not used for invoice discounting anchor onboarding — use due diligence credit rating",
+                    "BUREAU_NOT_APPLICABLE",
+                    "ANCHOR_DUE_DILIGENCE",
+                    null);
+        }
         return workflowExecutionCoordinator
                 .executeFlowStepForApplication(applicationId, FlowStepType.BUREAU_PULL, Map.of())
                 .output();
+    }
+
+    // ========================== ANCHOR DUE DILIGENCE (INVOICE DISCOUNTING) ==========================
+
+    public Map<String, Object> getAnchorDueDiligence(UUID applicationId) {
+        return anchorDueDiligenceService.getDueDiligence(applicationId);
+    }
+
+    @Transactional
+    public Map<String, Object> saveAnchorDueDiligence(UUID applicationId, Map<String, Object> answers) {
+        return anchorDueDiligenceService.saveDueDiligence(applicationId, answers);
+    }
+
+    @Transactional
+    public Map<String, Object> completeAnchorDueDiligenceUnderwriting(UUID applicationId) {
+        return anchorDueDiligenceService.completeDueDiligenceUnderwriting(applicationId);
+    }
+
+    @Transactional
+    public ApplicationResponse resolveAnchorManualUnderwriting(UUID applicationId, boolean approve) {
+        LoanApplication app = anchorDueDiligenceService.resolveManualReview(applicationId, approve);
+        return toResponse(app);
     }
 
     // ========================== STEP 4: UNDERWRITING ==========================
@@ -249,6 +327,13 @@ public class LoanApplicationFlowService {
     @Transactional
     public Map<String, Object> underwriteApplication(UUID applicationId, String evaluatedByUserId) {
         LoanApplication app = findOrThrow(applicationId);
+        if (InvoiceDiscountingApplicationRules.isAnchorFlow(app)) {
+            throw new BusinessRuleException(
+                    "Standard underwriting does not apply to anchor onboarding — complete the due diligence checklist and credit rating",
+                    "UNDERWRITING_NOT_APPLICABLE",
+                    "ANCHOR_DUE_DILIGENCE",
+                    null);
+        }
         Map<String, Object> kycOutcome = kycOrchestrationService.computeKycOutcome(applicationId);
         String outcome = String.valueOf(kycOutcome.getOrDefault("outcome", "INCOMPLETE"));
         EffectiveUnderwritingContext ctx = creditControlService.resolveEffective(app, outcome);
@@ -623,6 +708,7 @@ public class LoanApplicationFlowService {
             }
         }
         creditAppraisalService.markReviewed(applicationId, approver);
+        creditAppraisalService.applyCamSanctionBasisToApplication(applicationId);
         app.setStatus(ApplicationStatus.CAM_REVIEWED);
         app.setUpdatedAt(Instant.now());
         app = applicationRepository.save(app);
@@ -642,6 +728,13 @@ public class LoanApplicationFlowService {
     public ApplicationResponse markReadyForDisbursement(UUID applicationId) {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.READY_FOR_DISBURSEMENT);
         LoanApplication app = findOrThrow(applicationId);
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            throw new BusinessRuleException(
+                    "Invoice discounting borrower onboarding is complete after sanction and eSign — no term loan disbursement applies.",
+                    "INVOICE_DISCOUNTING_NO_TERM_LOAN",
+                    "READY_FOR_DISBURSEMENT",
+                    Map.of("status", app.getStatus().name()));
+        }
         if (app.getStatus() != ApplicationStatus.ESIGN_COMPLETED) {
             throw new BusinessRuleException(
                     "Ready for disbursement requires ESIGN_COMPLETED. Current: " + app.getStatus(),
@@ -720,7 +813,21 @@ public class LoanApplicationFlowService {
     public Map<String, Object> sanctionApplication(UUID applicationId, Map<String, Object> sanctionParams) {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.SANCTION);
         LoanApplication app = findOrThrow(applicationId);
-        if (app.getStatus() != ApplicationStatus.CAM_REVIEWED
+        boolean anchorFlow = InvoiceDiscountingApplicationRules.isAnchorFlow(app);
+        boolean idBorrowerFlow = invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app);
+        boolean skipLms = idBorrowerFlow || InvoiceDiscountingApplicationRules.isAnchorFlow(app);
+        boolean skipKfs = InvoiceDiscountingApplicationRules.skipsKfsAtSanction(app);
+
+        if (anchorFlow) {
+            if (app.getStatus() != ApplicationStatus.SANCTION_PENDING) {
+                throw new BusinessRuleException(
+                        "Anchor sanction requires SANCTION_PENDING after due diligence approval. Current: "
+                                + app.getStatus(),
+                        "STATUS_NOT_SANCTION_PENDING",
+                        "ANCHOR_DUE_DILIGENCE",
+                        Map.of("status", app.getStatus().name()));
+            }
+        } else if (app.getStatus() != ApplicationStatus.CAM_REVIEWED
                 && app.getStatus() != ApplicationStatus.SANCTION_PENDING
                 && app.getStatus() != ApplicationStatus.APPROVED) {
             auditService.logEvent(applicationId, "PREREQUISITE_BLOCK", "SANCTION_BLOCKED",
@@ -750,6 +857,13 @@ public class LoanApplicationFlowService {
             }
         }
 
+        if (anchorFlow) {
+            invoiceDiscountingSanctionDefaultsService.applyAnchorProgramDefaults(app);
+        } else {
+            creditAppraisalService.applyCamSanctionBasisToApplication(applicationId);
+            app = findOrThrow(applicationId);
+        }
+
         if (app.getSanctionedAmount() == null) {
             app.setSanctionedAmount(app.getRequestedAmount());
         }
@@ -759,8 +873,36 @@ public class LoanApplicationFlowService {
         if (app.getInterestRate() == null && app.getApprovedRate() != null) {
             app.setInterestRate(app.getApprovedRate());
         }
-        if (app.getTenureMonths() == null) {
+        if (!anchorFlow && app.getTenureMonths() == null) {
             throw new BusinessRuleException("Tenure is required for sanction", "TENURE_REQUIRED", "SANCTION", null);
+        }
+
+        BigDecimal sanctionRate = app.getApprovedRate() != null ? app.getApprovedRate() : app.getInterestRate();
+        int sanctionTenure;
+        if (anchorFlow) {
+            if (sanctionRate == null) {
+                throw new BusinessRuleException(
+                        "Anchor sanction requires a program interest rate. Complete PLP program setup with rate, "
+                                + "or enter terms before sanction.",
+                        "INTEREST_RATE_REQUIRED",
+                        "SANCTION",
+                        null);
+            }
+            sanctionTenure = app.getTenureMonths() != null
+                    ? app.getTenureMonths()
+                    : invoiceDiscountingSanctionDefaultsService.defaultAnchorTenureMonths(app);
+            app.setTenureMonths(sanctionTenure);
+            app.setApprovedRate(sanctionRate);
+            app.setInterestRate(sanctionRate);
+        } else {
+            if (sanctionRate == null) {
+                throw new BusinessRuleException(
+                        "Interest rate is required for sanction. Capture it on the CAM tab or enter at sanction.",
+                        "INTEREST_RATE_REQUIRED",
+                        "SANCTION",
+                        null);
+            }
+            sanctionTenure = app.getTenureMonths();
         }
 
         BigDecimal fee = null;
@@ -782,8 +924,8 @@ public class LoanApplicationFlowService {
                 .id(UUID.randomUUID())
                 .applicationId(applicationId)
                 .approvedAmount(app.getSanctionedAmount())
-                .approvedTenure(app.getTenureMonths())
-                .interestRate(app.getApprovedRate() != null ? app.getApprovedRate() : app.getInterestRate())
+                .approvedTenure(sanctionTenure)
+                .interestRate(sanctionRate)
                 .processingFee(fee)
                 .conditionsText(conditions)
                 .remarks(remarks)
@@ -791,48 +933,76 @@ public class LoanApplicationFlowService {
                 .build();
         sanctionRecordRepository.save(rec);
 
-        Map<String, Object> charges = new LinkedHashMap<>();
-        if (sanctionParams != null) {
-            charges.putAll(sanctionParams);
-        }
-        lmsService.appendPreOpenEncoreSummaryForKfsIfEnabled(app, charges);
-        KfsDocument kfs = kfsService.generateKfs(applicationId, charges);
-        app.setStatus(ApplicationStatus.KFS_GENERATED);
-        app = applicationRepository.save(app);
-
-        auditService.logEvent(applicationId, "FLOW", "SANCTION_KFS",
-                null, Map.of("status", "CAM_REVIEWED"),
-                Map.of("status", "KFS_GENERATED", "sanctionedAmount", app.getSanctionedAmount().toString(),
-                        "kfsId", kfs.getId().toString()),
-                "Sanction recorded and KFS generated");
-
-        log.info("Sanction+KFS for {} — amount: {}, rate: {}%, KFS: {}",
-                app.getApplicationNumber(), app.getSanctionedAmount(), app.getApprovedRate(), kfs.getId());
-
-        // Trigger LMS loan account creation (bl-core parity: openLoanAccount at sanction time)
-        // #region agent log
-        log.info("[DEBUG-ca1703] sanctionApplication triggering LMS for app={}", app.getApplicationNumber());
-        // #endregion
+        KfsDocument kfs = null;
         String lmsReferenceId = null;
-        try {
-            lmsReferenceId = lmsService.createLmsAccountOnSanction(app);
-            if (lmsReferenceId != null) {
-                app.setLmsReferenceId(lmsReferenceId);
-                app = applicationRepository.save(app);
-                // #region agent log
-                log.info("[DEBUG-ca1703] LMS account created successfully: lmsRef={} for app={}", lmsReferenceId, app.getApplicationNumber());
-                // #endregion
+        if (skipKfs) {
+            auditService.logEvent(applicationId, "FLOW", "SANCTION",
+                    null, Map.of("status", app.getStatus().name()),
+                    Map.of("status", "SANCTIONED", "sanctionedAmount", app.getSanctionedAmount().toString(),
+                            "invoiceDiscountingFlow", "ANCHOR"),
+                    "Anchor onboarded — sanction complete (no LMS loan or KFS)");
+            log.info("Invoice discounting anchor sanction for {} — amount: {}",
+                    app.getApplicationNumber(), app.getSanctionedAmount());
+        } else if (idBorrowerFlow) {
+            Map<String, Object> charges = new LinkedHashMap<>();
+            if (sanctionParams != null) {
+                charges.putAll(sanctionParams);
             }
-        } catch (Exception lmsEx) {
-            log.error("[LMS-SANCTION] LMS integration failed for {} — sanction is preserved: {}",
-                    app.getApplicationNumber(), lmsEx.getMessage(), lmsEx);
+            kfs = kfsService.generateInvoiceDiscountingBorrowerTermsDocument(applicationId, rec, charges);
+            app.setStatus(ApplicationStatus.KFS_GENERATED);
+            app = applicationRepository.save(app);
+            auditService.logEvent(applicationId, "FLOW", "SANCTION_TERMS",
+                    null, Map.of("status", "SANCTIONED"),
+                    Map.of("status", "KFS_GENERATED", "sanctionedAmount", app.getSanctionedAmount().toString(),
+                            "kfsId", kfs.getId().toString(), "documentKind", "INVOICE_DISCOUNTING_TERMS"),
+                    "Invoice discounting borrower sanctioned — terms document generated (no LMS loan)");
+            log.info("Invoice discounting borrower sanction for {} — terms doc {}, status KFS_GENERATED",
+                    app.getApplicationNumber(), kfs.getId());
+        } else {
+            Map<String, Object> charges = new LinkedHashMap<>();
+            if (sanctionParams != null) {
+                charges.putAll(sanctionParams);
+            }
+            lmsService.appendPreOpenEncoreSummaryForKfsIfEnabled(app, charges);
+            kfs = kfsService.generateKfs(applicationId, charges);
+            app.setStatus(ApplicationStatus.KFS_GENERATED);
+            app = applicationRepository.save(app);
+
+            auditService.logEvent(applicationId, "FLOW", "SANCTION_KFS",
+                    null, Map.of("status", "CAM_REVIEWED"),
+                    Map.of("status", "KFS_GENERATED", "sanctionedAmount", app.getSanctionedAmount().toString(),
+                            "kfsId", kfs.getId().toString()),
+                    "Sanction recorded and KFS generated");
+
+            log.info("Sanction+KFS for {} — amount: {}, rate: {}%, KFS: {}",
+                    app.getApplicationNumber(), app.getSanctionedAmount(), app.getApprovedRate(), kfs.getId());
+
+            if (!skipLms) {
+            log.info("[DEBUG-ca1703] sanctionApplication triggering LMS for app={}", app.getApplicationNumber());
+            try {
+                lmsReferenceId = lmsService.createLmsAccountOnSanction(app);
+                if (lmsReferenceId != null) {
+                    app.setLmsReferenceId(lmsReferenceId);
+                    app = applicationRepository.save(app);
+                    lmsService.attachHandoverScheduleToKfs(app.getApplicationNumber(), kfs.getId());
+                    log.info("[DEBUG-ca1703] LMS account created successfully: lmsRef={} for app={}",
+                            lmsReferenceId, app.getApplicationNumber());
+                }
+            } catch (Exception lmsEx) {
+                log.error("[LMS-SANCTION] LMS integration failed for {} — sanction is preserved: {}",
+                        app.getApplicationNumber(), lmsEx.getMessage(), lmsEx);
+            }
+            }
         }
 
-        try {
-            plpSanctionSyncOrchestrator.syncAfterSanction(applicationId);
-        } catch (Exception plpEx) {
-            log.error("[PLP-SANCTION] PLP integration failed for {} — sanction is preserved: {}",
-                    app.getApplicationNumber(), plpEx.getMessage(), plpEx);
+        if (!anchorFlow) {
+            try {
+                LoanApplication plpSynced = plpSanctionSyncOrchestrator.syncAfterSanction(applicationId);
+                PlpApplicationSyncFieldMerge.mergeInto(app, plpSynced);
+            } catch (Exception plpEx) {
+                log.error("[PLP-SANCTION] PLP integration failed for {} — sanction is preserved: {}",
+                        app.getApplicationNumber(), plpEx.getMessage(), plpEx);
+            }
         }
 
         try {
@@ -842,6 +1012,13 @@ public class LoanApplicationFlowService {
                     app.getApplicationNumber(), anchorPlpEx.getMessage(), anchorPlpEx);
         }
 
+        try {
+            sanctionApprovedNotifier.publishSanctionApprovedEmail(app, rec, anchorFlow, idBorrowerFlow, kfs);
+        } catch (Exception emailEx) {
+            log.error("[SANCTION_EMAIL] notification failed for {} — sanction is preserved: {}",
+                    app.getApplicationNumber(), emailEx.getMessage(), emailEx);
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("applicationId", applicationId);
         result.put("applicationNumber", app.getApplicationNumber());
@@ -849,10 +1026,13 @@ public class LoanApplicationFlowService {
         result.put("sanctionedAmount", app.getSanctionedAmount());
         result.put("interestRate", app.getApprovedRate() != null ? app.getApprovedRate() : app.getInterestRate());
         result.put("tenureMonths", app.getTenureMonths());
-        result.put("kfsId", kfs.getId());
-        result.put("kfsVersion", kfs.getVersion());
-        result.put("kfsStatus", kfs.getStatus());
-        result.put("coolingOffHours", kfs.getCoolingOffHours());
+        result.put("skipLmsKfs", skipKfs || idBorrowerFlow);
+        result.put("skipLms", skipLms);
+        result.put("invoiceDiscountingBorrower", idBorrowerFlow);
+        result.put("kfsId", kfs != null ? kfs.getId() : "");
+        result.put("kfsVersion", kfs != null ? kfs.getVersion() : "");
+        result.put("kfsStatus", kfs != null ? kfs.getStatus() : "");
+        result.put("coolingOffHours", kfs != null ? kfs.getCoolingOffHours() : "");
         result.put("lmsReferenceId", lmsReferenceId != null ? lmsReferenceId : "");
         return result;
     }
@@ -906,7 +1086,9 @@ public class LoanApplicationFlowService {
                 null, Map.of("status", "ESIGN_PENDING"),
                 Map.of("status", "ESIGN_COMPLETED", "esignTransactionId",
                         esignTransactionId != null ? esignTransactionId : ""),
-                "eSign completed — ready for disbursement");
+                invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)
+                        ? "Invoice discounting borrower terms signed — program onboarding complete"
+                        : "eSign completed — ready for disbursement");
 
         log.info("eSign completed for {} — status: ESIGN_COMPLETED", app.getApplicationNumber());
         return toResponse(app);
@@ -1070,12 +1252,14 @@ public class LoanApplicationFlowService {
                     "currentStatus", app.getStatus().name()
             );
         }
+        boolean requiresScore = "UNDERWRITING".equals(normalize(processCode));
         return Map.of(
                 "canOverride", true,
                 "overrideAllowed", true,
                 "requiresReason", boolPolicy(policy, "requires_reason", true),
                 "requiresRemarks", boolPolicy(policy, "requires_remarks", false),
                 "requiresApproval", boolPolicy(policy, "requires_approval", false),
+                "requiresScore", requiresScore,
                 "allowedRoles", allowedRoles,
                 "targetStatus", strPolicy(policy, "override_to_status", ""),
                 "policy", policy
@@ -1090,6 +1274,8 @@ public class LoanApplicationFlowService {
             String overrideReason,
             String remarks,
             String approvalReference,
+            Integer manualBureauScore,
+            Integer creditRiskScore,
             UUID overrideBy,
             Set<String> userRoles) {
         LoanApplication app = findOrThrow(applicationId);
@@ -1112,6 +1298,13 @@ public class LoanApplicationFlowService {
         if (boolPolicy(policy, "requires_approval", false) && (approvalReference == null || approvalReference.isBlank())) {
             throw new BusinessRuleException("Approval reference is mandatory for this override");
         }
+        String normalizedProcess = normalize(processCode);
+        String normalizedFailure = normalize(failureCode);
+        if ("UNDERWRITING".equals(normalizedProcess)
+                && (manualBureauScore == null || manualBureauScore <= 0)) {
+            throw new BusinessRuleException(
+                    "Updated bureau/credit score is mandatory for underwriting manual override");
+        }
         List<String> allowedFromStatuses = textList(policy, "allowed_from_statuses");
         if (!allowedFromStatuses.isEmpty() && !allowedFromStatuses.contains(app.getStatus().name())) {
             throw new BusinessRuleException("Override not allowed from current application status: " + app.getStatus());
@@ -1128,6 +1321,12 @@ public class LoanApplicationFlowService {
         }
         if (targetStatus != null && targetStatus != previousStatus) {
             app.setStatus(targetStatus);
+        }
+        if ("KYC".equals(normalizedProcess) && "KYC_FAILED".equals(normalizedFailure)) {
+            creditControlService.applyManualKycPassOnProcessOverride(app, remarks);
+        }
+        if ("UNDERWRITING".equals(normalizedProcess)) {
+            completeUnderwritingAfterManualOverride(app, manualBureauScore, creditRiskScore, remarks);
         }
 
         Map<String, Object> fi = app.getFinancialInfo() != null ? new LinkedHashMap<>(app.getFinancialInfo()) : new LinkedHashMap<>();
@@ -1153,6 +1352,12 @@ public class LoanApplicationFlowService {
         marker.put("overriddenBy", overrideBy != null ? overrideBy.toString() : "");
         marker.put("overrideApplied", "true");
         marker.put("vkycBypassed", vkycBypassed ? "true" : "false");
+        if (manualBureauScore != null && manualBureauScore > 0) {
+            marker.put("manualBureauScore", manualBureauScore);
+        }
+        if (app.getCreditRiskScore() != null) {
+            marker.put("creditRiskScore", app.getCreditRiskScore());
+        }
         history.add(marker);
         fi.put("manualOverrides", history);
         fi.put("manualOverrideFlag", "MANUALLY_OVERRIDDEN");
@@ -1298,9 +1503,31 @@ public class LoanApplicationFlowService {
             return ApplicationStatus.KYC_IN_PROGRESS;
         }
         if (app.getStatus() == ApplicationStatus.REJECTED && "UNDERWRITING".equals(normalize(processCode))) {
-            return ApplicationStatus.UNDERWRITING;
+            return ApplicationStatus.CAM_READY;
         }
         return app.getStatus();
+    }
+
+    /**
+     * After a controlled underwriting rejection override, treat the case as credit-approved and advance to CAM.
+     */
+    private void completeUnderwritingAfterManualOverride(
+            LoanApplication app, Integer manualBureauScore, Integer creditRiskScore, String remarks) {
+        app.setManualBureauScore(manualBureauScore);
+        if (remarks != null && !remarks.isBlank()) {
+            app.setManualBureauRemarks(remarks.trim());
+        }
+        int riskScore = creditRiskScore != null && creditRiskScore > 0 ? creditRiskScore : manualBureauScore;
+        app.setCreditRiskScore(riskScore);
+        app.setCreditDecision("APPROVED");
+        if (app.getInterestRate() != null) {
+            app.setApprovedRate(app.getInterestRate());
+        }
+        app.setSanctionedAmount(app.getRequestedAmount());
+        app.setStatus(ApplicationStatus.UNDERWRITING_COMPLETED);
+        applicationRepository.save(app);
+        creditAppraisalService.ensureCamForApplication(app);
+        app.setStatus(ApplicationStatus.CAM_READY);
     }
 
     private Map<String, Object> resolveManualOverridePolicy(WorkflowConfig config, String processCode, String failureCode) {
@@ -1325,7 +1552,7 @@ public class LoanApplicationFlowService {
                 "process_code", "KYC",
                 "failure_code", "KYC_FAILED",
                 "override_allowed", true,
-                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER"),
+                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER", "CREDIT_OFFICER"),
                 "requires_reason", true,
                 "requires_remarks", true,
                 "requires_approval", false,
@@ -1348,11 +1575,11 @@ public class LoanApplicationFlowService {
                 "process_code", "UNDERWRITING",
                 "failure_code", "UNDERWRITING_REJECTED",
                 "override_allowed", true,
-                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER"),
+                "allowed_roles", List.of("ADMIN", "ADMINISTRATOR", "RISK_MANAGER", "CREDIT_MANAGER", "CREDIT_OFFICER"),
                 "requires_reason", true,
                 "requires_remarks", true,
                 "requires_approval", true,
-                "override_to_status", "UNDERWRITING",
+                "override_to_status", "CAM_READY",
                 "allowed_from_statuses", List.of("REJECTED"),
                 "is_active", true
         )));

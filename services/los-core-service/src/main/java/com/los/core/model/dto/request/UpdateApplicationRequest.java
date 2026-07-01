@@ -12,6 +12,10 @@ public class UpdateApplicationRequest {
 
     private Integer tenureMonths;
 
+    private String lmsProductCode;
+
+    private String lmsTenureUnit;
+
     private Map<String, Object> personalInfo;
 
     private Map<String, Object> businessInfo;

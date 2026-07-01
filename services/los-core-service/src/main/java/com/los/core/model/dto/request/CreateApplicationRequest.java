@@ -27,6 +27,12 @@ public class CreateApplicationRequest {
 
     private Integer tenureMonths;
 
+    /** Encore LMS product code (optional; falls back to active workflow default). */
+    private String lmsProductCode;
+
+    /** Encore tenure unit (optional; falls back to active workflow default). */
+    private String lmsTenureUnit;
+
     private Map<String, Object> personalInfo;
 
     private Map<String, Object> businessInfo;

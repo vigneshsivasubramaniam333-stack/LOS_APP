@@ -15,6 +15,7 @@ import {
   type StepNotificationConfig,
   type VisualWorkflowStep,
 } from '@/lib/workflowVisual'
+import { WorkflowStepIntakeOptions } from '@/components/workflow/WorkflowStepIntakeOptions'
 import { useLayoutEffect, useMemo } from 'react'
 
 type Props = {
@@ -23,6 +24,8 @@ type Props = {
   templateMappings: WorkflowEventTemplateMappingDto[]
   processNotifications: ProcessNotificationConfig[]
   onProcessNotificationsChange: (next: ProcessNotificationConfig[]) => void
+  /** When true, show per-step intake collection options. */
+  showIntakeOptions?: boolean
 }
 
 function move<T>(arr: T[], from: number, to: number): T[] {
@@ -74,8 +77,9 @@ function StepCard(props: {
   steps: VisualWorkflowStep[]
   onChange: (next: VisualWorkflowStep[]) => void
   templateMappings: WorkflowEventTemplateMappingDto[]
+  showIntakeOptions?: boolean
 }) {
-  const { s, i, steps, onChange, templateMappings } = props
+  const { s, i, steps, onChange, templateMappings, showIntakeOptions } = props
   const postKyc = isPostKycWorkflowStep(s.step)
   const help = getStepMatrixHelp(s.step)
   const providerOptions = providersForWorkflowStep(s.step)
@@ -203,6 +207,12 @@ function StepCard(props: {
           />
           Mandatory
         </label>
+        {showIntakeOptions && !postKyc ? (
+          <WorkflowStepIntakeOptions
+            step={s}
+            onChange={(next) => onChange(steps.map((x) => (x.id === s.id ? next : x)))}
+          />
+        ) : null}
         {s.step === 'VIDEO_KYC' || s.step === 'VKYC' ? (
           <label className="flex min-w-0 items-center gap-2 text-xs text-slate-600 sm:col-span-2">
             <input
@@ -414,6 +424,7 @@ export function WorkflowStepEditorPanel({
   templateMappings,
   processNotifications,
   onProcessNotificationsChange,
+  showIntakeOptions = false,
 }: Props) {
   const processRowsByCode = useMemo(() => {
     const map = new Map<string, ProcessNotificationConfig[]>()
@@ -507,6 +518,7 @@ export function WorkflowStepEditorPanel({
             steps={steps}
             onChange={onChange}
             templateMappings={templateMappings}
+            showIntakeOptions={showIntakeOptions}
           />
         ))}
       </ul>

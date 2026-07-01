@@ -37,6 +37,8 @@ export interface ApplicationResponse {
   requestedAmount: number | null
   interestRate: number | null
   tenureMonths: number | null
+  lmsProductCode?: string | null
+  lmsTenureUnit?: string | null
   status: ApplicationStatus
   personalInfo: Record<string, unknown> | null
   businessInfo: Record<string, unknown> | null

@@ -8,8 +8,16 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {"com.los.core", "com.los.lms", "com.los.plp", "com.los.encore.client"})
-@EntityScan(basePackages = {"com.los.core.model.entity", "com.los.lms.entity", "com.los.plp.model.entity"})
-@EnableJpaRepositories(basePackages = {"com.los.core.repository", "com.los.lms.repository", "com.los.plp.repository"})
+@EntityScan(basePackages = {
+        "com.los.core.model.entity",
+        "com.los.core.payment.model",
+        "com.los.lms.entity",
+        "com.los.plp.model.entity"})
+@EnableJpaRepositories(basePackages = {
+        "com.los.core.repository",
+        "com.los.core.payment.repository",
+        "com.los.lms.repository",
+        "com.los.plp.repository"})
 @EnableDiscoveryClient
 @EnableScheduling
 public class LosCoreServiceApplication {

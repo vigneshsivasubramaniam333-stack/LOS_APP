@@ -8,6 +8,8 @@ import com.los.core.model.enums.StepOutcome;
 import com.los.core.repository.KycStepResultRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
+import com.los.core.service.credit.CreditControlService;
+import com.los.core.service.credit.EffectiveUnderwritingContext;
 import com.los.core.service.integration.IIntegrationRouterService;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.loan.ApplicantIdentityResolver;
@@ -33,6 +35,7 @@ public class BureauPullStepExecutor implements IStepExecutor {
     private final LoanApplicationRepository applicationRepository;
     private final KycStepResultRepository kycStepResultRepository;
     private final IKycOrchestrationService kycOrchestrationService;
+    private final CreditControlService creditControlService;
     private final IIntegrationRouterService integrationRouter;
     private final AuditService auditService;
 
@@ -68,19 +71,30 @@ public class BureauPullStepExecutor implements IStepExecutor {
 
         Map<String, Object> kycOutcome = kycOrchestrationService.computeKycOutcome(applicationId);
         String outcome = String.valueOf(kycOutcome.getOrDefault("outcome", "INCOMPLETE"));
-        if (!"PASS".equalsIgnoreCase(outcome)) {
+        EffectiveUnderwritingContext ctx = creditControlService.resolveEffective(app, outcome);
+        if (!ctx.kycPassEffective()) {
             @SuppressWarnings("unchecked")
             Object stepSummary = kycOutcome.getOrDefault("stepSummary", List.of());
             auditService.logEvent(applicationId, "PREREQUISITE_BLOCK", "BUREAU_BLOCKED",
                     null,
-                    Map.of("status", app.getStatus().name(), "reason", "KYC_OUTCOME_NOT_PASS", "action", "BUREAU_PULL", "kycOutcome", outcome, "stepSummary", stepSummary),
+                    Map.of(
+                            "status", app.getStatus().name(),
+                            "reason", "KYC_OUTCOME_NOT_PASS",
+                            "action", "BUREAU_PULL",
+                            "kycOutcome", outcome,
+                            "kycSource", ctx.kycSource(),
+                            "stepSummary", stepSummary),
                     null,
-                    "Bureau pull blocked: KYC outcome is " + outcome);
+                    "Bureau pull blocked: effective KYC not pass");
             throw new BusinessRuleException(
-                    "Bureau pull blocked: KYC outcome is " + outcome,
+                    "Bureau pull blocked: KYC outcome is not acceptable for the selected KYC source",
                     "KYC_OUTCOME_NOT_PASS",
                     "BUREAU_PULL",
-                    Map.of("status", app.getStatus().name(), "kycOutcome", outcome, "stepSummary", stepSummary)
+                    Map.of(
+                            "status", app.getStatus().name(),
+                            "kycOutcome", outcome,
+                            "kycSource", ctx.kycSource(),
+                            "stepSummary", stepSummary)
             );
         }
 

@@ -314,6 +314,7 @@ public class ScorecardPolicyEngine {
             }
         }
         if ("MANUAL_OR_PROVIDER".equalsIgnoreCase(source) || "GST".equalsIgnoreCase(source)
+                || "GST_STATEMENT".equalsIgnoreCase(source) || "OTHER".equalsIgnoreCase(source)
                 || "BANK_STATEMENT".equalsIgnoreCase(source) || "VALUATION".equalsIgnoreCase(source)
                 || "FINANCIALS".equalsIgnoreCase(source) || "MANUAL_OR_SYSTEM".equalsIgnoreCase(source)) {
             return (source != null ? source : "ROW")
@@ -447,6 +448,10 @@ public class ScorecardPolicyEngine {
         if ("true".equalsIgnoreCase(rhsS)) {
             rhsS = "1";
         } else if ("false".equalsIgnoreCase(rhsS)) {
+            rhsS = "0";
+        } else if ("Y".equalsIgnoreCase(rhsS) || "YES".equalsIgnoreCase(rhsS)) {
+            rhsS = "1";
+        } else if ("N".equalsIgnoreCase(rhsS) || "NO".equalsIgnoreCase(rhsS)) {
             rhsS = "0";
         }
         BigDecimal rhs = new BigDecimal(rhsS);

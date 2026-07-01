@@ -211,10 +211,13 @@ export function buildCreditSummary(input: {
     })
   }
   const params = ev?.parameterResults
+  const seenMissingParams = new Set<string>()
   if (Array.isArray(params)) {
     for (const p of params as Array<Record<string, unknown>>) {
       if (p?.matched === false && (p.valueUsed == null || p.valueUsed === '')) {
         const par = str(p.parameter) ?? 'parameter'
+        if (seenMissingParams.has(par)) continue
+        seenMissingParams.add(par)
         riskFlags.push({
           code: 'MISSING_SCORE_PARAM',
           label: `Scorecard is missing a value for ${par} — add source input or link evidence.`,
@@ -239,6 +242,7 @@ export function buildCreditSummary(input: {
   }
 
   const missingItems: string[] = []
+  const seenMissingItems = new Set<string>()
   if (!name) missingItems.push('Complete borrower / business name on profile')
   if (bureauUsed == null || bureauUsed <= 0) missingItems.push('Bureau score (pull or permitted manual entry)')
   if (kycOut == null || kycOut === 'UNAVAILABLE' || kycOut === 'INCOMPLETE') {
@@ -248,7 +252,10 @@ export function buildCreditSummary(input: {
     for (const p of params as Array<Record<string, unknown>>) {
       if (p?.matched === false && (p.valueUsed == null || p.valueUsed === '')) {
         const par = str(p.parameter)
-        if (par) missingItems.push(`Input for score parameter: ${par}`)
+        if (par && !seenMissingItems.has(par)) {
+          seenMissingItems.add(par)
+          missingItems.push(`Input for score parameter: ${par}`)
+        }
       }
     }
   }

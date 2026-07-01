@@ -85,6 +85,22 @@ export const SCORECARD_PARAMETER_SOURCE_HELP: Record<
   },
   REQUESTED_AMOUNT: { label: 'Requested loan amount', sources: ['Application'] },
   TENURE_MONTHS: { label: 'Tenure', sources: ['Application'] },
+  avgDailyBalance3m: {
+    label: 'Avg daily balance (3m)',
+    sources: ['Bank statement analytics', 'Manual credit → Scorecard metrics'],
+  },
+  avgGmv3m: {
+    label: 'Avg GMV (3m)',
+    sources: ['GST statement', 'Manual credit → Scorecard metrics'],
+  },
+  residenceOwned: {
+    label: 'Residence owned',
+    sources: ['Manual credit → Scorecard metrics (OTHER)'],
+  },
+  eligibleOnePointFiveX: {
+    label: 'Eligible 1.5×',
+    sources: ['Manual credit → Scorecard metrics (OTHER)'],
+  },
 }
 
 export function helpForParameter(parameter: string | undefined | null) {

@@ -62,12 +62,22 @@ public final class ApplicationPartyResolver {
         }
         Map<String, Object> pi = app.getPersonalInfo();
         if (pi == null) {
-            return "";
+            pi = Map.of();
         }
-        return firstNonBlank(
+        String fromPersonal = firstNonBlank(
                 stringValue(pi, "borrowerEmail"),
                 stringValue(pi, "email"),
                 stringValue(pi, "contactEmail"));
+        if (!fromPersonal.isBlank()) {
+            return fromPersonal;
+        }
+        // Business invoice-discounting borrowers often store contact email on businessInfo.
+        if (!isAnchor(app) && app.getBusinessInfo() != null) {
+            return firstNonBlank(
+                    stringValue(app.getBusinessInfo(), "email"),
+                    stringValue(app.getBusinessInfo(), "contactEmail"));
+        }
+        return "";
     }
 
     public static String resolveMobile(LoanApplication app) {

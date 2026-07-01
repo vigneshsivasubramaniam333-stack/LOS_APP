@@ -3,14 +3,77 @@
  */
 export type WorkflowIntakeSegment = 'BORROWER' | 'ANCHOR'
 
+export type WorkflowIntakePolicy = 'LEGACY' | 'WORKFLOW_DRIVEN'
+
+export interface WorkflowPersonalFieldConfig {
+  collect?: boolean
+  required?: boolean
+  allowedValues?: string[]
+}
+
+export interface WorkflowAgeRules {
+  enabled?: boolean
+  minAge?: number
+  maxAge?: number
+}
+
+export interface WorkflowTenureOption {
+  value: string
+  label: string
+  unit?: string
+}
+
+export interface WorkflowTenureRules {
+  inputMode?: 'numeric' | 'dropdown'
+  min?: number
+  max?: number
+  defaultValue?: string
+  options?: WorkflowTenureOption[]
+}
+
+export interface WorkflowMandatoryFieldGroup {
+  id: string
+  label: string
+  logic: 'ANY'
+  steps: string[]
+}
+
+export interface WorkflowStandaloneDocument {
+  documentType: string
+  required?: boolean
+  label?: string
+}
+
+export interface WorkflowStepDocumentRequired {
+  documentType: string
+  required?: boolean
+}
+
+export interface WorkflowIntakeConfig {
+  policy?: WorkflowIntakePolicy
+  personalFields?: {
+    dateOfBirth?: WorkflowPersonalFieldConfig
+    gender?: WorkflowPersonalFieldConfig
+  }
+  ageRules?: WorkflowAgeRules
+  tenureRules?: WorkflowTenureRules
+  mandatoryFieldGroups?: WorkflowMandatoryFieldGroup[]
+  standaloneDocuments?: WorkflowStandaloneDocument[]
+}
+
 export interface WorkflowConfigResponse {
   id: string
   name: string
   borrowerType: string
   loanProduct: string
+  /** Encore LMS product code default for this workflow. */
+  lmsProductCode?: string | null
+  /** Encore tenure unit default (Day, Month, Week). */
+  lmsTenureUnit?: string | null
   /** Omitted in older API payloads — treat as BORROWER. */
   intakeSegment?: WorkflowIntakeSegment | null
   intakeIdentitySchema?: Record<string, unknown>[] | null
+  intakeConfig?: WorkflowIntakeConfig | null
   steps: Record<string, unknown>[]
   processNotificationMappings?: Record<string, unknown>[] | null
   manualOverridePolicies?: Record<string, unknown>[] | null
@@ -26,8 +89,11 @@ export interface WorkflowConfigRequest {
   name: string
   borrowerType: string
   loanProduct: string
+  lmsProductCode?: string
+  lmsTenureUnit?: string
   intakeSegment?: WorkflowIntakeSegment
   intakeIdentitySchema?: Record<string, unknown>[]
+  intakeConfig?: WorkflowIntakeConfig
   steps: Record<string, unknown>[]
   processNotificationMappings?: Record<string, unknown>[]
   manualOverridePolicies?: Record<string, unknown>[]

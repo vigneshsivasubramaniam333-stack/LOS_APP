@@ -76,6 +76,7 @@ public class BlCoreEncoreLmsAdapter {
         // penalInterestRate: bl-core uses loan.getOverDueInterestRt()
         BigDecimal penalRate = p.penalInterestRate() != null ? p.penalInterestRate() : BigDecimal.ZERO;
         acc.put("penalInterestRate", penalRate.toPlainString());
+        acc.put("preclosureFeeRate", "0");
 
         String productCode = p.productCode() != null && !p.productCode().isBlank()
                 ? p.productCode()
@@ -158,6 +159,10 @@ public class BlCoreEncoreLmsAdapter {
         body.put("productCode", pc);
         body.put("tenureMagnitude", String.valueOf(tenureMagnitude));
         body.put("tenureUnit", tenureUnit != null ? tenureUnit : "Month");
+        String branch = properties.getAdminBranch();
+        if (branch != null && !branch.isBlank()) {
+            body.put("branchCode", branch.trim());
+        }
         return body.toString();
     }
 

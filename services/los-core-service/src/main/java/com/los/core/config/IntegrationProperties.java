@@ -4,12 +4,21 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.math.BigDecimal;
+
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "los.integration")
 public class IntegrationProperties {
 
     private KarzaProperties karza = new KarzaProperties();
+    private VahanProperties vahan = new VahanProperties();
+    private PropertyEcProperties propertyEc = new PropertyEcProperties();
+    private GoogleMapsProperties googleMaps = new GoogleMapsProperties();
+    private GoldRateProperties goldRate = new GoldRateProperties();
+    private CkycProperties ckyc = new CkycProperties();
+    private SetuAaProperties setuAa = new SetuAaProperties();
+    private CersaiProperties cersai = new CersaiProperties();
     private EquifaxProperties equifax = new EquifaxProperties();
     private EmsignerProperties emsigner = new EmsignerProperties();
     private HypervergeProperties hyperverge = new HypervergeProperties();
@@ -25,6 +34,85 @@ public class IntegrationProperties {
         private String gstnUrl = "https://api.karza.in/gst/prod/v2/gst-verification";
         private int connectTimeoutMs = 10000;
         private int readTimeoutMs = 30000;
+    }
+
+    @Data
+    public static class VahanProperties {
+        private String baseUrl = "https://api.karza.in/v2";
+        private String apiKey = "";
+        private boolean simulation = true;
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 30000;
+    }
+
+    @Data
+    public static class PropertyEcProperties {
+        private String provider = "KARZA";
+        private String baseUrl = "https://api.karza.in/v3";
+        private String apiKey = "";
+        private boolean simulation = true;
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 30000;
+    }
+
+    @Data
+    public static class GoogleMapsProperties {
+        private String apiKey = "";
+        private boolean simulation = true;
+        private String geocodeUrl = "https://maps.googleapis.com/maps/api/geocode/json";
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 30000;
+    }
+
+    @Data
+    public static class GoldRateProperties {
+        private String provider = "MCX";
+        private String apiKey = "";
+        private boolean simulation = true;
+        private String rateUrl = "https://api.mcxindia.com/gold-rate";
+        private BigDecimal simulationRatePerGram = new BigDecimal("6500");
+        private BigDecimal manualRatePerGram = new BigDecimal("6500");
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 30000;
+    }
+
+    @Data
+    public static class CkycProperties {
+        private String provider = "KARZA";
+        private String uploadUrl = "";
+        private String apiKey = "";
+        private boolean simulation = true;
+        private String fiCode = "";
+        private String branchCode = "001";
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 60000;
+    }
+
+    @Data
+    public static class SetuAaProperties {
+        private String baseUrl = "https://fiu-uat.setu.co";
+        private String authUrl = "https://orgs.setu.co/api/v1/users/login";
+        private String clientId = "";
+        private String clientSecret = "";
+        private String productInstanceId = "";
+        private String redirectUrl = "https://los.billiontech.ai/aa/callback";
+        private boolean simulation = true;
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 60000;
+    }
+
+    @Data
+    public static class CersaiProperties {
+        private String baseUrl = "";
+        private String institutionId = "";
+        private String apiKey = "";
+        private boolean simulation = true;
+        private String searchPath = "/v1/security-interest/search";
+        private String registerPath = "/v1/security-interest/register";
+        private String lenderName = "Billion Loans NBFC";
+        private String lenderCin = "";
+        private int connectTimeoutMs = 10000;
+        private int readTimeoutMs = 60000;
     }
 
     @Data

@@ -5,14 +5,17 @@ import com.los.core.exception.ResourceNotFoundException;
 import com.los.core.model.dto.request.CreateApplicationRequest;
 import com.los.core.model.dto.request.ManualCreditInputsRequest;
 import com.los.core.model.dto.request.UpdateApplicationRequest;
+import com.los.core.model.dto.request.ValidateIdentityRequest;
 import com.los.core.model.dto.response.ApplicationResponse;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.catalog.StandardLoanProduct;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.BorrowerType;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.service.credit.CreditControlService;
+import com.los.core.service.loan.intake.ApplicationSubmitIdentityValidator;
 import com.los.core.service.loan.intake.ApplicationCustomerIdResolver;
 import com.los.core.service.loan.intake.AnchorIntakeValidation;
 import com.los.core.service.loan.intake.IntakeMetadataEnricher;
@@ -42,6 +45,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
     private final UnderwritingEvaluationService underwritingEvaluationService;
     private final ApplicationCustomerIdResolver applicationCustomerIdResolver;
     private final IntakeMetadataEnricher intakeMetadataEnricher;
+    private final ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
 
     private static final AtomicLong SEQUENCE = new AtomicLong(System.currentTimeMillis() % 100000);
     private static final Pattern EMAIL_RE = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
@@ -117,6 +121,8 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
                 .intakeSegment(AnchorIntakeValidation.resolveSegment(request))
                 .requestedAmount(request.getRequestedAmount())
                 .tenureMonths(request.getTenureMonths())
+                .lmsProductCode(resolveApplicationLmsProductCode(request.getLoanProduct(), request.getLmsProductCode()))
+                .lmsTenureUnit(resolveApplicationLmsTenureUnit(request.getLoanProduct(), request.getLmsTenureUnit()))
                 .personalInfo(personal)
                 .businessInfo(request.getBusinessInfo())
                 .financialInfo(request.getFinancialInfo())
@@ -258,6 +264,12 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
 
         if (request.getRequestedAmount() != null) app.setRequestedAmount(request.getRequestedAmount());
         if (request.getTenureMonths() != null) app.setTenureMonths(request.getTenureMonths());
+        if (request.getLmsProductCode() != null && !isInvoiceDiscountingProduct(app.getLoanProduct())) {
+            app.setLmsProductCode(blankToNull(request.getLmsProductCode()));
+        }
+        if (request.getLmsTenureUnit() != null && !isInvoiceDiscountingProduct(app.getLoanProduct())) {
+            app.setLmsTenureUnit(blankToNull(request.getLmsTenureUnit()));
+        }
         if (request.getPersonalInfo() != null) app.setPersonalInfo(mergeJsonb(app.getPersonalInfo(), request.getPersonalInfo()));
         if (request.getBusinessInfo() != null) app.setBusinessInfo(mergeJsonb(app.getBusinessInfo(), request.getBusinessInfo()));
         if (request.getFinancialInfo() != null) app.setFinancialInfo(mergeJsonb(app.getFinancialInfo(), request.getFinancialInfo()));
@@ -268,6 +280,24 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
         log.info("Application updated: {}", app.getApplicationNumber());
 
         return enrich(toResponse(app), app);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateIdentity(ValidateIdentityRequest request) {
+        UUID selfId = request.applicationId();
+        UUID customerId = null;
+        if (selfId != null) {
+            LoanApplication app = findApplicationOrThrow(selfId);
+            customerId = app.getCustomerId();
+        }
+        applicationSubmitIdentityValidator.validateFields(
+                selfId,
+                customerId,
+                request.email(),
+                request.mobile(),
+                request.panNumber(),
+                request.gstin());
     }
 
     @Override
@@ -412,6 +442,8 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
                 .requestedAmount(app.getRequestedAmount())
                 .interestRate(app.getInterestRate())
                 .tenureMonths(app.getTenureMonths())
+                .lmsProductCode(app.getLmsProductCode())
+                .lmsTenureUnit(app.getLmsTenureUnit())
                 .status(app.getStatus())
                 .personalInfo(app.getPersonalInfo())
                 .businessInfo(app.getBusinessInfo())
@@ -479,5 +511,30 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
                 .updatedAt(app.getUpdatedAt())
                 .submittedAt(app.getSubmittedAt())
                 .build();
+    }
+
+    private static boolean isInvoiceDiscountingProduct(String loanProduct) {
+        return StandardLoanProduct.BUSINESS_WC_INVOICE_DISCOUNTING.equals(loanProduct);
+    }
+
+    private static String resolveApplicationLmsProductCode(String loanProduct, String lmsProductCode) {
+        if (isInvoiceDiscountingProduct(loanProduct)) {
+            return null;
+        }
+        return blankToNull(lmsProductCode);
+    }
+
+    private static String resolveApplicationLmsTenureUnit(String loanProduct, String lmsTenureUnit) {
+        if (isInvoiceDiscountingProduct(loanProduct)) {
+            return null;
+        }
+        return blankToNull(lmsTenureUnit);
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

@@ -77,6 +77,38 @@ public class LoanApplicationFlowController {
         return ResponseEntity.ok(flowService.completeManualUnderwritingDecision(applicationId, true));
     }
 
+    @GetMapping("/{applicationId}/anchor/due-diligence")
+    @Operation(summary = "Get anchor due diligence checklist and derived credit rating")
+    public ResponseEntity<Map<String, Object>> getAnchorDueDiligence(@PathVariable UUID applicationId) {
+        return ResponseEntity.ok(flowService.getAnchorDueDiligence(applicationId));
+    }
+
+    @PostMapping("/{applicationId}/anchor/due-diligence")
+    @Operation(summary = "Save anchor due diligence answers and compute anchor rating")
+    public ResponseEntity<Map<String, Object>> saveAnchorDueDiligence(
+            @PathVariable UUID applicationId,
+            @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(flowService.saveAnchorDueDiligence(applicationId, body != null ? body : Map.of()));
+    }
+
+    @PostMapping("/{applicationId}/anchor/underwrite")
+    @Operation(summary = "Complete anchor underwriting from due diligence (→ SANCTION_PENDING or REJECTED)")
+    public ResponseEntity<Map<String, Object>> completeAnchorUnderwriting(@PathVariable UUID applicationId) {
+        return ResponseEntity.ok(flowService.completeAnchorDueDiligenceUnderwriting(applicationId));
+    }
+
+    @PostMapping("/{applicationId}/anchor/underwriting/approve")
+    @Operation(summary = "Approve anchor after credit rating C manual review")
+    public ResponseEntity<ApplicationResponse> approveAnchorManualReview(@PathVariable UUID applicationId) {
+        return ResponseEntity.ok(flowService.resolveAnchorManualUnderwriting(applicationId, true));
+    }
+
+    @PostMapping("/{applicationId}/anchor/underwriting/reject")
+    @Operation(summary = "Reject anchor after credit rating C manual review")
+    public ResponseEntity<ApplicationResponse> rejectAnchorManualReview(@PathVariable UUID applicationId) {
+        return ResponseEntity.ok(flowService.resolveAnchorManualUnderwriting(applicationId, false));
+    }
+
     @PostMapping("/{applicationId}/underwriting/reject")
     @Operation(summary = "After MANUAL_REVIEW, credit manager rejects (→ REJECTED)")
     public ResponseEntity<ApplicationResponse> rejectAfterManualReview(@PathVariable UUID applicationId) {
@@ -200,6 +232,8 @@ public class LoanApplicationFlowController {
                 request != null ? request.getOverrideReason() : "",
                 request != null ? request.getRemarks() : null,
                 request != null ? request.getApprovalReference() : null,
+                request != null ? request.getManualBureauScore() : null,
+                request != null ? request.getCreditRiskScore() : null,
                 actor,
                 roles
         ));

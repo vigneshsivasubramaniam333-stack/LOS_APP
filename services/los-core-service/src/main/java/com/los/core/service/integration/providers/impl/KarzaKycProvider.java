@@ -159,7 +159,7 @@ log.info("[Karza][RESPONSE] Time Taken: {} ms", durationMs);
                 yield mapWithConsent("udyamRegistrationNo", udyam.toUpperCase(Locale.ROOT));
             }
             case DL_VERIFY -> {
-                String dlNo = requiredString(payload, "dlNo", "drivingLicenseNumber");
+                String dlNo = requiredString(payload, "dlNo", "drivingLicenseNumber", "dlNumber");
                 String dob = requiredString(payload, "dob", "dateOfBirth", "drivingLicenseDob");
                 Map<String, Object> dlRequest = mapWithConsent("dlNo", dlNo.toUpperCase(Locale.ROOT));
                 dlRequest.put("dob", dob);

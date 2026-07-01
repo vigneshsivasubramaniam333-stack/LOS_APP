@@ -10,6 +10,7 @@ import type { ApplicationResponse } from '@/types/application'
 import type { KycStepResultResponse } from '@/types/kyc'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
+import { workflowAnyGroupKycHint } from '@/lib/workflow/workflowIntakeRules'
 import {
   buildAnchorKycSavePayload,
   hydrateAnchorKycFields,
@@ -261,6 +262,8 @@ export function KycDetailsSection({
     [app, kycOutcome],
   )
 
+  const anyGroupKycHint = useMemo(() => workflowAnyGroupKycHint(activeWorkflow), [activeWorkflow])
+
   const kycActionBusy = running || retrying || submitting
   const fieldsLocked = kycChecksComplete || kycActionBusy
   const appHydrationKey = `${app.id}:${app.updatedAt ?? ''}`
@@ -330,8 +333,8 @@ export function KycDetailsSection({
         setAadhaarNumber(last4 ? `••••••${last4}` : '')
       }
       setUdyamRegistrationNo(pickStr(bi, 'udyam') || pickStr(bi, 'udyamRegistrationNo'))
-      setDlNo(pickStr(pi, 'dlNo') || pickStr(pi, 'drivingLicenseNumber'))
-      setDlDob(pickStr(pi, 'dob') || pickStr(pi, 'drivingLicenseDob'))
+      setDlNo(pickStr(pi, 'dlNo') || pickStr(pi, 'drivingLicenseNumber') || pickStr(pi, 'dlNumber'))
+      setDlDob(pickStr(pi, 'dob') || pickStr(pi, 'dateOfBirth') || pickStr(pi, 'drivingLicenseDob'))
       setEpicNo(pickStr(pi, 'epicNo') || pickStr(pi, 'voterId'))
       const seedExtra: Record<string, string> = {}
       extraConfiguredSteps.forEach((step) => {
@@ -419,6 +422,7 @@ export function KycDetailsSection({
         mobile: mobile.trim() || undefined,
         phone: mobile.trim() || undefined,
         dlNo: dlNo.trim().toUpperCase() || undefined,
+        dlNumber: dlNo.trim().toUpperCase() || undefined,
         drivingLicenseNumber: dlNo.trim().toUpperCase() || undefined,
         drivingLicenseDob: dlDob.trim() || undefined,
         epicNo: epicNo.trim().toUpperCase() || undefined,
@@ -480,8 +484,13 @@ export function KycDetailsSection({
       udyamRegistrationNo: kycFormData.UDYAM.udyamRegistrationNo,
       businessName: kycFormData.GST.businessName,
       dlNo: kycFormData.DL.dlNo,
+      dlNumber: kycFormData.DL.dlNo,
+      drivingLicenseNumber: kycFormData.DL.dlNo,
       dob: kycFormData.DL.dob,
+      dateOfBirth: kycFormData.DL.dob,
+      drivingLicenseDob: kycFormData.DL.dob,
       epicNo: kycFormData.VOTER.epicNo,
+      voterId: kycFormData.VOTER.epicNo,
       accountNumber: kycFormData.BANK.accountNumber.replace(/\D/g, ''),
       ifsc: kycFormData.BANK.ifsc,
       ...(isAnchorApp ? {} : { bankName: kycFormData.BANK.bankName }),
@@ -554,7 +563,7 @@ export function KycDetailsSection({
 
   return (
     <section
-      className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`.trim()}
+      className={`bt-card p-5 ${className}`.trim()}
     >
       <h2 className="mb-1 text-lg font-medium text-slate-900">KYC checks</h2>
       <p className="mb-3 text-sm text-slate-600">
@@ -564,14 +573,17 @@ export function KycDetailsSection({
         <strong>{partyLabels.profileTab}</strong> tab lists everything submitted at intake.
       </p>
       {loadError ? <p className="mb-2 text-sm text-amber-800">{loadError}</p> : null}
+      {anyGroupKycHint ? (
+        <p className="mb-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">{anyGroupKycHint}</p>
+      ) : null}
       {actionError ? <ErrorState message={actionError} /> : null}
       {kycChecksComplete ? (
-        <p className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+        <p className="mb-3 bt-section-card bt-section-card--success px-3 py-2 text-sm text-emerald-900">
           KYC checks completed successfully.
         </p>
       ) : null}
       {isFailed && !kycChecksComplete ? (
-        <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div className="mb-3 bt-alert bt-alert-warning">
           <p>
             Verification did not pass. You can update the details where needed, then use <strong>Retry KYC</strong> to try
             again. Earlier attempts stay in the history below.
@@ -616,7 +628,7 @@ export function KycDetailsSection({
                 {isAnchorApp ? 'Account holder / signatory name' : 'Full name'}
               </span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={name}
                 onChange={(e) => {
                   setFormDirty(true)
@@ -632,7 +644,7 @@ export function KycDetailsSection({
                 {isAnchorApp ? 'Entity PAN' : 'PAN'}
               </span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={panNumber}
                 onChange={(e) => {
                   setFormDirty(true)
@@ -646,7 +658,7 @@ export function KycDetailsSection({
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Aadhaar (12 digits or last 4)</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full tabular-nums disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={aadhaarNumber}
                 onChange={(e) => {
                   setFormDirty(true)
@@ -668,7 +680,7 @@ export function KycDetailsSection({
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Mobile</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full tabular-nums disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={mobile}
                 onChange={(e) => {
                   setFormDirty(true)
@@ -685,7 +697,7 @@ export function KycDetailsSection({
                   {isAnchorApp ? 'Corporate / trade name' : 'Business / trade name'}
                 </span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="bt-input w-full disabled:cursor-not-allowed disabled:bg-slate-50"
                   value={businessName}
                   onChange={(e) => {
                     setFormDirty(true)
@@ -696,7 +708,7 @@ export function KycDetailsSection({
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">GSTIN</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="bt-input w-full uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
                   value={gstin}
                   onChange={(e) => {
                     setFormDirty(true)
@@ -710,7 +722,7 @@ export function KycDetailsSection({
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Udyam registration number</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={udyamRegistrationNo}
                 onChange={(e) => {
                   setFormDirty(true)
@@ -724,7 +736,7 @@ export function KycDetailsSection({
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Driving license number</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="bt-input w-full uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
                   value={dlNo}
                   onChange={(e) => {
                     setFormDirty(true)
@@ -735,7 +747,7 @@ export function KycDetailsSection({
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">DOB (DD-MM-YYYY)</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="bt-input w-full disabled:cursor-not-allowed disabled:bg-slate-50"
                   value={dlDob}
                   onChange={(e) => {
                     setFormDirty(true)
@@ -750,7 +762,7 @@ export function KycDetailsSection({
             <label className="block text-sm text-slate-700">
               <span className="mb-1 block text-xs font-medium text-slate-500">Voter EPIC number</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={epicNo}
                 onChange={(e) => {
                   setFormDirty(true)
@@ -764,7 +776,7 @@ export function KycDetailsSection({
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">Bank account</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 tabular-nums disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="bt-input w-full tabular-nums disabled:cursor-not-allowed disabled:bg-slate-50"
                   value={accountNumber}
                   onChange={(e) => {
                     setFormDirty(true)
@@ -776,7 +788,7 @@ export function KycDetailsSection({
               <label className="block text-sm text-slate-700">
                 <span className="mb-1 block text-xs font-medium text-slate-500">IFSC</span>
                 <input
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
+                  className="bt-input w-full uppercase disabled:cursor-not-allowed disabled:bg-slate-50"
                   value={ifsc}
                   onChange={(e) => {
                     setFormDirty(true)
@@ -788,7 +800,7 @@ export function KycDetailsSection({
                 <label className="block text-sm text-slate-700 sm:col-span-2">
                   <span className="mb-1 block text-xs font-medium text-slate-500">Bank name</span>
                   <input
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    className="bt-input w-full disabled:cursor-not-allowed disabled:bg-slate-50"
                     value={bankName}
                     onChange={(e) => {
                       setFormDirty(true)
@@ -803,7 +815,7 @@ export function KycDetailsSection({
             <label key={step} className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">{step.split('_').join(' ')}</span>
               <input
-                className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:cursor-not-allowed disabled:bg-slate-50"
+                className="bt-input w-full disabled:cursor-not-allowed disabled:bg-slate-50"
                 value={extraStepValues[step] ?? ''}
                 onChange={(e) =>
                   {
@@ -854,7 +866,7 @@ export function KycDetailsSection({
             {showTechnical ? 'Hide' : 'Show'} technical details
           </button>
           {showTechnical ? (
-            <div className="mt-2 space-y-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="mt-2 space-y-2 bt-section-card bt-section-card--default p-3 text-sm bg-slate-50">
               {lastRunSummary ? (
                 <div>
                   <div className="text-xs font-medium text-slate-500">Last run (raw)</div>
@@ -878,7 +890,7 @@ export function KycDetailsSection({
 
       {visibleKycResults && visibleKycResults.length > 0 ? (
         <div className="mt-4">
-          <h3 className="text-sm font-semibold text-slate-900">Verification history (checks)</h3>
+          <h3 className="bt-card-title">Verification history (checks)</h3>
           <div className="mt-2 overflow-x-auto">
             <table className="min-w-full text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
@@ -891,7 +903,7 @@ export function KycDetailsSection({
                   <th className="px-2 py-1.5">Raw response</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="">
                 {visibleKycResults.map((r) => {
                   const pairs = summaryPairs(r.stepType, r.parsedData, r.errorMessage)
                   return (

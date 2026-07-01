@@ -8,12 +8,15 @@ import com.los.core.model.entity.WorkflowConfig;
 import com.los.core.model.enums.BorrowerType;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.WorkflowConfigRepository;
+import com.los.core.service.workflow.intake.KycStepIntakeCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,8 +42,11 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
                 .name(request.getName())
                 .borrowerType(request.getBorrowerType().name())
                 .loanProduct(request.getLoanProduct())
+                .lmsProductCode(resolveWorkflowLmsProductCode(request))
+                .lmsTenureUnit(resolveWorkflowLmsTenureUnit(request))
                 .intakeSegment(intakeSeg)
                 .intakeIdentitySchema(request.getIntakeIdentitySchema())
+                .intakeConfig(resolveIntakeConfigForCreate(request))
                 .steps(steps)
                 .processNotificationMappings(request.getProcessNotificationMappings())
                 .manualOverridePolicies(request.getManualOverridePolicies())
@@ -70,11 +76,20 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
         if (request.getLoanProduct() != null) {
             config.setLoanProduct(request.getLoanProduct());
         }
+        if (request.getLmsProductCode() != null) {
+            config.setLmsProductCode(blankToNull(request.getLmsProductCode()));
+        }
+        if (request.getLmsTenureUnit() != null) {
+            config.setLmsTenureUnit(blankToNull(request.getLmsTenureUnit()));
+        }
         if (request.getIntakeSegment() != null) {
             config.setIntakeSegment(request.getIntakeSegment().name());
         }
         if (request.getIntakeIdentitySchema() != null) {
             config.setIntakeIdentitySchema(request.getIntakeIdentitySchema());
+        }
+        if (request.getIntakeConfig() != null) {
+            config.setIntakeConfig(copyJsonMap(request.getIntakeConfig()));
         }
         if (request.getSteps() != null) {
             config.setSteps(request.getSteps());
@@ -120,15 +135,21 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
         WorkflowConfig config = workflowRepository.findById(workflowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workflow not found: " + workflowId));
 
-        // Deactivate existing active workflow for same borrower type + product + intake segment
-        workflowRepository.findByBorrowerTypeAndLoanProductAndIntakeSegmentAndActiveTrue(
-                        config.getBorrowerType(), config.getLoanProduct(), config.getIntakeSegment())
-                .ifPresent(existing -> {
-                    existing.setActive(false);
-                    workflowRepository.save(existing);
-                });
+        String intakeSegment = normalizeIntakeSegment(config.getIntakeSegment());
+        Instant now = Instant.now();
+        int deactivated = workflowRepository.deactivateOtherActiveWorkflows(
+                config.getBorrowerType(), config.getLoanProduct(), intakeSegment, workflowId, now);
+        if (deactivated > 0) {
+            log.info(
+                    "Deactivated {} other active workflow(s) for {}/{}/{}",
+                    deactivated,
+                    config.getBorrowerType(),
+                    config.getLoanProduct(),
+                    intakeSegment);
+        }
 
         config.setActive(true);
+        config.setUpdatedAt(now);
         workflowRepository.save(config);
         log.info("Workflow activated: {}", config.getName());
     }
@@ -267,14 +288,82 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
         return totalSteps > 0 ? (int) (parallelStepCount * 100 / totalSteps) : 0;
     }
 
+    private static String normalizeIntakeSegment(String intakeSegment) {
+        if (intakeSegment == null || intakeSegment.isBlank()) {
+            return IntakeSegment.BORROWER.name();
+        }
+        return intakeSegment;
+    }
+
+    private static String resolveWorkflowLmsProductCode(WorkflowConfigRequest request) {
+        if (request.getLmsProductCode() != null && !request.getLmsProductCode().isBlank()) {
+            return request.getLmsProductCode().trim();
+        }
+        return "IPPOPAYM01";
+    }
+
+    private static String resolveWorkflowLmsTenureUnit(WorkflowConfigRequest request) {
+        if (request.getLmsTenureUnit() != null && !request.getLmsTenureUnit().isBlank()) {
+            return request.getLmsTenureUnit().trim();
+        }
+        return "Month";
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private static Map<String, Object> resolveIntakeConfigForCreate(WorkflowConfigRequest request) {
+        if (request.getIntakeConfig() != null && !request.getIntakeConfig().isEmpty()) {
+            return copyJsonMap(request.getIntakeConfig());
+        }
+        return KycStepIntakeCatalog.defaultWorkflowDrivenIntakeConfig();
+    }
+
+    /**
+     * Assign a new map instance so Hibernate JSONB dirty detection always fires on update.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> copyJsonMap(Map<String, Object> source) {
+        if (source == null) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> nested) {
+                copy.put(entry.getKey(), copyJsonMap((Map<String, Object>) nested));
+            } else if (value instanceof List<?> list) {
+                List<Object> listCopy = new ArrayList<>(list.size());
+                for (Object item : list) {
+                    if (item instanceof Map<?, ?> itemMap) {
+                        listCopy.add(copyJsonMap((Map<String, Object>) itemMap));
+                    } else {
+                        listCopy.add(item);
+                    }
+                }
+                copy.put(entry.getKey(), listCopy);
+            } else {
+                copy.put(entry.getKey(), value);
+            }
+        }
+        return copy;
+    }
+
     private WorkflowConfigResponse toResponse(WorkflowConfig config) {
         return WorkflowConfigResponse.builder()
                 .id(config.getId())
                 .name(config.getName())
                 .borrowerType(config.getBorrowerType())
                 .loanProduct(config.getLoanProduct())
+                .lmsProductCode(config.getLmsProductCode())
+                .lmsTenureUnit(config.getLmsTenureUnit())
                 .intakeSegment(config.getIntakeSegment())
                 .intakeIdentitySchema(config.getIntakeIdentitySchema())
+                .intakeConfig(config.getIntakeConfig())
                 .steps(config.getSteps())
                 .processNotificationMappings(config.getProcessNotificationMappings())
                 .manualOverridePolicies(config.getManualOverridePolicies())

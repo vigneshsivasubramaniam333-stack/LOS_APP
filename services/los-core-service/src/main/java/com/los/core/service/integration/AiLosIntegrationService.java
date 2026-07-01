@@ -112,7 +112,7 @@ public class AiLosIntegrationService {
                 .annualIncome(annualIncome.compareTo(BigDecimal.ZERO) > 0 ? annualIncome : BigDecimal.valueOf(240000))
                 .employmentType(employmentType)
                 .loanTenureMonths(tenureMonths > 0 ? tenureMonths : 12)
-                .existingEmi(existingEmi)
+                .existingEmi(existingEmi != null && existingEmi > 0 ? existingEmi : 15000)
                 .propertyValue(propertyValue.compareTo(BigDecimal.ZERO) > 0 ? propertyValue : BigDecimal.valueOf(100000))
                 .sourceLos(integrationProperties.getAiLos().getSourceLos())
                 .sourceLoanRef(loanRef)

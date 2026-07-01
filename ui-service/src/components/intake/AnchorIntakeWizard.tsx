@@ -116,7 +116,7 @@ function Stepper({ step }: { step: number }) {
           <span
             className={[
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-              i < step ? 'bg-emerald-100 text-emerald-900' : i === step ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500',
+              i < step ? 'bg-[var(--bt-green-bg)] text-[var(--bt-green)]' : i === step ? 'bg-[var(--bt-orange)] text-white' : 'bg-[var(--bt-gray-100)] text-[var(--bt-gray-500)]',
             ].join(' ')}
             aria-current={i === step ? 'step' : undefined}
           >
@@ -443,7 +443,7 @@ export function AnchorIntakeWizard({
       ) : (
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Anchor onboarding</h2>
+            <h2 className="bt-card-title">Anchor onboarding</h2>
             <p className="mt-1 text-sm text-slate-600">
               Invoice discounting — anchor intake. You can go back to change product or onboarding type.
             </p>
@@ -473,7 +473,7 @@ export function AnchorIntakeWizard({
 
       {step === 0 ? (
         <section className={intakeStepSectionClass}>
-          <h2 className="text-sm font-semibold text-slate-900">Product &amp; request</h2>
+          <h2 className="bt-card-title">Product &amp; request</h2>
           <p className="text-xs text-slate-600">
             Anchor onboarding is for corporate entities ({BORROWER_TYPE_LABELS[ANCHOR_BORROWER_TYPE]}).
           </p>
@@ -523,7 +523,7 @@ export function AnchorIntakeWizard({
 
       {step === 1 ? (
         <section className={intakeStepSectionClass}>
-          <h2 className="text-sm font-semibold text-slate-900">Corporate details</h2>
+          <h2 className="bt-card-title">Corporate details</h2>
           <label className={intakeFieldLabelClass}>
             <span className={intakeFieldCaptionClass}>Corporate name</span>
             <input
@@ -589,7 +589,7 @@ export function AnchorIntakeWizard({
 
       {step === 2 ? (
         <section className={intakeStepSectionClass}>
-          <h2 className="text-sm font-semibold text-slate-900">Identity &amp; bank</h2>
+          <h2 className="bt-card-title">Identity &amp; bank</h2>
           <p className="text-xs text-slate-600">
             Fields follow the active anchor workflow
             {selectedWorkflow?.intakeIdentitySchema?.length ? ' configuration' : ' defaults'}.
@@ -615,8 +615,8 @@ export function AnchorIntakeWizard({
 
       {step === 3 && applicationId ? (
         <section className={intakeStepSectionClass}>
-          <h2 className="text-sm font-semibold text-slate-900">Documents</h2>
-          {docWarning ? <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{docWarning}</p> : null}
+          <h2 className="bt-card-title">Documents</h2>
+          {docWarning ? <p className="bt-alert bt-alert-warning">{docWarning}</p> : null}
           <ul className="space-y-4">
             {docSlots.map((slot) => (
               <li key={slot.documentType} className="rounded-md border border-slate-100 bg-slate-50/80 p-4">
@@ -648,7 +648,7 @@ export function AnchorIntakeWizard({
 
       {step === 4 ? (
         <section className={intakeStepSectionClass}>
-          <h2 className="text-sm font-semibold text-slate-900">Consents</h2>
+          <h2 className="bt-card-title">Consents</h2>
           <p className="text-xs text-slate-600">{consentHelper(staffIntakeMode)}</p>
           <div className="space-y-2 text-sm text-slate-800">
             <label className="flex items-start gap-2">
@@ -695,7 +695,7 @@ export function AnchorIntakeWizard({
 
       {step === 5 && applicationId ? (
         <section className={intakeStepSectionClass}>
-          <h2 className="text-sm font-semibold text-slate-900">Review &amp; submit</h2>
+          <h2 className="bt-card-title">Review &amp; submit</h2>
           <div className="grid gap-3 text-sm sm:grid-cols-2">
             <div className="rounded border border-slate-100 p-3">
               <h3 className="text-xs font-semibold uppercase text-slate-500">Entity</h3>

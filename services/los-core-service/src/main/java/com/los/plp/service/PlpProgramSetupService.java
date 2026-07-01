@@ -202,12 +202,16 @@ public class PlpProgramSetupService {
                 if ("SALES_BILL_DISCOUNTING".equals(flow)) {
                     return new SubProgramRoles(flow, "BUYER", "SELLER");
                 }
+                if ("PURCHASE_ORDER_DISCOUNTING".equals(flow)) {
+                    return new SubProgramRoles(flow, "BUYER", "SELLER");
+                }
                 if ("PURCHASE_BILL_DISCOUNTING".equals(flow)) {
                     return new SubProgramRoles(flow, "SELLER", "BUYER");
                 }
                 throw new IllegalArgumentException(
                         "Unsupported flowType for invoice discounting: " + flowType
-                                + ". Use PURCHASE_BILL_DISCOUNTING or SALES_BILL_DISCOUNTING");
+                                + ". Use PURCHASE_BILL_DISCOUNTING, SALES_BILL_DISCOUNTING, or "
+                                + "PURCHASE_ORDER_DISCOUNTING");
             case "PAY_DAY_LOAN":
                 return new SubProgramRoles("PAY_LOAN", "EMPLOYER", "EMPLOYEE");
             default:

@@ -104,7 +104,7 @@ function ProgramSelectFields({
       <label className="block text-sm font-medium text-slate-700">
         Anchor
         <select
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="mt-1 bt-input w-full text-sm"
           value={anchorFilter}
           onChange={(e) => onAnchorFilter(e.target.value)}
         >
@@ -120,7 +120,7 @@ function ProgramSelectFields({
       <label className="block text-sm font-medium text-slate-700">
         Program
         <select
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="mt-1 bt-input w-full text-sm"
           value={selectedSubProgramId}
           onChange={(e) => {
             const sp = programs.find((p) => p.subProgramId === e.target.value)

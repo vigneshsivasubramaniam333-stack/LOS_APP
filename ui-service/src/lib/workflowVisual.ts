@@ -54,6 +54,11 @@ export function defaultProviderForWorkflowStep(step: string): string {
   return defaultProviderForMatrixStep(step)
 }
 
+export interface WorkflowStepDocumentRequired {
+  documentType: string
+  required: boolean
+}
+
 const KNOWN_KEYS = new Set([
   'step',
   'name',
@@ -62,6 +67,10 @@ const KNOWN_KEYS = new Set([
   'order',
   'notifications',
   'allowPhysicalKycFallback',
+  'collectAtIntake',
+  'fieldRequiredAtIntake',
+  'documentRequired',
+  'documentsRequired',
 ])
 
 export interface StepNotificationConfig {
@@ -85,6 +94,13 @@ export interface VisualWorkflowStep {
   notifications: StepNotificationConfig[]
   /** When {@code VIDEO_KYC} / {@code VKYC} exists: allow PKYC fallback completion path (runtime gated). */
   allowPhysicalKycFallback: boolean
+  /** Collect linked intake field at application creation (workflow-driven intake). */
+  collectAtIntake: boolean
+  /** Require the linked intake field when collected. */
+  fieldRequiredAtIntake: boolean
+  /** Require default document upload(s) for this step at intake. */
+  documentRequired: boolean
+  documentsRequired: WorkflowStepDocumentRequired[]
   /** Unrecognized fields preserved for power users (merged into each step object on save) */
   extra: Record<string, unknown>
 }
@@ -117,6 +133,18 @@ function parseNotifications(raw: unknown): StepNotificationConfig[] {
   })
 }
 
+function parseDocumentsRequired(raw: unknown): WorkflowStepDocumentRequired[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      const m = item && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : {}
+      const documentType = String(m.documentType ?? '').trim().toUpperCase()
+      if (!documentType) return null
+      return { documentType, required: m.required !== false }
+    })
+    .filter((x): x is WorkflowStepDocumentRequired => x != null)
+}
+
 export function parseWorkflowStepsFromJson(steps: Record<string, unknown>[]): VisualWorkflowStep[] {
   return steps.map((raw, i) => {
     const m = raw as Record<string, unknown>
@@ -125,6 +153,9 @@ export function parseWorkflowStepsFromJson(steps: Record<string, unknown>[]): Vi
     const fk = m.allowPhysicalKycFallback
     const allowPkycFallback =
       fk === true || String(fk ?? '').trim().toLowerCase() === 'true'
+    const collectExplicit = m.collectAtIntake
+    const fieldReqExplicit = m.fieldRequiredAtIntake
+    const docReq = m.documentRequired
     return {
       id: newId(),
       step,
@@ -134,6 +165,10 @@ export function parseWorkflowStepsFromJson(steps: Record<string, unknown>[]): Vi
       order: typeof m.order === 'number' ? m.order : i + 1,
       notifications: parseNotifications(m.notifications),
       allowPhysicalKycFallback: allowPkycFallback,
+      collectAtIntake: collectExplicit === undefined ? true : collectExplicit === true,
+      fieldRequiredAtIntake: fieldReqExplicit === undefined ? m.mandatory !== false : fieldReqExplicit === true,
+      documentRequired: docReq === true,
+      documentsRequired: parseDocumentsRequired(m.documentsRequired),
       extra: extraFromMap(m),
     }
   })
@@ -169,6 +204,17 @@ export function visualStepsToJsonArray(visual: VisualWorkflowStep[]): Record<str
     if (vkycFamily && s.allowPhysicalKycFallback) {
       o.allowPhysicalKycFallback = true
     }
+    o.collectAtIntake = s.collectAtIntake
+    o.fieldRequiredAtIntake = s.fieldRequiredAtIntake
+    if (s.documentRequired) {
+      o.documentRequired = true
+    }
+    if (s.documentsRequired.length > 0) {
+      o.documentsRequired = s.documentsRequired.map((d) => ({
+        documentType: d.documentType,
+        required: d.required,
+      }))
+    }
     return o
   })
 }
@@ -183,6 +229,10 @@ export function createEmptyVisualStep(): VisualWorkflowStep {
     order: 1,
     notifications: [],
     allowPhysicalKycFallback: false,
+    collectAtIntake: true,
+    fieldRequiredAtIntake: true,
+    documentRequired: false,
+    documentsRequired: [],
     extra: {},
   }
 }

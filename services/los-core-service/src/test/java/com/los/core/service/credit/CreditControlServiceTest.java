@@ -71,4 +71,112 @@ class CreditControlServiceTest {
         EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "PASS");
         assertThat(ctx.scorecard().get("BUREAU_SCORE").intValue()).isEqualTo(720);
     }
+
+    @Test
+    void resolveEffective_doesNotApplyDemoFallbackWithoutExplicitDemoFlag() {
+        CreditControlService svc = new CreditControlService(kyc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(0)
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "FAIL");
+        assertThat(ctx.effectiveBureauScore()).isZero();
+        assertThat(ctx.kycPassEffective()).isFalse();
+        assertThat(ctx.scorecard()).doesNotContainKey("DEMO_FALLBACK_ACTIVE");
+    }
+
+    @Test
+    void resolveEffective_appliesDemoFallbackWhenExplicitDemoFlag() {
+        CreditControlService svc = new CreditControlService(kyc);
+        Map<String, Object> fi = new HashMap<>();
+        fi.put("demo", true);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(0)
+                .financialInfo(fi)
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "FAIL");
+        assertThat(ctx.effectiveBureauScore()).isEqualTo(720);
+        assertThat(ctx.kycPassEffective()).isTrue();
+        assertThat(ctx.scorecard()).containsKey("DEMO_FALLBACK_ACTIVE");
+    }
+
+    @Test
+    void resolveEffective_usesDeclaredMonthlyNetIncomeFromPersonalInfo() {
+        CreditControlService svc = new CreditControlService(kyc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(700)
+                .personalInfo(Map.of("monthlyNetIncome", "75000"))
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "PASS");
+        assertThat(ctx.scorecard().get("MONTHLY_INCOME").intValue()).isEqualTo(75000);
+        assertThat(ctx.effectiveIncome().intValue()).isEqualTo(75000);
+    }
+
+    @Test
+    void resolveEffective_appliesGapDefaultsForBankDerivedScorecardFields() {
+        CreditControlService svc = new CreditControlService(kyc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(700)
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "PASS");
+        assertThat(ctx.scorecard()).containsKey("MONTHLY_INCOME");
+        assertThat(ctx.scorecard()).containsKey("OBLIGATION_RATIO");
+        assertThat(ctx.scorecard()).containsKey("AVERAGE_BANK_BALANCE");
+        assertThat(ctx.scorecard().get("PROVIDER_GAP_DEFAULT_ACTIVE").intValue()).isEqualTo(1);
+        assertThat(ctx.scorecard().get("MONTHLY_INCOME").intValue()).isEqualTo(85000);
+        assertThat(ctx.scorecard().get("AVERAGE_BANK_BALANCE").intValue()).isEqualTo(120000);
+    }
+
+    @Test
+    void resolveEffective_gapDefaultsDoNotOverrideManualBankBalance() {
+        CreditControlService svc = new CreditControlService(kyc);
+        Map<String, Object> fi = new HashMap<>();
+        Map<String, Object> cc = new HashMap<>();
+        Map<String, Object> manual = new HashMap<>();
+        manual.put("averageBankBalance", Map.of("value", "45000", "source", "MANUAL"));
+        cc.put("manual", manual);
+        fi.put("creditControl", cc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(700)
+                .financialInfo(fi)
+                .build();
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "PASS");
+        assertThat(ctx.scorecard().get("AVERAGE_BANK_BALANCE").intValue()).isEqualTo(45000);
+        assertThat(ctx.scorecard().get("MONTHLY_INCOME").intValue()).isEqualTo(85000);
+    }
+
+    @Test
+    void applyManualKycPassOnProcessOverride_usesManualKycSource() {
+        CreditControlService svc = new CreditControlService(kyc);
+        LoanApplication app = LoanApplication.builder()
+                .applicationNumber("N")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("P")
+                .bureauScore(700)
+                .build();
+        svc.applyManualKycPassOnProcessOverride(app, "Ops approved after document review");
+        EffectiveUnderwritingContext ctx = svc.resolveEffective(app, "FAIL");
+        assertThat(ctx.kycPassEffective()).isTrue();
+        assertThat(ctx.kycSource()).isEqualTo("MANUAL");
+    }
 }

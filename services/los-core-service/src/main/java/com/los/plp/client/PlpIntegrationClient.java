@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.dto.PlpApiResponse;
 import com.los.plp.dto.PlpLoginResponse;
+import com.los.plp.dto.request.PlpApplicationCleanupRequest;
 import com.los.plp.dto.request.PlpAnchorSyncRequest;
 import com.los.plp.dto.request.PlpBorrowerProgramMappingRequest;
 import com.los.plp.dto.request.PlpBorrowerSyncRequest;
 import com.los.plp.dto.request.PlpProgramSyncRequest;
 import com.los.plp.dto.request.PlpSubProgramBorrowerLinkRequest;
 import com.los.plp.dto.request.PlpSubProgramSyncRequest;
+import com.los.plp.dto.response.PlpApplicationCleanupResponse;
 import com.los.plp.dto.response.PlpAnchorSyncData;
 import com.los.plp.dto.response.PlpBorrowerProgramMappingData;
 import com.los.plp.dto.response.PlpBorrowerSyncData;
@@ -47,6 +49,7 @@ public class PlpIntegrationClient {
     private static final String PATH_BORROWERS = "/api/v1/integrations/los/borrowers";
     private static final String PATH_LINKS = "/api/v1/integrations/los/sub-program-borrower-links";
     private static final String PATH_MAPPINGS = "/api/v1/integrations/los/borrower-program-mappings";
+    private static final String PATH_APPLICATION_CLEANUP = "/api/v1/integrations/los/application-cleanup";
 
     private static final int MAX_LOG_BODY_CHARS = 4096;
 
@@ -56,6 +59,7 @@ public class PlpIntegrationClient {
     private static final TypeReference<PlpApiResponse<PlpBorrowerSyncData>> BORROWER_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpSubProgramBorrowerLinkData>> LINK_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpBorrowerProgramMappingData>> MAPPING_TYPE = new TypeReference<>() {};
+    private static final TypeReference<PlpApiResponse<PlpApplicationCleanupResponse>> CLEANUP_TYPE = new TypeReference<>() {};
 
     @Qualifier("plpRestClient")
     private final RestClient plpRestClient;
@@ -95,8 +99,26 @@ public class PlpIntegrationClient {
         return post(PATH_MAPPINGS, request, MAPPING_TYPE);
     }
 
+    public PlpApplicationCleanupResponse cleanupApplication(PlpApplicationCleanupRequest request) {
+        request.setSourceSystem(SOURCE_SYSTEM);
+        PlpApiResponse<PlpApplicationCleanupResponse> response = post(PATH_APPLICATION_CLEANUP, request, CLEANUP_TYPE);
+        return response.getData();
+    }
+
     public boolean isEnabled() {
         return plpProperties.isEnabled();
+    }
+
+    /**
+     * Returns a valid bearer access token (refreshing via IAM login when stale) for sibling clients that need
+     * to call other PLP gateway routes (e.g. borrower-scoped invoice/loan endpoints) with the same machine
+     * identity. Throws {@link PlpIntegrationException} when PLP is disabled or login fails.
+     */
+    public String currentBearerToken() {
+        if (!plpProperties.isEnabled()) {
+            throw new PlpIntegrationException("PLP integration is disabled (los.plp.enabled=false)");
+        }
+        return currentAccessToken();
     }
 
     private <T> PlpApiResponse<T> post(String path, Object body, TypeReference<PlpApiResponse<T>> type) {
@@ -106,7 +128,14 @@ public class PlpIntegrationClient {
         return postAuthenticated(path, body, type, false);
     }
 
+    private static final int MAX_UNAVAILABLE_RETRIES = 4;
+    private static final long UNAVAILABLE_RETRY_DELAY_MS = 2_000;
+
     private <T> PlpApiResponse<T> postAuthenticated(String path, Object body, TypeReference<PlpApiResponse<T>> type, boolean retried401AfterRefresh) {
+        return postAuthenticated(path, body, type, retried401AfterRefresh, 0);
+    }
+
+    private <T> PlpApiResponse<T> postAuthenticated(String path, Object body, TypeReference<PlpApiResponse<T>> type, boolean retried401AfterRefresh, int unavailableRetries) {
         String bodyJson;
         try {
             bodyJson = objectMapper.writeValueAsString(body);
@@ -148,7 +177,13 @@ public class PlpIntegrationClient {
                     truncateForLog(e.getResponseBodyAsString()));
             if (shouldRetryUnauthorized(e, retried401AfterRefresh)) {
                 clearCachedAccessToken();
-                return postAuthenticated(path, body, type, true);
+                return postAuthenticated(path, body, type, true, unavailableRetries);
+            }
+            if (shouldRetryUnavailable(e, unavailableRetries)) {
+                log.warn("[PLP] {} {} — retry {}/{} after {}ms (Eureka/program-service may still be registering)",
+                        e.getStatusCode(), path, unavailableRetries + 1, MAX_UNAVAILABLE_RETRIES, UNAVAILABLE_RETRY_DELAY_MS);
+                sleepQuietly(UNAVAILABLE_RETRY_DELAY_MS);
+                return postAuthenticated(path, body, type, retried401AfterRefresh, unavailableRetries + 1);
             }
             throw new PlpIntegrationException(
                     "PLP HTTP " + e.getStatusCode() + ": " + safeBody(e.getResponseBodyAsString()));
@@ -161,6 +196,22 @@ public class PlpIntegrationClient {
     private static boolean shouldRetryUnauthorized(RestClientResponseException e, boolean alreadyRetried) {
         HttpStatus resolved = HttpStatus.resolve(e.getStatusCode().value());
         return resolved == HttpStatus.UNAUTHORIZED && !alreadyRetried;
+    }
+
+    private static boolean shouldRetryUnavailable(RestClientResponseException e, int attemptsSoFar) {
+        if (attemptsSoFar >= MAX_UNAVAILABLE_RETRIES) {
+            return false;
+        }
+        HttpStatus resolved = HttpStatus.resolve(e.getStatusCode().value());
+        return resolved == HttpStatus.SERVICE_UNAVAILABLE || resolved == HttpStatus.BAD_GATEWAY;
+    }
+
+    private static void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String summarizeHeadersForLog(HttpHeaders headers) {

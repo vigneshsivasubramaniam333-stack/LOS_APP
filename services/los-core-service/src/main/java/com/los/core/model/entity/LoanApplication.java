@@ -58,6 +58,14 @@ public class LoanApplication {
     @Column
     private Integer tenureMonths;
 
+    /** Encore LMS product code for this application (overrides workflow default). */
+    @Column(name = "lms_product_code", length = 50)
+    private String lmsProductCode;
+
+    /** Encore tenure unit for this application (Day, Month, Week). */
+    @Column(name = "lms_tenure_unit", length = 20)
+    private String lmsTenureUnit;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Builder.Default

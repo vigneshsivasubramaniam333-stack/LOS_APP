@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -182,11 +183,17 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
         List<Map<String, Object>> steps = workflowConfig.getSteps();
         List<KycStepResultResponse> results = new java.util.ArrayList<>();
         Map<String, Object> mergedPayload = ApplicantIdentityResolver.enrichKycPayload(app, payload);
+        Map<String, Object> intakeConfig = workflowConfig.getIntakeConfig();
 
         for (Map<String, Object> step : steps) {
             String stepName = (String) step.get("step");
             if (!KycIdentityWorkflow.isKycIdentitySubStepName(stepName)) {
                 log.debug("Skipping non-KYC-identity step {} in KYC sub-workflow (bureau / eSign run as separate flow steps)", stepName);
+                continue;
+            }
+            if (KycMandatoryGroupEvaluator.shouldSkipForMissingPayload(stepName, intakeConfig, mergedPayload)) {
+                log.info("Skipping KYC step {} for application {} — no input provided (optional member of ANY mandatory group)",
+                        stepName, applicationId);
                 continue;
             }
             boolean mandatory = (boolean) step.getOrDefault("mandatory", true);
@@ -198,8 +205,9 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
                         executeStep(applicationId, stepType, mergedPayload, workflowPreferredProvider);
                 results.add(result);
 
-                // If mandatory step failed and not overridden, stop workflow
-                if (mandatory && result.getOutcome() == StepOutcome.FAILURE && !result.isOverridden()) {
+                // If mandatory step failed and not overridden, stop workflow (unless in ANY group)
+                if (mandatory && result.getOutcome() == StepOutcome.FAILURE && !result.isOverridden()
+                        && KycMandatoryGroupEvaluator.shouldHaltOnMandatoryFailure(stepName, intakeConfig)) {
                     log.warn("Mandatory KYC step {} failed for application {}. Halting workflow.", stepName, applicationId);
                     break;
                 }
@@ -211,13 +219,13 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
             }
         }
 
-        boolean mandatoryFailure = false;
+        Map<String, StepOutcome> effectiveByStep = new HashMap<>();
         for (KycStepResultResponse r : results) {
-            if (r.getOutcome() == StepOutcome.FAILURE && !r.isOverridden()) {
-                mandatoryFailure = true;
-                break;
+            if (r.getStepType() != null) {
+                effectiveByStep.put(r.getStepType().name(), r.getOutcome());
             }
         }
+        boolean mandatoryFailure = KycMandatoryGroupEvaluator.hasMandatoryFailure(effectiveByStep, steps, intakeConfig);
 
         if (mandatoryFailure) {
             app.setStatus(ApplicationStatus.KYC_FAILED);
@@ -235,6 +243,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
         IntakeSegment segment = app.getIntakeSegment() != null ? app.getIntakeSegment() : IntakeSegment.BORROWER;
         var workflowConfig = workflowEngine.getActiveWorkflow(app.getBorrowerType(), app.getLoanProduct(), segment);
         List<Map<String, Object>> steps = workflowConfig.getSteps();
+        Map<String, Object> intakeConfig = workflowConfig.getIntakeConfig();
         List<KycStepResultResponse> results = getStepResults(applicationId);
 
         Map<String, KycStepResultResponse> latestByStep = new HashMap<>();
@@ -244,6 +253,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
 
         boolean anyFail = false;
         boolean anyIncomplete = false;
+        Map<String, StepOutcome> effectiveOutcomes = new HashMap<>();
 
         java.util.List<Map<String, Object>> summary = new java.util.ArrayList<>();
 
@@ -305,19 +315,30 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
                 }
             }
 
-            if (effectiveOutcome == StepOutcome.FAILURE) {
+            if (stepName != null && effectiveOutcome != null) {
+                effectiveOutcomes.put(stepName, effectiveOutcome);
+            }
+
+            Set<String> groupedSteps = KycMandatoryGroupEvaluator.stepsInAnyGroups(intakeConfig);
+            boolean inAnyGroup = stepName != null && groupedSteps.contains(stepName.toUpperCase());
+
+            if (effectiveOutcome == StepOutcome.FAILURE && !inAnyGroup) {
                 anyFail = true;
             }
 
             if (effectiveOutcome == null) {
-                anyIncomplete = true;
+                if (!inAnyGroup) {
+                    anyIncomplete = true;
+                }
             } else if (effectiveOutcome == StepOutcome.ERROR
                     || effectiveOutcome == StepOutcome.PENDING
                     || effectiveOutcome == StepOutcome.MANUAL_REVIEW) {
-                anyIncomplete = true;
+                if (!inAnyGroup) {
+                    anyIncomplete = true;
+                }
             }
 
-            if (mandatory) {
+            if (mandatory && !inAnyGroup) {
                 if (effectiveOutcome == null) {
                     anyIncomplete = true;
                 } else if (effectiveOutcome != StepOutcome.SUCCESS && effectiveOutcome != StepOutcome.FAILURE) {
@@ -336,6 +357,37 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
             ));
         }
 
+        if (KycMandatoryGroupEvaluator.hasMandatoryFailure(effectiveOutcomes, steps, intakeConfig)) {
+            anyFail = true;
+            anyIncomplete = false;
+        } else if (!anyFail) {
+            for (KycMandatoryGroupEvaluator.AnyGroup group : KycMandatoryGroupEvaluator.anyGroups(intakeConfig)) {
+                boolean anyMandatory = false;
+                boolean anySuccess = false;
+                for (String member : group.steps()) {
+                    Boolean m = null;
+                    for (Map<String, Object> step : steps) {
+                        if (member.equalsIgnoreCase(stepNameFromMap(step))) {
+                            m = (boolean) step.getOrDefault("mandatory", true);
+                            break;
+                        }
+                    }
+                    if (m == null || !m) {
+                        continue;
+                    }
+                    anyMandatory = true;
+                    StepOutcome o = effectiveOutcomes.get(member);
+                    if (o == StepOutcome.SUCCESS) {
+                        anySuccess = true;
+                        break;
+                    }
+                }
+                if (anyMandatory && !anySuccess) {
+                    anyIncomplete = true;
+                }
+            }
+        }
+
         String computed = anyFail ? "FAIL" : (anyIncomplete ? "INCOMPLETE" : "PASS");
 
         auditService.logEvent(applicationId, "KYC_OUTCOME_COMPUTED", "KYC_OUTCOME_COMPUTED",
@@ -351,9 +403,11 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
         );
     }
 
-    /**
-     * {@code steps[].provider} in workflow JSON (e.g. "AUTHBRIDGE", "EQUIFAX" for a step row).
-     */
+    private static String stepNameFromMap(Map<String, Object> step) {
+        Object v = step.get("step");
+        return v == null ? "" : String.valueOf(v).trim();
+    }
+
     private static String parseWorkflowProvider(Object value) {
         if (value == null) {
             return null;

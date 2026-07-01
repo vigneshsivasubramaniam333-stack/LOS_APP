@@ -8,6 +8,7 @@ import {
 } from '@/api/documents'
 import { ErrorState } from '@/components/ErrorState'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
+import { isInvoiceDiscountingAnchorApp } from '@/lib/invoiceDiscountingFlow'
 import { formatInstant } from '@/lib/format'
 import type { ApplicationIntakeSegment } from '@/types/application'
 import type { DocumentResponse } from '@/types/document'
@@ -25,6 +26,8 @@ const PRESET_DOC_TYPES = [
   { value: 'GST_RETURN', label: 'GST return (GSTR)' },
   { value: 'BUSINESS_PROOF', label: 'Business proof (Udyam / license)' },
   { value: 'ITR', label: 'ITR / tax return' },
+  { value: 'BOARD_RESOLUTION', label: 'Board resolution' },
+  { value: 'SIGNED_AGREEMENT', label: 'Signed agreement' },
   { value: 'PROPERTY_DOCUMENT', label: 'Property document (title / deed)' },
   { value: 'PROPERTY_VALUATION', label: 'Property valuation' },
   { value: 'SHARE_HOLDING_STATEMENT', label: 'Share / demat holding statement' },
@@ -112,14 +115,31 @@ function buildDocumentType(preset: string, otherLabel: string): string {
 export function DocumentsSection({
   applicationId,
   intakeSegment,
+  appStatus: _appStatus,
+  loanProduct,
 }: {
   applicationId: string
   intakeSegment?: ApplicationIntakeSegment | null
+  appStatus?: string
+  loanProduct?: string
 }) {
+  const isAnchor = isInvoiceDiscountingAnchorApp({ intakeSegment: intakeSegment ?? 'BORROWER', loanProduct: loanProduct ?? '' })
   const presetDocTypes = useMemo(() => {
     const kycLabel = applicationPartyLabels(intakeSegment).kycDocumentPreset
-    return PRESET_DOC_TYPES.map((p) => (p.value === 'BORROWER_KYC' ? { ...p, label: kycLabel } : p))
-  }, [intakeSegment])
+    const base = PRESET_DOC_TYPES.map((p) => (p.value === 'BORROWER_KYC' ? { ...p, label: kycLabel } : p))
+    if (isAnchor) {
+      const anchorFirst = ['BOARD_RESOLUTION', 'SIGNED_AGREEMENT', 'GST_RETURN', 'BUSINESS_PROOF', 'PAN_CARD', 'BANK_STATEMENT']
+      return [...base].sort((a, b) => {
+        const ai = anchorFirst.indexOf(a.value)
+        const bi = anchorFirst.indexOf(b.value)
+        if (ai === -1 && bi === -1) return 0
+        if (ai === -1) return 1
+        if (bi === -1) return -1
+        return ai - bi
+      })
+    }
+    return base
+  }, [intakeSegment, isAnchor])
   const [docs, setDocs] = useState<DocumentResponse[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [preset, setPreset] = useState<string>(presetDocTypes[0].value)
@@ -256,7 +276,7 @@ export function DocumentsSection({
         </div>
       ) : null}
       {actionError ? <ErrorState message={actionError} /> : null}
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-end gap-3 bt-section-card bt-section-card--hero p-4">
         <label className="block text-sm text-slate-700">
           <span className="mb-1 block text-xs font-medium text-slate-500">Document type</span>
           <select
@@ -298,8 +318,8 @@ export function DocumentsSection({
       {docs.length === 0 ? (
         <p className="text-sm text-slate-600">No documents uploaded yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
+        <div className="bt-card overflow-x-auto">
+          <table className="bt-table min-w-full">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
               <tr>
                 <th className="px-3 py-2">Name</th>
@@ -309,7 +329,7 @@ export function DocumentsSection({
                 <th className="px-3 py-2"> </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="">
               {docs.map((d) => (
                 <tr key={d.id}>
                   <td className="px-3 py-2 text-slate-900">{d.fileName}</td>

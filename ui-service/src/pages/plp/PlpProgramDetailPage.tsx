@@ -63,7 +63,7 @@ export function PlpProgramDetailPage() {
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-lg border border-slate-200 bg-white p-4">
-              <h2 className="text-sm font-semibold text-slate-900">Program</h2>
+              <h2 className="bt-card-title">Program</h2>
               <dl className="mt-3 grid gap-2">
                 <DetailRow label="Type" value={detail.programType} />
                 <DetailRow
@@ -97,7 +97,7 @@ export function PlpProgramDetailPage() {
             </section>
             {anchor ? (
               <section className="rounded-lg border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-semibold text-slate-900">Anchor</h2>
+                <h2 className="bt-card-title">Anchor</h2>
                 <p className="mt-2 text-sm text-slate-800">{anchor.anchorName ?? anchor.anchorId}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <PlpSyncStatusBadge status={anchor.anchorSyncStatus ?? 'NOT_SYNCED'} label="Anchor" />
@@ -119,11 +119,11 @@ export function PlpProgramDetailPage() {
           </div>
 
           <section className="mt-6 rounded-lg border border-slate-200 bg-white">
-            <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
+            <h2 className="border-b border-slate-200 px-4 py-3 bt-card-title">
               Linked borrowers
             </h2>
             <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
+              <table className="bt-table min-w-full">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-4 py-2 font-medium">Borrower</th>

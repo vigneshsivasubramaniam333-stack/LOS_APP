@@ -68,4 +68,34 @@ class EncoreRepaymentScheduleParserTest {
         JsonNode root = new ObjectMapper().readTree("{\"accountId\":\"X\"}");
         assertTrue(EncoreRepaymentScheduleParser.parseFromSummaryRoot(root).isEmpty());
     }
+
+    @Test
+    void parseFromSummaryRoot_mapsRestLoanOdAccountSchedule() throws Exception {
+        String restPayload = """
+                {
+                  "accountId": "000000025591",
+                  "repaymentSchedule": [
+                    {
+                      "sequenceNum": 1,
+                      "description": "Projected",
+                      "valueDate": "2026-07-18",
+                      "amount1": {"magnitude": 4442.50},
+                      "amount2": {"magnitude": 41564.46},
+                      "amount3": {"magnitude": 4442.50},
+                      "part1": {"magnitude": 449.40},
+                      "part2": {"magnitude": 3993.10},
+                      "part3": {"magnitude": 0}
+                    }
+                  ]
+                }
+                """;
+        JsonNode root = new ObjectMapper().readTree(restPayload);
+        List<Map<String, Object>> rows = EncoreRepaymentScheduleParser.parseFromSummaryRoot(root);
+
+        assertEquals(1, rows.size());
+        Map<String, Object> first = rows.get(0);
+        assertEquals("2026-07-18", first.get("valueDateStr"));
+        assertEquals(449.40, ((Number) first.get("interestAmount")).doubleValue(), 0.01);
+        assertEquals(3993.10, ((Number) first.get("principalAmount")).doubleValue(), 0.01);
+    }
 }

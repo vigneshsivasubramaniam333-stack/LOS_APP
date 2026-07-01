@@ -2,14 +2,19 @@ package com.los.core.service.flow.step;
 
 import com.los.core.exception.BusinessRuleException;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.entity.SanctionRecord;
 import com.los.core.model.enums.ApplicationStatus;
+import com.los.core.repository.KfsDocumentRepository;
 import com.los.core.repository.LoanApplicationRepository;
+import com.los.core.repository.SanctionRecordRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.config.EsignNotificationProperties;
 import com.los.core.service.esign.EsignSigningLinkNotifier;
 import com.los.core.service.esign.EsignRequestTrackingService;
 import com.los.core.service.integration.IIntegrationRouterService;
+import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.ApplicationPartyResolver;
+import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -31,6 +36,9 @@ import java.util.UUID;
 public class EsignInitiateStepExecutor implements IStepExecutor {
 
     private final LoanApplicationRepository applicationRepository;
+    private final KfsDocumentRepository kfsDocumentRepository;
+    private final SanctionRecordRepository sanctionRecordRepository;
+    private final KfsService kfsService;
     private final IIntegrationRouterService integrationRouter;
     private final AuditService auditService;
     private final EsignRequestTrackingService esignRequestTrackingService;
@@ -48,14 +56,16 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
     public StepResult execute(UUID applicationId, Map<String, Object> context) {
         LoanApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new com.los.core.exception.ResourceNotFoundException("Application not found: " + applicationId));
-        if (app.getStatus() != ApplicationStatus.SANCTION_ISSUED && app.getStatus() != ApplicationStatus.KFS_GENERATED) {
+        app = ensureInvoiceDiscountingBorrowerTermsReady(applicationId, app);
+        if (!esignAllowedForStatus(app)) {
             auditService.logEvent(applicationId, "PREREQUISITE_BLOCK", "ESIGN_BLOCKED",
                     null,
                     Map.of("status", app.getStatus().name(), "reason", "KFS_NOT_READY", "action", "ESIGN_INITIATE"),
                     null,
-                    "eSign blocked: requires KFS_GENERATED (or legacy SANCTION_ISSUED)");
+                    "eSign blocked: requires KFS_GENERATED, SANCTION_ISSUED, or invoice discounting borrower SANCTIONED");
             throw new BusinessRuleException(
-                    "Cannot initiate eSign — application must be in KFS_GENERATED or SANCTION_ISSUED status. Current: "
+                    "Cannot initiate eSign — application must be in KFS_GENERATED or SANCTION_ISSUED status"
+                            + " (invoice discounting borrower may start from SANCTIONED). Current: "
                             + app.getStatus(),
                     "ESIGN_STATUS_INVALID",
                     "ESIGN_INITIATE",
@@ -130,6 +140,44 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                 "errorMessage", result.errorMessage() != null ? result.errorMessage() : ""
         );
         return StepResult.ok(out);
+    }
+
+    private LoanApplication ensureInvoiceDiscountingBorrowerTermsReady(UUID applicationId, LoanApplication app) {
+        if (!InvoiceDiscountingApplicationRules.isBorrowerFlow(app)
+                || app.getStatus() != ApplicationStatus.SANCTIONED) {
+            return app;
+        }
+        if (kfsDocumentRepository.findFirstByApplicationIdOrderByCreatedAtDesc(applicationId).isPresent()) {
+            app.setStatus(ApplicationStatus.KFS_GENERATED);
+            app.setCurrentStepStartedAt(Instant.now());
+            return applicationRepository.save(app);
+        }
+        SanctionRecord rec = sanctionRecordRepository.findTopByApplicationIdOrderByCreatedAtDesc(applicationId)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Cannot initiate eSign — sanction record missing for invoice discounting borrower",
+                        "SANCTION_RECORD_MISSING",
+                        "ESIGN_INITIATE",
+                        Map.of("status", ApplicationStatus.SANCTIONED.name())));
+        kfsService.generateInvoiceDiscountingBorrowerTermsDocument(applicationId, rec, Map.of());
+        app.setStatus(ApplicationStatus.KFS_GENERATED);
+        app.setCurrentStepStartedAt(Instant.now());
+        LoanApplication saved = applicationRepository.save(app);
+        auditService.logEvent(applicationId, "FLOW", "SANCTION_TERMS_BACKFILL",
+                null, Map.of("status", "SANCTIONED"),
+                Map.of("status", "KFS_GENERATED", "documentKind", "INVOICE_DISCOUNTING_TERMS"),
+                "Legacy invoice discounting borrower — terms document backfilled for eSign");
+        log.info("Backfilled invoice discounting terms document for {} — status KFS_GENERATED",
+                saved.getApplicationNumber());
+        return saved;
+    }
+
+    private static boolean esignAllowedForStatus(LoanApplication app) {
+        if (app.getStatus() == ApplicationStatus.SANCTION_ISSUED
+                || app.getStatus() == ApplicationStatus.KFS_GENERATED) {
+            return true;
+        }
+        return app.getStatus() == ApplicationStatus.SANCTIONED
+                && InvoiceDiscountingApplicationRules.isBorrowerFlow(app);
     }
 
     private void dispatchSigningLinkEmail(

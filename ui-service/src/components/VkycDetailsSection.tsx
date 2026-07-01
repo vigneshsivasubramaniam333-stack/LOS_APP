@@ -193,7 +193,7 @@ export function VkycDetailsSection({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm mb-0 border-0 p-0 shadow-none">
+    <section className="bt-card p-5 mb-0 border-0 p-0 shadow-none">
       <h2 className="mb-1 text-lg font-medium text-slate-900">VKYC</h2>
       <p className="mb-3 text-sm text-slate-600">Video KYC stage progression and review checkpoints.</p>
       {error ? <ErrorState message={error} /> : null}
@@ -229,7 +229,7 @@ export function VkycDetailsSection({
         {showGenerate ? (
           <button
             type="button"
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="bt-btn bt-btn-primary disabled:opacity-50"
             disabled={!canGenerate || busy}
             onClick={() => void onGenerateUrl()}
           >
@@ -304,7 +304,7 @@ export function VkycDetailsSection({
               <th className="px-2 py-1.5">Timestamp</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="">
             {rows.length === 0 ? (
               <tr>
                 <td className="px-2 py-1.5 text-slate-500" colSpan={3}>No VKYC history yet.</td>
@@ -350,7 +350,7 @@ export function VkycDetailsSection({
             <label className="mt-3 block text-xs text-slate-600">
               <span className="mb-1 block font-medium text-slate-700">Comments *</span>
               <textarea
-                className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                className="bt-input w-full text-sm"
                 rows={4}
                 value={pkycComments}
                 onChange={(e) => setPkycComments(e.target.value)}
@@ -377,7 +377,7 @@ export function VkycDetailsSection({
               </button>
               <button
                 type="button"
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                className="bt-btn bt-btn-primary disabled:opacity-50"
                 disabled={pkycBusy}
                 onClick={() => void onPkycSubmit()}
               >

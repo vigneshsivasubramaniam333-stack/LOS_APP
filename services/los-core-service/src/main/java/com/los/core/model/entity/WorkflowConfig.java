@@ -33,6 +33,16 @@ public class WorkflowConfig {
     @Column(nullable = false, length = 50)
     private String loanProduct;
 
+    /** Encore LMS product code default for applications using this workflow. */
+    @Column(name = "lms_product_code", length = 50)
+    @Builder.Default
+    private String lmsProductCode = "IPPOPAYM01";
+
+    /** Encore tenure unit default (Day, Month, Week, etc.). */
+    @Column(name = "lms_tenure_unit", length = 20)
+    @Builder.Default
+    private String lmsTenureUnit = "Month";
+
     @Column(name = "intake_segment", nullable = false, length = 20)
     @Builder.Default
     private String intakeSegment = "BORROWER";
@@ -43,6 +53,13 @@ public class WorkflowConfig {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "intake_identity_schema", columnDefinition = "jsonb")
     private List<Map<String, Object>> intakeIdentitySchema;
+
+    /**
+     * Workflow-driven intake rules: policy, personal fields, age/tenure, OR mandatory groups, standalone documents.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "intake_config", columnDefinition = "jsonb")
+    private Map<String, Object> intakeConfig;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)

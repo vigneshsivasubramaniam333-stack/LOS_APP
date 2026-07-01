@@ -105,7 +105,46 @@ public final class ApplicantIdentityResolver {
         if (!requestPan.isBlank()) {
             merged.put("panNumber", requestPan.trim().toUpperCase());
         }
+        normalizeKycFieldAliases(merged);
         return merged;
+    }
+
+    /** Map intake field keys to the names expected by KYC providers. */
+    private static void normalizeKycFieldAliases(Map<String, Object> merged) {
+        String dl = firstNonBlank(merged, "dlNo", "drivingLicenseNumber", "dlNumber");
+        if (!dl.isBlank()) {
+            String upper = dl.toUpperCase();
+            merged.put("dlNo", upper);
+            merged.put("drivingLicenseNumber", upper);
+            merged.put("dlNumber", upper);
+        }
+        String epic = firstNonBlank(merged, "epicNo", "voterId");
+        if (!epic.isBlank()) {
+            String upper = epic.toUpperCase();
+            merged.put("epicNo", upper);
+            merged.put("voterId", upper);
+        }
+        String dob = firstNonBlank(merged, "dob", "dateOfBirth", "drivingLicenseDob");
+        if (!dob.isBlank()) {
+            merged.putIfAbsent("dob", dob);
+            merged.putIfAbsent("drivingLicenseDob", dob);
+            merged.putIfAbsent("dateOfBirth", dob);
+        }
+        String acct = firstNonBlank(merged, "accountNumber", "bankAccountNumber");
+        if (!acct.isBlank()) {
+            merged.putIfAbsent("accountNumber", acct);
+            merged.putIfAbsent("bankAccountNumber", acct);
+        }
+    }
+
+    private static String firstNonBlank(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            String v = stringValue(map, key);
+            if (!v.isBlank()) {
+                return v;
+            }
+        }
+        return "";
     }
 
     private static boolean isAnchor(LoanApplication app) {

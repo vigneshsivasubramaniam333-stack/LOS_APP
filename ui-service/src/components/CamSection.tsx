@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  calculateCollateralLtv,
+  listCollateralValuations,
+  type CollateralLtvResult,
+  type CollateralValuation,
+} from '@/api/collateral'
+import {
   fetchCamPdfBlob,
   getCam,
   rejectCamMemorandum,
@@ -10,8 +16,11 @@ import {
 import { markCamReviewedFlow } from '@/api/flow'
 import { ApiError } from '@/api/http'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
+import { formatMoney } from '@/lib/format'
+import { requiresCollateral } from '@/lib/intake/securedProducts'
 import type { ApplicationResponse } from '@/types/application'
 import type { CamResponse, CamUpdateRequest } from '@/types/cam'
+import { tenureMagnitudeLabel } from '@/catalog/lmsTenureUnits'
 
 const SECTION_ORDER = [
   { key: 'executiveSummary', label: 'Executive summary' },
@@ -35,6 +44,49 @@ function asRecord(v: unknown): Record<string, string> {
     }
   }
   return out
+}
+
+/** Pre-fill sanctioning basis from application intake when CAM fields are still empty. */
+function resolveSanctioningDefaults(
+  cam: CamResponse,
+  app: ApplicationResponse,
+): {
+  amount: string
+  tenure: string
+  rate: string
+  decision: string
+  fromApplication: boolean
+} {
+  const amount =
+    cam.recommendedAmount != null
+      ? String(cam.recommendedAmount)
+      : app.requestedAmount != null
+        ? String(app.requestedAmount)
+        : ''
+  const tenure =
+    cam.recommendedTenureMonths != null
+      ? String(cam.recommendedTenureMonths)
+      : app.tenureMonths != null
+        ? String(app.tenureMonths)
+        : ''
+  const rate =
+    cam.recommendedRate != null
+      ? String(cam.recommendedRate)
+      : app.interestRate != null
+        ? String(app.interestRate)
+        : ''
+  const decision = cam.section6RecommendedDecision ?? ''
+  const fromApplication =
+    (cam.recommendedAmount == null && app.requestedAmount != null) ||
+    (cam.recommendedTenureMonths == null && app.tenureMonths != null) ||
+    (cam.recommendedRate == null && app.interestRate != null)
+  return { amount, tenure, rate, decision, fromApplication }
+}
+
+function ltvDisplayTone(ratio: number): { className: string; label: string } {
+  if (ratio <= 60) return { className: 'text-emerald-800', label: 'Conservative LTV' }
+  if (ratio <= 80) return { className: 'text-amber-900', label: 'Within policy ceiling' }
+  return { className: 'text-rose-800', label: 'Above policy ceiling' }
 }
 
 export function CamSection({
@@ -64,6 +116,46 @@ export function CamSection({
   const [condSub, setCondSub] = useState('')
   const [officerRem, setOfficerRem] = useState('')
   const [managerRem, setManagerRem] = useState('')
+  const [prefilledFromApplication, setPrefilledFromApplication] = useState(false)
+  const [ltv, setLtv] = useState<CollateralLtvResult | null>(null)
+  const [valuations, setValuations] = useState<CollateralValuation[]>([])
+  const [ltvLoading, setLtvLoading] = useState(false)
+
+  const loanAmountForLtv = useMemo(() => {
+    const fromRec = recAmt.trim() ? Number.parseFloat(recAmt) : NaN
+    if (Number.isFinite(fromRec) && fromRec > 0) return fromRec
+    return app.requestedAmount != null && app.requestedAmount > 0 ? app.requestedAmount : null
+  }, [recAmt, app.requestedAmount])
+
+  const showCollateralLtv = requiresCollateral(app.loanProduct) || valuations.length > 0
+
+  const loadCollateralLtv = useCallback(async () => {
+    if (!showCollateralLtv && loanAmountForLtv == null) {
+      setLtv(null)
+      setValuations([])
+      return
+    }
+    setLtvLoading(true)
+    try {
+      const rows = await listCollateralValuations(applicationId)
+      setValuations(rows)
+      if (loanAmountForLtv != null) {
+        const result = await calculateCollateralLtv(applicationId, loanAmountForLtv)
+        setLtv(result)
+      } else {
+        setLtv(null)
+      }
+    } catch {
+      setLtv(null)
+      setValuations([])
+    } finally {
+      setLtvLoading(false)
+    }
+  }, [applicationId, loanAmountForLtv, showCollateralLtv])
+
+  useEffect(() => {
+    void loadCollateralLtv()
+  }, [loadCollateralLtv])
 
   const sectionOrder = useMemo(() => {
     const profileLabel = applicationPartyLabels(app.intakeSegment).camProfileSection
@@ -81,10 +173,12 @@ export function CamSection({
       setObservations(c.section5Observations ?? '')
       setRiskAssessment(c.section5RiskAssessment ?? '')
       setMitigants(c.section5Mitigants ?? '')
-      setRecommendedDecision(c.section6RecommendedDecision ?? '')
-      setRecAmt(c.recommendedAmount != null ? String(c.recommendedAmount) : '')
-      setRecTen(c.recommendedTenureMonths != null ? String(c.recommendedTenureMonths) : '')
-      setRecRate(c.recommendedRate != null ? String(c.recommendedRate) : '')
+      const sanctionDefaults = resolveSanctioningDefaults(c, app)
+      setRecommendedDecision(sanctionDefaults.decision)
+      setRecAmt(sanctionDefaults.amount)
+      setRecTen(sanctionDefaults.tenure)
+      setRecRate(sanctionDefaults.rate)
+      setPrefilledFromApplication(sanctionDefaults.fromApplication)
       setCondPre((c.conditionsPrecedent ?? []).join('\n'))
       setCondSub((c.conditionsSubsequent ?? []).join('\n'))
       setOfficerRem(c.creditOfficerRemarks ?? '')
@@ -116,7 +210,7 @@ export function CamSection({
     } finally {
       setLoading(false)
     }
-  }, [applicationId])
+  }, [applicationId, app])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async CAM load on mount
@@ -256,7 +350,7 @@ export function CamSection({
   return (
     <div className="space-y-6">
       {cam && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-800">
+        <div className="bt-section-card bt-section-card--hero p-3 text-sm text-slate-800">
           <div className="flex flex-wrap gap-3 text-xs">
             <span>
               <span className="text-slate-500">CAM status:</span>{' '}
@@ -337,7 +431,7 @@ export function CamSection({
             type="button"
             onClick={() => void onMarkReviewed()}
             disabled={actionBusy}
-            className="rounded-md border border-emerald-600 bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="bt-btn bt-btn-primary disabled:opacity-50"
           >
             {actionBusy ? '…' : isSubmitted ? 'Approve CAM' : 'Approve CAM to reviewed (fast path)'}
           </button>
@@ -350,8 +444,14 @@ export function CamSection({
 
       {cam && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-4">
+          <div className="bt-section-card bt-section-card--warning p-4">
             <h3 className="text-sm font-semibold text-amber-950">Credit officer recommendation (sanctioning basis)</h3>
+            {prefilledFromApplication ? (
+              <p className="mt-1 text-xs text-amber-900/80">
+                Pre-filled from the {applicationPartyLabels(app.intakeSegment).partyLower} application
+                request where available. Adjust before submitting for manager review.
+              </p>
+            ) : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="block text-xs text-slate-600">
                 Proposed amount (INR)
@@ -363,7 +463,7 @@ export function CamSection({
                 />
               </label>
               <label className="block text-xs text-slate-600">
-                Proposed tenure (months)
+                Proposed {tenureMagnitudeLabel(app.lmsTenureUnit).toLowerCase()}
                 <input
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recTen}
@@ -441,13 +541,85 @@ export function CamSection({
             </div>
           </div>
 
+          {showCollateralLtv ? (
+            <div className="bt-section-card bt-section-card--success p-4 text-sm text-slate-800">
+              <h3 className="text-sm font-semibold text-emerald-950">Collateral &amp; LTV</h3>
+              <p className="mt-1 text-xs text-slate-600">
+                Based on completed collateral valuations against the proposed / requested loan amount (
+                {loanAmountForLtv != null ? formatMoney(loanAmountForLtv) : '—'}).
+              </p>
+              {ltvLoading ? (
+                <p className="mt-3 text-xs text-slate-500">Loading collateral and LTV…</p>
+              ) : ltv ? (
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                  <div>
+                    <dt className="text-slate-500">Total collateral value</dt>
+                    <dd className="font-medium tabular-nums text-slate-900">
+                      {formatMoney(ltv.totalCollateralValue)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">LTV ratio</dt>
+                    <dd className={`font-semibold tabular-nums ${ltvDisplayTone(Number(ltv.ltvRatio)).className}`}>
+                      {ltv.ltvRatio}% · {ltvDisplayTone(Number(ltv.ltvRatio)).label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Policy acceptable (≤ {ltv.maxAllowedLtv}%)</dt>
+                    <dd className="font-medium">
+                      {ltv.ltvAcceptable ? (
+                        <span className="text-emerald-800">Yes</span>
+                      ) : (
+                        <span className="text-rose-800">No</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Valuations on file</dt>
+                    <dd className="font-medium text-slate-900">{ltv.valuationCount}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="mt-3 text-xs text-amber-900">
+                  No LTV calculation yet — add completed collateral valuations on the Collateral tab.
+                </p>
+              )}
+              {valuations.length > 0 ? (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="bt-table min-w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Accepted value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {valuations.map((v) => (
+                        <tr key={v.id}>
+                          <td className="text-slate-900">{v.collateralType.replaceAll('_', ' ')}</td>
+                          <td className="max-w-[14rem] truncate text-slate-700">{v.description ?? '—'}</td>
+                          <td className="text-slate-700">{v.status.replaceAll('_', ' ')}</td>
+                          <td className="tabular-nums text-slate-900">
+                            {v.status === 'COMPLETED' ? formatMoney(v.valuationAmount) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {sectionOrder.map((s) => {
             if (s.key === 'collateral' && !cam.sectionExtended?.[s.key]) {
               return null
             }
             return (
-              <div key={s.key} className="rounded-lg border border-slate-200 bg-white p-3">
-                <h4 className="text-sm font-semibold text-slate-900">{s.label} — adjust narrative</h4>
+              <div key={s.key} className="bt-section-card bt-section-card--default p-3">
+                <h4 className="bt-card-title">{s.label} — adjust narrative</h4>
                 <p className="text-xs text-slate-500">Save draft updates what appears in the PDF for this block.</p>
                 <textarea
                   className="mt-2 w-full rounded border border-slate-200 p-2 text-sm"
@@ -466,7 +638,7 @@ export function CamSection({
             )
           })}
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-600">
+          <div className="bt-section-card bt-section-card--default p-3 text-xs text-slate-600 bg-slate-50/60">
             <p className="font-semibold text-slate-800">Structured snapshot (read-only, from engine)</p>
             <p className="mt-1">
               Extended sections: data is not shown as raw JSON in the product UI here — it is used for the PDF and API
@@ -474,7 +646,7 @@ export function CamSection({
             </p>
           </div>
 
-          <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-4">
+          <div className="bt-section-card bt-section-card--warning p-4">
             <h3 className="text-sm font-semibold text-amber-950">Observations, risk, mitigants (legacy / merged)</h3>
             <div className="mt-2 space-y-2">
               <label className="block text-xs text-slate-600">

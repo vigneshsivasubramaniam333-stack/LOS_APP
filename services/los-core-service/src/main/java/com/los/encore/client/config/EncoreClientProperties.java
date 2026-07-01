@@ -19,13 +19,19 @@ public class EncoreClientProperties {
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
 
-    private String baseUrl = "https://core.dev.billionloans.com/encore/";
+    private String baseUrl = "http://credinnov-sandbox.senseitech.com/credinnov-encore-server/";
     private String schema = "http";
     private String hostname = "encore.bl-internal.com";
     private int port = 8080;
 
-    private String apiUsername = "";
-    private String apiPassword = "";
+    private String apiUsername = "admin";
+    private String apiPassword = "password1";
+
+    /**
+     * Optional session token for Encore REST paths under {@code api/} (e.g. loan-od-accounts).
+     * Webservices paths continue to use Basic auth. Set {@code ENCORE_REST_AUTH_TOKEN} in env.
+     */
+    private String restAuthToken = "";
 
     private EncoreApiEndpoints api = new EncoreApiEndpoints();
 
@@ -73,6 +79,15 @@ public class EncoreClientProperties {
             log.warn("los.lms.encore.port was invalid ({}); using 8080", port);
             port = 8080;
         }
+        log.info("LOS Encore LMS client configured: baseUrl={} apiUsername={} apiPasswordConfigured={} "
+                        + "restAuthTokenConfigured={} openAccountEndpoint={} connectTimeoutMs={} readTimeoutMs={}",
+                baseUrl, apiUsername, apiPassword != null && !apiPassword.isBlank(),
+                restAuthToken != null && !restAuthToken.isBlank(),
+                api != null ? api.getCreateLoanAccount() : "-", connectTimeoutMs, readTimeoutMs);
+        if (restAuthToken == null || restAuthToken.isBlank()) {
+            log.warn("ENCORE_REST_AUTH_TOKEN is not set — repayment schedule and SOA via api/loan-od-accounts "
+                    + "will fail (401). Copy X-Auth-Token from Encore UI after login, or set ENCORE_REST_AUTH_TOKEN.");
+        }
     }
 
     @Data
@@ -90,6 +105,8 @@ public class EncoreClientProperties {
         private String findODProductInfo = "webservices/loans/accounts/findLoanOdProduct";
         private String findPreOpenSummary = "webservices/findPreOpenSummary";
         private String findLoanInfo = "webservices/findLoanInfo";
+        /** REST account details including {@code compositeStatement} (SOA). */
+        private String loanOdAccountDetails = "api/loan-od-accounts";
     }
 
     @Data

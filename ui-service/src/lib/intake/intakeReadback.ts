@@ -1,5 +1,6 @@
 import { borrowerTypeLabel } from '@/catalog/borrowerTypes'
 import { loanProductLabel } from '@/catalog/loanProducts'
+import { lmsTenureUnitLabel, tenureMagnitudeLabel } from '@/catalog/lmsTenureUnits'
 import { applicationPartyLabels, resolveIntakeSegment } from '@/lib/applicationPartyLabels'
 import { BORROWER_INTAKE_KEY } from './collateralIntakePayload'
 import type { ApplicationResponse } from '@/types/application'
@@ -74,7 +75,13 @@ export function buildIntakeReadback(app: ApplicationResponse): IntakeReadbackSec
     product.push({ label: 'Requested amount (INR)', value: new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(app.requestedAmount) })
   }
   if (app.tenureMonths != null) {
-    pushRow(product, 'Tenure (months)', app.tenureMonths)
+    pushRow(product, tenureMagnitudeLabel(app.lmsTenureUnit), app.tenureMonths)
+  }
+  if (app.lmsProductCode?.trim()) {
+    pushRow(product, 'LMS product code', app.lmsProductCode)
+  }
+  if (app.lmsTenureUnit?.trim()) {
+    pushRow(product, 'LMS tenure type', lmsTenureUnitLabel(app.lmsTenureUnit))
   }
   if (pi) {
     pushRow(product, 'Purpose of loan', pi.purpose)

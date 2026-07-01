@@ -48,4 +48,16 @@ class ApplicantIdentityResolverTest {
         Map<String, Object> merged = ApplicantIdentityResolver.enrichKycPayload(app, Map.of("panNumber", "BBBBB9999B"));
         assertEquals("BBBBB9999B", merged.get("panNumber"));
     }
+
+    @Test
+    void enrichKycPayloadMapsDlNumberAliasForKarza() {
+        LoanApplication app = LoanApplication.builder()
+                .intakeSegment(IntakeSegment.BORROWER)
+                .personalInfo(Map.of("dlNumber", "hr0619900012345", "voterId", "abc1234567"))
+                .build();
+        Map<String, Object> merged = ApplicantIdentityResolver.enrichKycPayload(app, Map.of());
+        assertEquals("HR0619900012345", merged.get("dlNo"));
+        assertEquals("HR0619900012345", merged.get("drivingLicenseNumber"));
+        assertEquals("ABC1234567", merged.get("epicNo"));
+    }
 }

@@ -1,9 +1,13 @@
 package com.los.lms.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.repository.KfsDocumentRepository;
 import com.los.core.service.loan.ApplicationPartyResolver;
+import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.los.encore.client.api.EncoreLmsApi;
 import com.los.encore.client.api.EncoreOpenLoanParams;
 import com.los.encore.client.api.EncoreTemporaryOverrides;
@@ -51,11 +55,14 @@ public class LmsService {
     private final BlCoreEncoreLmsAdapter blCoreEncoreLmsAdapter;
     private final WorkflowLmsProductResolver workflowLmsProductResolver;
     private final LmsProgramResolver lmsProgramResolver;
+    private final LmsApplicationConfigResolver lmsApplicationConfigResolver;
     private final ObjectMapper objectMapper;
     private final LmsLoanHandoverRepository handoverRepository;
     private final LmsRepaymentCallbackRepository repaymentRepository;
     private final LmsAccountSummaryRepository summaryRepository;
     private final LmsCallbackSecurityProperties callbackSecurity;
+    private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
+    private final KfsDocumentRepository kfsDocumentRepository;
 
     /**
      * Hand over a disbursed loan to LMS for servicing.
@@ -65,6 +72,17 @@ public class LmsService {
      */
     @Transactional
     public LoanHandoverResponse handoverLoan(LoanHandoverRequest request) {
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(request.getApplicationId())
+                || invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(request.getApplicationNumber())) {
+            log.info("[LMS-HANDOVER] Skipped — invoice discounting borrower onboarding for {}",
+                    request.getApplicationNumber());
+            return LoanHandoverResponse.builder()
+                    .applicationNumber(request.getApplicationNumber())
+                    .status("SKIPPED")
+                    .message("Invoice discounting borrower onboarding does not create a term loan in LOS/LMS")
+                    .build();
+        }
+
         String encoreAccountId = null;
         String encoreTransactionId = null;
         String status = "ACCEPTED";
@@ -273,61 +291,46 @@ public class LmsService {
         BigDecimal amount;
         BigDecimal rate;
         int tenure;
+        String lmsRef = "LMS-" + applicationNumber;
 
         if (handoverOpt.isPresent()) {
             LmsLoanHandover handover = handoverOpt.get();
             amount = handover.getSanctionedAmount();
             rate = handover.getInterestRate();
             tenure = handover.getTenureMonths();
+            if (handover.getEncoreAccountId() != null && !handover.getEncoreAccountId().isBlank()) {
+                lmsRef = handover.getEncoreAccountId();
+            }
 
-            // Try Encore repayment schedule if configured
             if (encoreLmsApi.isActive() && handover.getEncoreAccountId() != null) {
                 try {
                     List<Map<String, Object>> encoreSchedule =
                             encoreLmsApi.findRepaymentSchedule(handover.getEncoreAccountId());
-                    if (!encoreSchedule.isEmpty()) {
-                        // Convert Encore schedule to our DTO format
-                        List<RepaymentScheduleEntry> entries = encoreSchedule.stream().map(e -> {
-                            BigDecimal instAmount = new BigDecimal(String.valueOf(e.getOrDefault("installmentAmount", "0")));
-                            return RepaymentScheduleEntry.builder()
-                                    .installmentNumber(((Number) e.getOrDefault("sequenceNum", 0)).intValue())
-                                    .dueDate(LocalDate.parse(String.valueOf(e.getOrDefault("valueDateStr", LocalDate.now().toString()))))
-                                    .emiAmount(instAmount)
-                                    .principalComponent(new BigDecimal(String.valueOf(e.getOrDefault("principalAmount", "0"))))
-                                    .interestComponent(new BigDecimal(String.valueOf(e.getOrDefault("interestAmount", "0"))))
-                                    .outstandingPrincipal(new BigDecimal(String.valueOf(e.getOrDefault("balance", "0"))))
-                                    .status("FROM_ENCORE")
-                                    .build();
-                        }).toList();
-
-                        BigDecimal totalInterest = entries.stream()
-                                .map(RepaymentScheduleEntry::getInterestComponent)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                        return RepaymentScheduleResponse.builder()
-                                .applicationNumber(applicationNumber)
-                                .lmsReferenceId(handover.getEncoreAccountId())
-                                .sanctionedAmount(amount)
-                                .interestRate(rate)
-                                .tenureMonths(tenure)
-                                .totalInterest(totalInterest)
-                                .totalPayable(amount.add(totalInterest))
-                                .schedule(entries)
-                                .build();
+                    RepaymentScheduleResponse fromEncore = buildScheduleResponse(
+                            applicationNumber, lmsRef, amount, rate, tenure,
+                            mapEncoreScheduleMaps(encoreSchedule, "FROM_ENCORE"));
+                    if (fromEncore != null) {
+                        return fromEncore;
                     }
                 } catch (Exception e) {
                     log.warn("Failed to get Encore schedule for {}: {}", applicationNumber, e.getMessage());
                 }
             }
+
+            RepaymentScheduleResponse fromCache = scheduleFromCachedEncoreJson(
+                    handover.getEncoreRepaymentScheduleJson(),
+                    applicationNumber, lmsRef, amount, rate, tenure);
+            if (fromCache != null) {
+                return fromCache;
+            }
         } else {
-            // Use defaults for simulated schedule
             amount = new BigDecimal("500000");
             rate = new BigDecimal("12.5");
             tenure = 36;
         }
 
-        // Generate schedule locally
-        List<RepaymentScheduleEntry> schedule = generateRepaymentSchedule(amount, rate, tenure);
+        List<RepaymentScheduleEntry> schedule = withScheduleStatus(
+                generateRepaymentSchedule(amount, rate, tenure), "INDICATIVE");
 
         BigDecimal totalInterest = schedule.stream()
                 .map(RepaymentScheduleEntry::getInterestComponent)
@@ -335,7 +338,7 @@ public class LmsService {
 
         return RepaymentScheduleResponse.builder()
                 .applicationNumber(applicationNumber)
-                .lmsReferenceId("LMS-" + applicationNumber)
+                .lmsReferenceId(lmsRef)
                 .sanctionedAmount(amount)
                 .interestRate(rate)
                 .tenureMonths(tenure)
@@ -448,6 +451,116 @@ public class LmsService {
                 "encoreTransactionId", encoreTxnId != null ? encoreTxnId : "",
                 "message", "Repayment recorded successfully"
         );
+    }
+
+    /**
+     * Borrower-initiated repayment from the borrower portal. Posts the amount to Encore as a
+     * {@code ScheduledRepayment} when Encore is active and an account exists, always persists the
+     * repayment, and updates the local account summary. Returns the refreshed account summary.
+     */
+    @Transactional
+    public LoanAccountSummary recordBorrowerRepayment(String applicationNumber, BigDecimal amount) {
+        if (applicationNumber == null || applicationNumber.isBlank()) {
+            throw new IllegalArgumentException("applicationNumber is required");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Repayment amount must be positive");
+        }
+
+        Optional<LmsLoanHandover> handoverOpt = handoverRepository.findByApplicationNumber(applicationNumber);
+        String encoreAccountId = handoverOpt.map(LmsLoanHandover::getEncoreAccountId).orElse(null);
+        String encoreTxnId = null;
+        if (encoreLmsApi.isActive() && encoreAccountId != null) {
+            try {
+                encoreTxnId = encoreLmsApi.repay(encoreAccountId, amount, "ScheduledRepayment");
+            } catch (Exception e) {
+                log.error("Encore borrower repayment failed for {}: {}", applicationNumber, e.getMessage());
+            }
+        }
+
+        LmsRepaymentCallback entity = LmsRepaymentCallback.builder()
+                .applicationNumber(applicationNumber)
+                .encoreAccountId(encoreAccountId)
+                .transactionId(encoreTxnId)
+                .repaymentType("BORROWER_PORTAL")
+                .amount(amount)
+                .paymentDate(LocalDate.now())
+                .paymentMode("BORROWER_PORTAL")
+                .status("PROCESSED")
+                .build();
+        repaymentRepository.save(entity);
+
+        summaryRepository.findByApplicationNumber(applicationNumber).ifPresent(summary -> {
+            summary.setPaidEmis((summary.getPaidEmis() != null ? summary.getPaidEmis() : 0) + 1);
+            summary.setTotalPaid((summary.getTotalPaid() != null ? summary.getTotalPaid() : BigDecimal.ZERO).add(amount));
+            BigDecimal outstanding = summary.getOutstandingPrincipal() != null
+                    ? summary.getOutstandingPrincipal() : BigDecimal.ZERO;
+            summary.setOutstandingPrincipal(outstanding.subtract(amount).max(BigDecimal.ZERO));
+            summary.setLastPaymentDate(LocalDate.now());
+            if (summary.getNextEmiDate() != null) {
+                summary.setNextEmiDate(summary.getNextEmiDate().plusMonths(1));
+            }
+            summaryRepository.save(summary);
+        });
+
+        log.info("Borrower repayment recorded for {}: amount={}, encoreTxn={}", applicationNumber, amount, encoreTxnId);
+        return getAccountSummary(applicationNumber);
+    }
+
+    /**
+     * Admin PG settlement after successful PayU collection (PRUS/PIP). Posts repayment to LMS with settlement UTR.
+     */
+    @Transactional
+    public LoanAccountSummary recordPgSettlementRepayment(String applicationNumber, BigDecimal amount, String utr) {
+        if (applicationNumber == null || applicationNumber.isBlank()) {
+            throw new IllegalArgumentException("applicationNumber is required");
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Repayment amount must be positive");
+        }
+        if (utr == null || utr.isBlank()) {
+            throw new IllegalArgumentException("Settlement UTR is required");
+        }
+
+        Optional<LmsLoanHandover> handoverOpt = handoverRepository.findByApplicationNumber(applicationNumber);
+        String encoreAccountId = handoverOpt.map(LmsLoanHandover::getEncoreAccountId).orElse(null);
+        String encoreTxnId = null;
+        if (encoreLmsApi.isActive() && encoreAccountId != null) {
+            try {
+                encoreTxnId = encoreLmsApi.repay(encoreAccountId, amount, "ScheduledRepayment");
+            } catch (Exception e) {
+                log.error("Encore PG settlement repayment failed for {}: {}", applicationNumber, e.getMessage());
+            }
+        }
+
+        LmsRepaymentCallback entity = LmsRepaymentCallback.builder()
+                .applicationNumber(applicationNumber)
+                .encoreAccountId(encoreAccountId)
+                .transactionId(encoreTxnId)
+                .repaymentType("PG_SETTLEMENT")
+                .amount(amount)
+                .paymentDate(LocalDate.now())
+                .paymentMode("PAYU_PG_SETTLED")
+                .utrNumber(utr.trim())
+                .status("PROCESSED")
+                .build();
+        repaymentRepository.save(entity);
+
+        summaryRepository.findByApplicationNumber(applicationNumber).ifPresent(summary -> {
+            summary.setPaidEmis((summary.getPaidEmis() != null ? summary.getPaidEmis() : 0) + 1);
+            summary.setTotalPaid((summary.getTotalPaid() != null ? summary.getTotalPaid() : BigDecimal.ZERO).add(amount));
+            BigDecimal outstanding = summary.getOutstandingPrincipal() != null
+                    ? summary.getOutstandingPrincipal() : BigDecimal.ZERO;
+            summary.setOutstandingPrincipal(outstanding.subtract(amount).max(BigDecimal.ZERO));
+            summary.setLastPaymentDate(LocalDate.now());
+            if (summary.getNextEmiDate() != null) {
+                summary.setNextEmiDate(summary.getNextEmiDate().plusMonths(1));
+            }
+            summaryRepository.save(summary);
+        });
+
+        log.info("PG settlement repayment recorded for {}: amount={}, utr={}", applicationNumber, amount, utr);
+        return getAccountSummary(applicationNumber);
     }
 
     /**
@@ -661,6 +774,7 @@ public class LmsService {
 
     /**
      * Get Encore account statement for a loan.
+     * Prefers {@code compositeStatement} from loan OD account details; falls back to legacy findAccountStatements.
      */
     public List<Map<String, Object>> getEncoreAccountStatement(String applicationNumber,
                                                                  String fromDate, String toDate) {
@@ -669,6 +783,11 @@ public class LmsService {
             return Collections.emptyList();
         }
         return encoreLmsApi.getAccountStatement(handoverOpt.get().getEncoreAccountId(), fromDate, toDate);
+    }
+
+    /** Composite or legacy Encore statement rows (webservices first, then REST composite when configured). */
+    public List<Map<String, Object>> getEncoreCompositeStatement(String applicationNumber) {
+        return getEncoreAccountStatement(applicationNumber, null, null);
     }
 
     /**
@@ -708,6 +827,12 @@ public class LmsService {
     public String createLmsAccountOnSanction(LoanApplication app) {
         log.info("[LMS-SANCTION] Triggered for {} — starting LMS account creation", app.getApplicationNumber());
 
+        if (invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)) {
+            log.info("[LMS-SANCTION] Skipped — invoice discounting borrower onboarding for {}",
+                    app.getApplicationNumber());
+            return null;
+        }
+
         Optional<com.los.plp.model.entity.ProgramMaster> linkedProgram = lmsProgramResolver.resolveForApplication(app);
         if (linkedProgram.isPresent() && !lmsProgramResolver.isLmsEntryEnabled(linkedProgram.get())) {
             log.info("[LMS-SANCTION] Skipped — program lms_entry_in=NO for {}", app.getApplicationNumber());
@@ -717,9 +842,11 @@ public class LmsService {
         // Idempotency: skip if handover already exists
         Optional<LmsLoanHandover> existing = handoverRepository.findByApplicationNumber(app.getApplicationNumber());
         if (existing.isPresent() && existing.get().getEncoreAccountId() != null) {
+            LmsLoanHandover handover = existing.get();
+            refreshEncoreRepaymentScheduleCache(handover);
             log.info("[LMS-SANCTION] Skipped — handover already exists for {} with encoreAccountId={}",
-                    app.getApplicationNumber(), existing.get().getEncoreAccountId());
-            return existing.get().getEncoreAccountId();
+                    app.getApplicationNumber(), handover.getEncoreAccountId());
+            return handover.getEncoreAccountId();
         }
 
         BigDecimal amount = app.getSanctionedAmount() != null ? app.getSanctionedAmount() : app.getRequestedAmount();
@@ -728,8 +855,9 @@ public class LmsService {
         String loanProduct = app.getLoanProduct() != null ? app.getLoanProduct() : "";
 
         String encoreProductCode = lmsProgramResolver.resolveEncoreProductCode(app, loanProduct);
-        log.info("[LMS-SANCTION] Encore product code {} for {} (loanProduct={})",
-                encoreProductCode, app.getApplicationNumber(), loanProduct);
+        String tenureUnit = lmsApplicationConfigResolver.resolveTenureUnit(app);
+        log.info("[LMS-SANCTION] Encore product code {} tenureUnit {} for {} (loanProduct={})",
+                encoreProductCode, tenureUnit, app.getApplicationNumber(), loanProduct);
 
         Optional<com.los.lms.entity.WorkflowLmsProductMapping> fullMapping =
                 workflowLmsProductResolver.resolveFullMapping(null, app.getBorrowerType(), loanProduct);
@@ -748,11 +876,11 @@ public class LmsService {
                 .interestRate(rate)
                 .tenureMonths(tenure)
                 .numberOfInstallments(tenure)
+                .tenureUnit(tenureUnit)
                 .borrowerDetails(ApplicationPartyResolver.buildIntegrationPartyMap(app));
 
         fullMapping.ifPresent(m -> {
             if (m.getBranchSetCode() != null) builder.encoreBranchCode(m.getBranchSetCode());
-            if (m.getTenureUnit() != null) builder.tenureUnit(m.getTenureUnit());
             if (m.getPenalInterestRate() != null) builder.penalInterestRate(m.getPenalInterestRate());
             if (m.getMoratoriumType() != null) builder.moratoriumType(m.getMoratoriumType());
             if (m.getMoratoriumPeriodMagnitude() != null) builder.moratoriumPeriodMagnitude(m.getMoratoriumPeriodMagnitude());
@@ -889,11 +1017,67 @@ public class LmsService {
     }
 
     /**
-     * When {@code los.lms.encore.bl-core-parity.pre-open-summary-for-kfs} is true, calls Encore
-     * {@code findPreOpenSummary} and stores JSON under {@code encorePreOpenSummaryJson} in {@code charges}.
+     * Copies cached Encore repayment schedule from handover onto the KFS row so EDI PDF generation
+     * can resolve schedules even when live Encore is temporarily unavailable.
+     */
+    @Transactional
+    public void attachHandoverScheduleToKfs(String applicationNumber, UUID kfsId) {
+        if (applicationNumber == null || kfsId == null) {
+            return;
+        }
+        handoverRepository.findByApplicationNumber(applicationNumber).ifPresent(handover -> {
+            String json = handover.getEncoreRepaymentScheduleJson();
+            if (json == null || json.isBlank()) {
+                return;
+            }
+            kfsDocumentRepository.findById(kfsId).ifPresent(kfs -> {
+                Map<String, Object> terms = kfs.getAdditionalTerms();
+                Map<String, Object> updated = terms != null ? new LinkedHashMap<>(terms) : new LinkedHashMap<>();
+                updated.put("encoreRepaymentScheduleJson", json);
+                kfs.setAdditionalTerms(updated);
+                kfsDocumentRepository.save(kfs);
+                log.info("[LMS-SANCTION] Attached {}-char Encore schedule JSON to KFS {} for {}",
+                        json.length(), kfsId, applicationNumber);
+            });
+        });
+    }
+
+    private void refreshEncoreRepaymentScheduleCache(LmsLoanHandover handover) {
+        if (!encoreLmsApi.isActive()) {
+            return;
+        }
+        String accountId = handover.getEncoreAccountId();
+        if (accountId == null || accountId.isBlank()) {
+            return;
+        }
+        String cached = handover.getEncoreRepaymentScheduleJson();
+        if (cached != null && !cached.isBlank()) {
+            return;
+        }
+        try {
+            var scheduleEntries = encoreLmsApi.findRepaymentSchedule(accountId);
+            if (scheduleEntries != null && !scheduleEntries.isEmpty()) {
+                handover.setEncoreRepaymentScheduleJson(objectMapper.writeValueAsString(scheduleEntries));
+                handoverRepository.save(handover);
+                log.info("[LMS-SANCTION] Refreshed {} repayment entries for existing accountId={}",
+                        scheduleEntries.size(), accountId);
+            }
+        } catch (Exception e) {
+            log.warn("[LMS-SANCTION] Could not refresh repayment schedule for {}: {}",
+                    accountId, e.getMessage());
+        }
+    }
+
+    /**
+     * Calls Encore {@code findPreOpenSummary} and stores JSON under {@code encorePreOpenSummaryJson} in {@code charges}.
+     * Always runs for EDI (Day tenure); for other loans only when {@code pre-open-summary-for-kfs} is enabled.
      */
     public void appendPreOpenEncoreSummaryForKfsIfEnabled(LoanApplication app, Map<String, Object> charges) {
-        if (!encoreClientProperties.getBlCoreParity().isPreOpenSummaryForKfs() || !encoreLmsApi.isActive()) {
+        if (!encoreLmsApi.isActive()) {
+            return;
+        }
+        boolean edi = "day".equalsIgnoreCase(lmsApplicationConfigResolver.resolveTenureUnit(app));
+        if (!edi && !encoreClientProperties.getBlCoreParity().isPreOpenSummaryForKfs()) {
             return;
         }
         if (app.getTenureMonths() == null) {
@@ -904,17 +1088,17 @@ public class LmsService {
             return;
         }
         String loanP = app.getLoanProduct() != null ? app.getLoanProduct() : "";
-        // TEMP FIX: resolver returns hardcoded product code
-        String product = workflowLmsProductResolver.resolveEncoreProductCode(app.getBorrowerType(), loanP, loanP);
-        log.info("[LMS-SANCTION] Using temporary Encore product code {} for KFS pre-open summary (original loanProduct={})",
-                product, loanP);
+        String product = lmsApplicationConfigResolver.resolveEncoreProductCode(app);
+        String tenureUnit = lmsApplicationConfigResolver.resolveTenureUnit(app);
+        log.info("[LMS-SANCTION] KFS pre-open summary productCode={} tenureUnit={} for app={}",
+                product, tenureUnit, app.getApplicationNumber());
         String body = blCoreEncoreLmsAdapter.buildPreOpenSummaryRequestBody(
                 app.getApplicationNumber(),
                 amt,
                 LocalDate.now(),
                 product,
                 app.getTenureMonths(),
-                "Month");
+                tenureUnit);
         try {
             String resp = encoreLmsApi.findPreOpenSummaryRaw(body);
             charges.put("encorePreOpenSummaryJson", resp);
@@ -1151,6 +1335,98 @@ public class LmsService {
             return true;
         }
         return lmsProgramResolver.isLmsEntryEnabled(program.get());
+    }
+
+    private RepaymentScheduleResponse scheduleFromCachedEncoreJson(
+            String json,
+            String applicationNumber,
+            String lmsRef,
+            BigDecimal amount,
+            BigDecimal rate,
+            int tenure) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            List<Map<String, Object>> cached = objectMapper.readValue(json, new TypeReference<>() {});
+            RepaymentScheduleResponse resp = buildScheduleResponse(
+                    applicationNumber, lmsRef, amount, rate, tenure,
+                    mapEncoreScheduleMaps(cached, "FROM_ENCORE"));
+            if (resp != null) {
+                log.info("Using cached Encore repayment schedule for {} ({} rows)", applicationNumber,
+                        resp.getSchedule().size());
+            }
+            return resp;
+        } catch (Exception e) {
+            log.warn("Failed to parse cached Encore schedule for {}: {}", applicationNumber, e.getMessage());
+            return null;
+        }
+    }
+
+    private RepaymentScheduleResponse buildScheduleResponse(
+            String applicationNumber,
+            String lmsRef,
+            BigDecimal amount,
+            BigDecimal rate,
+            int tenure,
+            List<RepaymentScheduleEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return null;
+        }
+        BigDecimal totalInterest = entries.stream()
+                .map(RepaymentScheduleEntry::getInterestComponent)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return RepaymentScheduleResponse.builder()
+                .applicationNumber(applicationNumber)
+                .lmsReferenceId(lmsRef)
+                .sanctionedAmount(amount)
+                .interestRate(rate)
+                .tenureMonths(tenure)
+                .totalInterest(totalInterest)
+                .totalPayable(amount.add(totalInterest))
+                .schedule(entries)
+                .build();
+    }
+
+    private List<RepaymentScheduleEntry> mapEncoreScheduleMaps(
+            List<Map<String, Object>> encoreSchedule, String status) {
+        if (encoreSchedule == null || encoreSchedule.isEmpty()) {
+            return List.of();
+        }
+        return encoreSchedule.stream().map(e -> {
+            BigDecimal instAmount = new BigDecimal(String.valueOf(e.getOrDefault("installmentAmount", "0")));
+            String dueRaw = String.valueOf(e.getOrDefault("valueDateStr", LocalDate.now().toString()));
+            LocalDate dueDate;
+            try {
+                dueDate = LocalDate.parse(dueRaw);
+            } catch (Exception ignored) {
+                dueDate = LocalDate.now();
+            }
+            return RepaymentScheduleEntry.builder()
+                    .installmentNumber(((Number) e.getOrDefault("sequenceNum", 0)).intValue())
+                    .dueDate(dueDate)
+                    .emiAmount(instAmount)
+                    .principalComponent(new BigDecimal(String.valueOf(e.getOrDefault("principalAmount", "0"))))
+                    .interestComponent(new BigDecimal(String.valueOf(e.getOrDefault("interestAmount", "0"))))
+                    .outstandingPrincipal(new BigDecimal(String.valueOf(e.getOrDefault("balance", "0"))))
+                    .status(status)
+                    .build();
+        }).toList();
+    }
+
+    private static List<RepaymentScheduleEntry> withScheduleStatus(
+            List<RepaymentScheduleEntry> schedule, String status) {
+        return schedule.stream()
+                .map(e -> RepaymentScheduleEntry.builder()
+                        .installmentNumber(e.getInstallmentNumber())
+                        .dueDate(e.getDueDate())
+                        .emiAmount(e.getEmiAmount())
+                        .principalComponent(e.getPrincipalComponent())
+                        .interestComponent(e.getInterestComponent())
+                        .outstandingPrincipal(e.getOutstandingPrincipal())
+                        .status(status)
+                        .build())
+                .toList();
     }
 
 }
