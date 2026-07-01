@@ -36,9 +36,7 @@ import { isInvoiceDiscountingProduct } from '@/catalog/loanProducts'
 import {
   DEFAULT_LMS_PRODUCT_CODE,
   DEFAULT_LMS_TENURE_UNIT,
-  installmentPaymentLabel,
   lmsTenureUnitLabel,
-  tenureMagnitudeLabel,
   tenureMagnitudeShortUnit,
 } from '@/catalog/lmsTenureUnits'
 import { LmsWorkflowConfigReadonly } from '@/components/intake/LmsWorkflowConfigReadonly'
@@ -58,8 +56,6 @@ import {
   resolveDocumentSlots,
   shouldCollectPersonalField,
   shouldShowKycIntakeField,
-  validateWorkflowAge,
-  validateWorkflowPersonalFields,
 } from '@/lib/workflow/workflowIntakeRules'
 import { IntakeTenureField } from '@/components/intake/IntakeTenureField'
 import type { WorkflowConfigResponse } from '@/types/workflow'

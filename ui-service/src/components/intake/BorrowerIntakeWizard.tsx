@@ -50,7 +50,6 @@ import { notifyError, notifySuccess } from '@/lib/notify'
 import {
   DEFAULT_LMS_PRODUCT_CODE,
   DEFAULT_LMS_TENURE_UNIT,
-  tenureMagnitudeLabel,
 } from '@/catalog/lmsTenureUnits'
 import { LmsWorkflowConfigReadonly } from '@/components/intake/LmsWorkflowConfigReadonly'
 import { isInvoiceDiscountingProduct } from '@/catalog/loanProducts'

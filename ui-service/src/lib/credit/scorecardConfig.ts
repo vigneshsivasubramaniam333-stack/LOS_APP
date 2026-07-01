@@ -19,11 +19,6 @@ export type ScorecardSourceDef = {
   allowCustomParameter?: boolean
 }
 
-const YES_NO: ScorecardParamDef['enumOptions'] = [
-  { value: '1', label: 'Yes' },
-  { value: '0', label: 'No' },
-]
-
 export const SCORECARD_SOURCES: ScorecardSourceDef[] = [
   {
     value: 'BUREAU',
