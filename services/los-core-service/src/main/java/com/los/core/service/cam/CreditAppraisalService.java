@@ -435,7 +435,7 @@ public class CreditAppraisalService {
 
         Map<String, String> lr = new LinkedHashMap<>();
         lr.put("Requested amount (INR)", app.getRequestedAmount() != null ? inrDisplay(app.getRequestedAmount()) : "—");
-        lr.put("Tenure (months)", app.getTenureMonths() != null ? String.valueOf(app.getTenureMonths()) : "—");
+        lr.put(tenureMagnitudeLabel(resolveTenureUnit(app)), app.getTenureMonths() != null ? String.valueOf(app.getTenureMonths()) : "—");
         lr.put("Product / programme", nullToEmpty(str(app.getLoanProduct())));
         lr.put("Stated interest (if any)", app.getInterestRate() != null ? app.getInterestRate().toPlainString() + " % p.a." : "—");
         out.put("loanRequest", lr);
@@ -497,7 +497,9 @@ public class CreditAppraisalService {
             se.put("Matched scorecard (name on engine)", scn);
             se.put("Aggregate score", ev.getAggregateScore() != null ? String.valueOf(ev.getAggregateScore()) : "—");
             se.put("Policy outcome (aggregate)", str(ev.getAggregateDecision()));
-            se.put("Parameter breakdown (rows)", buildParameterTable(ev));
+            List<Map<String, String>> paramRows = buildParameterTable(ev);
+            se.put("Parameter breakdown", formatParameterRowsAsText(paramRows));
+            se.put("_parameterBreakdownRows", paramRows);
             se.put("Hard / negative policy rules", buildHardRulesSummary(ev));
             out.put("scorecardEvaluation", se);
         } else {
@@ -571,6 +573,59 @@ public class CreditAppraisalService {
             rows.add(r);
         }
         return rows;
+    }
+
+    private static String formatParameterRowsAsText(List<Map<String, String>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return "—";
+        }
+        StringBuilder sb = new StringBuilder();
+        int i = 1;
+        for (Map<String, String> r : rows) {
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(i++).append(". ");
+            sb.append(nullToEmpty(r.get("Parameter")));
+            String value = r.get("Value used");
+            if (value != null && !value.isBlank() && !"—".equals(value)) {
+                sb.append(" · value: ").append(value);
+            }
+            String points = r.get("Points");
+            if (points != null && !points.isBlank() && !"—".equals(points)) {
+                sb.append(" · points: ").append(points);
+            }
+            String source = r.get("Source");
+            if (source != null && !source.isBlank() && !"—".equals(source)) {
+                sb.append(" · source: ").append(shortText(source, 80));
+            }
+            String comment = r.get("Comment / attachment");
+            if (comment != null && !comment.isBlank() && !"—".equals(comment)) {
+                sb.append(" · note: ").append(shortText(comment, 60));
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String resolveTenureUnit(LoanApplication app) {
+        if (app.getLmsTenureUnit() != null && !app.getLmsTenureUnit().isBlank()) {
+            return app.getLmsTenureUnit().trim();
+        }
+        return "Month";
+    }
+
+    private static String tenureMagnitudeLabel(String unit) {
+        if (unit == null || unit.isBlank()) {
+            return "Tenure (months)";
+        }
+        String u = unit.trim().toLowerCase(Locale.ROOT);
+        if ("day".equals(u)) {
+            return "Tenure (days)";
+        }
+        if ("week".equals(u)) {
+            return "Tenure (weeks)";
+        }
+        return "Tenure (months)";
     }
 
     private String buildHardRulesSummary(UnderwritingEvaluation ev) {
@@ -871,19 +926,19 @@ public class CreditAppraisalService {
                     continue;
                 }
                 if (raw instanceof String s) {
-                    document.add(pdfBlockParagraphs(s, body));
+                    if ("scorecardEvaluation".equals(key) && s.contains("[object Object]")) {
+                        Object extRaw = ext.get(key);
+                        if (extRaw instanceof Map<?, ?> extMap) {
+                            renderScorecardEvaluationSection(document, (Map<String, Object>) extMap, h, small, body);
+                        } else {
+                            document.add(pdfBlockParagraphs(s, body));
+                        }
+                    } else {
+                        document.add(pdfBlockParagraphs(s, body));
+                    }
                 } else if (raw instanceof Map) {
                     if ("scorecardEvaluation".equals(key)) {
-                        Map<String, Object> m = (Map<String, Object>) raw;
-                        Map<String, Object> copy = new LinkedHashMap<>(m);
-                        Object br = copy.remove("Parameter breakdown (rows)");
-                        if (!copy.isEmpty()) {
-                            document.add(pdfKeyValueTable(copy, small, body));
-                        }
-                        if (br instanceof List<?> rows && !rows.isEmpty()) {
-                            document.add(pdfSectionHeading(new Font(Font.HELVETICA, 9, Font.BOLD, new Color(0, 33, 71)), "Parameter breakdown"));
-                            document.add(pdfParameterDetailTable((List<?>) br, h, small, body));
-                        }
+                        renderScorecardEvaluationSection(document, (Map<String, Object>) raw, h, small, body);
                     } else {
                         document.add(pdfKeyValueTable((Map<String, Object>) raw, small, body));
                     }
@@ -921,7 +976,7 @@ public class CreditAppraisalService {
             Map<String, String> rec = new LinkedHashMap<>();
             rec.put("Recommended decision (CAM)", nullToEmpty(cam.getRecommendedDecision()));
             rec.put("Proposed amount (INR)", cam.getRecommendedAmount() != null ? inrDisplay(cam.getRecommendedAmount()) : "—");
-            rec.put("Proposed tenure (months)", cam.getRecommendedTenureMonths() != null ? String.valueOf(cam.getRecommendedTenureMonths()) : "—");
+            rec.put(tenureMagnitudeLabel(resolveTenureUnit(app)), cam.getRecommendedTenureMonths() != null ? String.valueOf(cam.getRecommendedTenureMonths()) : "—");
             rec.put("Proposed interest rate (% p.a.)", cam.getRecommendedRate() != null ? cam.getRecommendedRate().toPlainString() : "—");
             rec.put("Conditions precedent", listToReadable(cam.getConditionsPrecedentJson()));
             rec.put("Conditions subsequent", listToReadable(cam.getConditionsSubsequentJson()));
@@ -969,6 +1024,27 @@ public class CreditAppraisalService {
         return new Paragraph(t, f);
     }
 
+    @SuppressWarnings("unchecked")
+    private void renderScorecardEvaluationSection(
+            Document document,
+            Map<String, Object> m,
+            Font h,
+            Font small,
+            Font body) throws Exception {
+        Map<String, Object> copy = new LinkedHashMap<>(m);
+        Object br = copy.remove("_parameterBreakdownRows");
+        if (br == null) {
+            br = copy.remove("Parameter breakdown (rows)");
+        }
+        if (!copy.isEmpty()) {
+            document.add(pdfKeyValueTable(copy, small, body));
+        }
+        if (br instanceof List<?> rows && !rows.isEmpty()) {
+            document.add(pdfSectionHeading(new Font(Font.HELVETICA, 9, Font.BOLD, new Color(0, 33, 71)), "Parameter breakdown"));
+            document.add(pdfParameterDetailTable(rows, h, small, body));
+        }
+    }
+
     private static Paragraph pdfBlockParagraphs(String s, Font body) {
         String t = s.replace("\r", "").trim();
         if (t.length() > 4000) {
@@ -996,6 +1072,9 @@ public class CreditAppraisalService {
         if (o instanceof List<?> l) {
             if (l.isEmpty()) {
                 return "—";
+            }
+            if (!l.isEmpty() && l.get(0) instanceof Map<?, ?> first && first.containsKey("Parameter")) {
+                return formatParameterRowsAsText((List<Map<String, String>>) (List<?>) l);
             }
             return listToReadableLines(l);
         }

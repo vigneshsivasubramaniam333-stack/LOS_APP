@@ -151,6 +151,21 @@ public class BlCoreEncoreLmsAdapter {
                                                    String productCode,
                                                    int tenureMagnitude,
                                                    String tenureUnit) {
+        return buildPreOpenSummaryRequestBody(
+                accountId, amount, openedOn, productCode, tenureMagnitude, tenureUnit, null);
+    }
+
+    /**
+     * {@code findPreOpenSummary} requires borrower location codes (same as {@code openLoanAccount});
+     * without them Encore returns {@code INVALID_LOCATION}.
+     */
+    public String buildPreOpenSummaryRequestBody(String accountId,
+                                                   BigDecimal amount,
+                                                   LocalDate openedOn,
+                                                   String productCode,
+                                                   int tenureMagnitude,
+                                                   String tenureUnit,
+                                                   String pinCode) {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("accountId", accountId != null ? accountId : "");
         body.put("amountMagnitude", amount != null ? amount.toPlainString() : "0");
@@ -163,6 +178,10 @@ public class BlCoreEncoreLmsAdapter {
         if (branch != null && !branch.isBlank()) {
             body.put("branchCode", branch.trim());
         }
+        putIfPresent(body, "customer1PinCode", pinCode);
+        body.put("customer1CityCode", DEFAULT_ENCORE_LOCATION_CODE);
+        body.put("customer1CountryCode", DEFAULT_ENCORE_LOCATION_CODE);
+        body.put("customer1StateCode", DEFAULT_ENCORE_LOCATION_CODE);
         return body.toString();
     }
 

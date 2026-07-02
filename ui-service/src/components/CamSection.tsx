@@ -15,6 +15,7 @@ import {
 } from '@/api/cam'
 import { markCamReviewedFlow } from '@/api/flow'
 import { ApiError } from '@/api/http'
+import { formatCamSectionExtended } from '@/lib/cam/camSectionFormat'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
 import { formatMoney } from '@/lib/format'
 import { requiresCollateral } from '@/lib/intake/securedProducts'
@@ -188,15 +189,17 @@ export function CamSection({
       for (const s of SECTION_ORDER) {
         const esc = c.editableSections as Record<string, unknown> | null | undefined
         const ovr = esc?.[`${s.key}Narrative`]
-        if (typeof ovr === 'string') {
+        const sectionData = ex[s.key]
+        if (typeof ovr === 'string' && ovr.trim() && !ovr.includes('[object Object]')) {
           nxt[s.key] = ovr
-        } else {
-          const o = ex[s.key]
-          if (o && typeof o === 'object' && !Array.isArray(o)) {
-            nxt[s.key] = Object.entries(o as Record<string, unknown>)
-              .map(([k, v]) => `${k}: ${String(v)}`)
-              .join('\n')
-          }
+        } else if (sectionData && typeof sectionData === 'object' && !Array.isArray(sectionData)) {
+          nxt[s.key] = formatCamSectionExtended(sectionData as Record<string, unknown>)
+        } else if (typeof ovr === 'string' && ovr.trim()) {
+          nxt[s.key] = formatCamSectionExtended(
+            sectionData && typeof sectionData === 'object' && !Array.isArray(sectionData)
+              ? (sectionData as Record<string, unknown>)
+              : {},
+          )
         }
       }
       setSectionDrafts(nxt)

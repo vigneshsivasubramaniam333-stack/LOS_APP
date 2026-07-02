@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.KfsDocumentRepository;
+import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.ApplicationPartyResolver;
 import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.los.encore.client.api.EncoreLmsApi;
@@ -63,6 +64,7 @@ public class LmsService {
     private final LmsCallbackSecurityProperties callbackSecurity;
     private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
     private final KfsDocumentRepository kfsDocumentRepository;
+    private final KfsService kfsService;
 
     /**
      * Hand over a disbursed loan to LMS for servicing.
@@ -1042,6 +1044,58 @@ public class LmsService {
         });
     }
 
+    /**
+     * After Encore account creation, pull {@code findPreOpenSummary} or {@code findSummaries} and
+     * update the KFS row (APR, EDI/EMI, total payable, processing fee) for the Sanction &amp; KFS tab.
+     */
+    @Transactional
+    public void reconcileKfsFromEncoreAfterSanction(LoanApplication app, UUID kfsId, String encoreAccountId) {
+        if (app == null || kfsId == null || encoreAccountId == null || encoreAccountId.isBlank()) {
+            return;
+        }
+        if (!encoreLmsApi.isActive()) {
+            return;
+        }
+        Map<String, Object> charges = new LinkedHashMap<>();
+
+        handoverRepository.findByApplicationNumber(app.getApplicationNumber()).ifPresent(handover -> {
+            String scheduleJson = handover.getEncoreRepaymentScheduleJson();
+            if (scheduleJson != null && !scheduleJson.isBlank()) {
+                charges.put("encoreRepaymentScheduleJson", scheduleJson);
+            }
+        });
+
+        try {
+            List<Map<String, Object>> summaries = encoreLmsApi.findSummaries(List.of(encoreAccountId));
+            if (summaries != null && !summaries.isEmpty()) {
+                charges.put("encorePreOpenSummaryJson", objectMapper.writeValueAsString(summaries.get(0)));
+                log.info("[LMS-SANCTION] KFS reconcile using findSummaries for accountId={}", encoreAccountId);
+            }
+        } catch (Exception e) {
+            log.warn("[LMS-SANCTION] findSummaries for KFS reconcile failed for {}: {}",
+                    encoreAccountId, e.getMessage());
+        }
+
+        if (!charges.containsKey("encorePreOpenSummaryJson")) {
+            kfsDocumentRepository.findById(kfsId).ifPresent(kfs -> {
+                Map<String, Object> terms = kfs.getAdditionalTerms();
+                if (terms != null && terms.get("encorePreOpenSummaryJson") != null) {
+                    charges.put("encorePreOpenSummaryJson", terms.get("encorePreOpenSummaryJson"));
+                    log.info("[LMS-SANCTION] KFS reconcile reusing pre-sanction pre-open summary for {}",
+                            app.getApplicationNumber());
+                }
+            });
+        }
+
+        if (!charges.containsKey("encorePreOpenSummaryJson") && !charges.containsKey("encoreRepaymentScheduleJson")) {
+            log.warn("[LMS-SANCTION] No Encore summary available to reconcile KFS {} for {}",
+                    kfsId, app.getApplicationNumber());
+            return;
+        }
+
+        kfsService.applyEncorePreOpenSummary(kfsId, charges);
+    }
+
     private void refreshEncoreRepaymentScheduleCache(LmsLoanHandover handover) {
         if (!encoreLmsApi.isActive()) {
             return;
@@ -1098,7 +1152,8 @@ public class LmsService {
                 LocalDate.now(),
                 product,
                 app.getTenureMonths(),
-                tenureUnit);
+                tenureUnit,
+                ApplicationPartyResolver.resolvePincode(app));
         try {
             String resp = encoreLmsApi.findPreOpenSummaryRaw(body);
             charges.put("encorePreOpenSummaryJson", resp);

@@ -985,6 +985,7 @@ public class LoanApplicationFlowService {
                     app.setLmsReferenceId(lmsReferenceId);
                     app = applicationRepository.save(app);
                     lmsService.attachHandoverScheduleToKfs(app.getApplicationNumber(), kfs.getId());
+                    lmsService.reconcileKfsFromEncoreAfterSanction(app, kfs.getId(), lmsReferenceId);
                     log.info("[DEBUG-ca1703] LMS account created successfully: lmsRef={} for app={}",
                             lmsReferenceId, app.getApplicationNumber());
                 }

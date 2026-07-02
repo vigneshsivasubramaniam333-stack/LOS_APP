@@ -106,6 +106,10 @@ public class KfsService {
             if (f.apr() != null && f.apr().compareTo(BigDecimal.ZERO) > 0) {
                 apr = f.apr();
             }
+            if (f.processingFee() != null && f.processingFee().compareTo(BigDecimal.ZERO) >= 0) {
+                processingFee = f.processingFee();
+                totalCost = totalInterest.add(processingFee).add(stampDuty).add(insurancePremium).add(otherCharges);
+            }
             if (f.installmentCount() > 0) {
                 tenure = f.installmentCount();
             }
@@ -172,6 +176,73 @@ public class KfsService {
 
         log.info("KFS generated for application {} — version={}, APR={}%", applicationId, version, apr);
         return kfs;
+    }
+
+    /**
+     * Overwrites KFS financial figures from Encore {@code findPreOpenSummary} / {@code findSummaries} JSON
+     * stored under {@code encorePreOpenSummaryJson} in {@code charges}.
+     */
+    @Transactional
+    public void applyEncorePreOpenSummary(UUID kfsId, Map<String, Object> charges) {
+        if (kfsId == null || charges == null || charges.isEmpty()) {
+            return;
+        }
+        KfsDocument kfs = kfsDocumentRepository.findById(kfsId)
+                .orElseThrow(() -> new ResourceNotFoundException("KFS not found: " + kfsId));
+        BigDecimal principal = kfs.getSanctionedAmount();
+        if (principal == null) {
+            return;
+        }
+
+        Optional<EncorePreOpenKfsMapper.Figures> encore = EncorePreOpenKfsMapper.fromCharges(charges, principal);
+        if (encore.isEmpty()) {
+            log.warn("Encore pre-open summary present but could not map KFS figures for {}", kfsId);
+            return;
+        }
+
+        EncorePreOpenKfsMapper.Figures f = encore.get();
+        BigDecimal processingFee = kfs.getProcessingFee() != null ? kfs.getProcessingFee() : BigDecimal.ZERO;
+        BigDecimal stampDuty = kfs.getStampDuty() != null ? kfs.getStampDuty() : BigDecimal.ZERO;
+        BigDecimal insurancePremium = kfs.getInsurancePremium() != null ? kfs.getInsurancePremium() : BigDecimal.ZERO;
+        BigDecimal otherCharges = kfs.getOtherCharges() != null ? kfs.getOtherCharges() : BigDecimal.ZERO;
+
+        if (f.installmentAmount() != null && f.installmentAmount().compareTo(BigDecimal.ZERO) > 0) {
+            kfs.setEmiAmount(f.installmentAmount());
+        }
+        if (f.totalRepayment() != null && f.totalRepayment().compareTo(BigDecimal.ZERO) > 0) {
+            kfs.setTotalRepayment(f.totalRepayment());
+            kfs.setTotalInterest(f.totalInterest() != null
+                    ? f.totalInterest()
+                    : f.totalRepayment().subtract(principal));
+        }
+        if (f.apr() != null && f.apr().compareTo(BigDecimal.ZERO) > 0) {
+            kfs.setApr(f.apr());
+        }
+        if (f.processingFee() != null && f.processingFee().compareTo(BigDecimal.ZERO) >= 0) {
+            processingFee = f.processingFee();
+            kfs.setProcessingFee(processingFee);
+        }
+        if (f.installmentCount() > 0) {
+            kfs.setTenureMonths(f.installmentCount());
+        }
+
+        BigDecimal totalInterest = kfs.getTotalInterest() != null ? kfs.getTotalInterest() : BigDecimal.ZERO;
+        kfs.setTotalCostOfCredit(totalInterest.add(processingFee).add(stampDuty).add(insurancePremium).add(otherCharges));
+
+        Map<String, Object> terms = kfs.getAdditionalTerms() != null
+                ? new LinkedHashMap<>(kfs.getAdditionalTerms())
+                : new LinkedHashMap<>();
+        terms.putAll(charges);
+        if (!terms.containsKey("encoreRepaymentScheduleJson")
+                && charges.containsKey("encoreRepaymentScheduleJson")) {
+            terms.put("encoreRepaymentScheduleJson", charges.get("encoreRepaymentScheduleJson"));
+        }
+        terms.put("kfsSource", "ENCORE_LMS");
+        kfs.setAdditionalTerms(terms);
+        kfsDocumentRepository.save(kfs);
+
+        log.info("KFS {} reconciled from Encore LMS — APR={}%, installment={}, total={}, processingFee={}",
+                kfsId, kfs.getApr(), kfs.getEmiAmount(), kfs.getTotalRepayment(), kfs.getProcessingFee());
     }
 
     public static final String DOCUMENT_KIND_INVOICE_DISCOUNTING_TERMS = "INVOICE_DISCOUNTING_TERMS";

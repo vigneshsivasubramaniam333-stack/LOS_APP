@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.service.loan.ApplicationPartyResolver;
 import com.los.encore.client.api.EncoreLmsApi;
 import com.los.encore.client.support.EncoreRepaymentScheduleParser;
 import com.los.lms.entity.LmsLoanHandover;
@@ -229,7 +230,8 @@ public class EdiKfsScheduleResolver {
                     ? encoreAccountId
                     : app.getApplicationNumber();
             String body = blCoreEncoreLmsAdapter.buildPreOpenSummaryRequestBody(
-                    accountId, amt, LocalDate.now(), product, tenure, tenureUnit);
+                    accountId, amt, LocalDate.now(), product, tenure, tenureUnit,
+                    ApplicationPartyResolver.resolvePincode(app));
             String resp = encoreLmsApi.findPreOpenSummaryRaw(body);
             JsonNode root = objectMapper.readTree(resp);
             if (root.isArray() && !root.isEmpty()) {
