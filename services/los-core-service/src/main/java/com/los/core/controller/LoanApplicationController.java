@@ -45,6 +45,19 @@ public class LoanApplicationController {
             "CREDIT_ANALYST"
     );
 
+    /** Staff who run underwriting but are not credit managers — can save scorecard OTHER/GST fields only. */
+    private static final java.util.Set<String> SCORECARD_INPUT_ALLOWED_ROLES = java.util.Set.of(
+            "ADMIN",
+            "ADMINISTRATOR",
+            "CREDIT_MANAGER",
+            "CREDIT_OFFICER",
+            "CREDIT_ANALYST",
+            "OPERATIONS",
+            "BRANCH_VERIFIER",
+            "KYC_REVIEWER",
+            "RISK_MANAGER"
+    );
+
     @PostMapping
     @Operation(summary = "Create a new loan application")
     public ResponseEntity<ApplicationResponse> create(
@@ -151,6 +164,28 @@ public class LoanApplicationController {
         }
         UUID performedBy = userId != null ? UUID.fromString(userId) : null;
         return ResponseEntity.ok(loanApplicationService.applyManualCreditInputs(applicationId, request, performedBy));
+    }
+
+    @PostMapping("/{applicationId}/scorecard-inputs")
+    @Operation(summary = "Save scorecard OTHER/GST underwriting fields required before credit decision (broader staff roles than full manual credit input)")
+    public ResponseEntity<ApplicationResponse> saveScorecardInputs(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) ManualCreditInputsRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesCsv) {
+        java.util.Set<String> roles = new java.util.HashSet<>();
+        if (userRole != null && !userRole.isBlank()) roles.add(userRole.trim());
+        if (userRolesCsv != null && !userRolesCsv.isBlank()) {
+            for (String r : userRolesCsv.split(",")) {
+                if (!r.isBlank()) roles.add(r.trim());
+            }
+        }
+        if (!roles.stream().anyMatch(SCORECARD_INPUT_ALLOWED_ROLES::contains)) {
+            throw new ForbiddenException("Forbidden: scorecard input requires authorized staff role");
+        }
+        UUID performedBy = userId != null ? UUID.fromString(userId) : null;
+        return ResponseEntity.ok(loanApplicationService.applyScorecardInputs(applicationId, request, performedBy));
     }
 
     @GetMapping("/dashboard/summary")

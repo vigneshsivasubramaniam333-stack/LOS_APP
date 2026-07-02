@@ -11,6 +11,7 @@ import {
   underwriteApplicationFlow,
 } from '@/api/flow'
 import { openAiLosReview, saveManualBureau } from '@/api/applications'
+import { listScorecards } from '@/api/scorecards'
 import { messageForKycAction } from '@/api/kycErrorMessage'
 import { ErrorState } from '@/components/ErrorState'
 import { ManualCreditInputsSection } from '@/components/ManualCreditInputsSection'
@@ -20,7 +21,13 @@ import { formatMoney } from '@/lib/format'
 import { manualCreditHashForScorecardParameter } from '@/lib/manualCreditParameterAnchors'
 import { helpForParameter } from '@/lib/scorecardParameterSources'
 import { ScorecardSummaryPanel } from '@/components/credit/ScorecardSummaryPanel'
+import { ScorecardPreRunInputsPanel } from '@/components/credit/ScorecardPreRunInputsPanel'
 import { buildCreditSummary } from '@/lib/credit/creditSummaryBuilder'
+import { matchScorecardForApplication, scorecardRowsFromJson } from '@/lib/credit/matchScorecard'
+import {
+  allScorecardInputsReady,
+  scorecardManualInputRequirements,
+} from '@/lib/credit/scorecardInputRequirements'
 import { getVisibleUnderwritingFields } from '@/lib/credit/underwritingFieldVisibility'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
 import type { ApplicationResponse } from '@/types/application'
@@ -54,11 +61,13 @@ export function UnderwritingSection({
   const [bankStatementOnFile, setBankStatementOnFile] = useState(false)
   const [showManualInputs, setShowManualInputs] = useState(false)
   const [showParameterReference, setShowParameterReference] = useState(false)
+  const [scorecardFocusParameter, setScorecardFocusParameter] = useState<string | null>(null)
   const [aiLosLoading, setAiLosLoading] = useState(false)
   const [aiLosStatus, setAiLosStatus] = useState<string | null>(null)
   const [aaLoading, setAaLoading] = useState(true)
   const [aaFetchedData, setAaFetchedData] = useState<AaFetchedData | null>(null)
   const [aaVerified, setAaVerified] = useState(false)
+  const [scorecards, setScorecards] = useState<Awaited<ReturnType<typeof listScorecards>>>([])
 
   const loadAaSummary = useCallback(async () => {
     setAaLoading(true)
@@ -78,6 +87,20 @@ export function UnderwritingSection({
   useEffect(() => {
     void loadAaSummary()
   }, [loadAaSummary, app.updatedAt])
+
+  useEffect(() => {
+    let cancelled = false
+    void listScorecards()
+      .then((rows) => {
+        if (!cancelled) setScorecards(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setScorecards([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const aaFoir = useMemo(
     () => (aaFetchedData ? computeAaFoir(aaFetchedData) : null),
@@ -125,6 +148,27 @@ export function UnderwritingSection({
     }
   }, [applicationId, app.updatedAt])
 
+  const scorecardMapForMatch = (
+    app.creditControlView as { effective?: { scorecard?: Record<string, string> } } | undefined
+  )?.effective?.scorecard
+
+  const matchedScorecard = useMemo(
+    () =>
+      matchScorecardForApplication(scorecards, {
+        borrowerType: app.borrowerType,
+        loanProduct: app.loanProduct,
+        requestedAmount: app.requestedAmount,
+        personalInfo: app.personalInfo as Record<string, unknown> | null,
+      }),
+    [scorecards, app.borrowerType, app.loanProduct, app.requestedAmount, app.personalInfo],
+  )
+
+  const scorecardInputRequirements = useMemo(
+    () =>
+      scorecardManualInputRequirements(scorecardRowsFromJson(matchedScorecard), scorecardMapForMatch),
+    [matchedScorecard, scorecardMapForMatch],
+  )
+
   const outcomeStr = kycOutcome ? String((kycOutcome as { outcome?: unknown }).outcome ?? '') : ''
   const kycPass = outcomeStr.toUpperCase() === 'PASS'
   const inKyc = app.status === 'KYC_IN_PROGRESS'
@@ -135,11 +179,11 @@ export function UnderwritingSection({
         ? app.bureauScore
         : null
   const hasBureau = effectiveBureau != null && effectiveBureau > 0
-  const canStartUw = inKyc && kycPass && hasBureau
   const pendingManualReview = app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW'
   const decisionDone =
     Boolean(app.creditDecision) &&
     !(app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW')
+  const canRunUnderwriting = kycPass && hasBureau && !decisionDone
   const manualOverridesRaw = (app.financialInfo as Record<string, unknown> | null)?.manualOverrides
   const underwritingOverrides = Array.isArray(manualOverridesRaw)
     ? (manualOverridesRaw as Array<Record<string, unknown>>).filter(
@@ -149,6 +193,7 @@ export function UnderwritingSection({
   const hasUnderwritingOverride =
     String((app.financialInfo as Record<string, unknown> | null)?.manualOverrideFlag ?? '').toUpperCase() ===
       'MANUALLY_OVERRIDDEN' && underwritingOverrides.length > 0
+
   useEffect(() => {
     if (!(inKyc && kycPass && !hasBureau)) {
       return
@@ -204,6 +249,14 @@ export function UnderwritingSection({
 
   async function onStartUnderwriting() {
     setActionError(null)
+    if (!allScorecardInputsReady(scorecardInputRequirements)) {
+      const firstMissing = scorecardInputRequirements.find((r) => !r.ready)
+      setActionError(
+        `Complete required scorecard inputs before underwriting${firstMissing ? ` (e.g. ${firstMissing.label})` : ''}.`,
+      )
+      openScorecardInput(firstMissing?.parameter)
+      return
+    }
     setUnderwriteLoading(true)
     try {
       await underwriteApplicationFlow(applicationId)
@@ -214,6 +267,31 @@ export function UnderwritingSection({
     } finally {
       setUnderwriteLoading(false)
     }
+  }
+
+  function openScorecardInput(parameter?: string) {
+    setScorecardFocusParameter(parameter ?? null)
+    window.requestAnimationFrame(() => {
+      if (parameter) {
+        const req = scorecardInputRequirements.find((r) => r.parameter === parameter)
+        const id = req ? `scorecard-input-${req.manualKey}` : 'scorecard-pre-run-inputs'
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else {
+        document.getElementById('scorecard-pre-run-inputs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    })
+  }
+
+  function openManualInput(parameter?: string) {
+    if (parameter && scorecardInputRequirements.some((r) => r.parameter === parameter && r.source === 'OTHER')) {
+      openScorecardInput(parameter)
+      return
+    }
+    setShowManualInputs(true)
+    const hash = manualCreditHashForScorecardParameter(parameter)
+    window.requestAnimationFrame(() => {
+      document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   async function onApproveManual() {
@@ -755,12 +833,13 @@ export function UnderwritingSection({
                     <td className="min-w-0 border-l border-slate-100 py-1.5 pl-2 align-top text-[11px]">
                       {missing ? (
                         <div className="flex min-w-0 flex-col gap-1.5 break-words">
-                          <a
-                            href={manualCreditHashForScorecardParameter(p.parameter)}
-                            className="text-indigo-700 underline [overflow-wrap:anywhere] hover:text-indigo-900"
+                          <button
+                            type="button"
+                            onClick={() => openManualInput(p.parameter)}
+                            className="text-left text-indigo-700 underline [overflow-wrap:anywhere] hover:text-indigo-900"
                           >
                             Add manual input
-                          </a>
+                          </button>
                           <span className="text-slate-500 [overflow-wrap:anywhere]">
                             Or upload on the Documents tab, then link evidence in manual inputs.
                           </span>
@@ -1048,16 +1127,39 @@ export function UnderwritingSection({
         </div>
       ) : null}
 
-      {inKyc && kycPass && hasBureau ? (
-        <div>
+      {canRunUnderwriting && matchedScorecard ? (
+        <ScorecardPreRunInputsPanel
+          applicationId={applicationId}
+          app={app}
+          matchedScorecardName={matchedScorecard.name}
+          matchedScorecardVersion={matchedScorecard.version}
+          requirements={scorecardInputRequirements}
+          onRefetch={onRefetch}
+          focusParameter={scorecardFocusParameter}
+        />
+      ) : null}
+
+      {canRunUnderwriting ? (
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => void onStartUnderwriting()}
-            disabled={underwriteLoading || !canStartUw}
+            disabled={
+              underwriteLoading || !allScorecardInputsReady(scorecardInputRequirements)
+            }
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {underwriteLoading ? 'Running…' : 'Start underwriting (credit decision)'}
+            {underwriteLoading
+              ? 'Running…'
+              : latestEval
+                ? 'Re-run underwriting (credit decision)'
+                : 'Start underwriting (credit decision)'}
           </button>
+          {!allScorecardInputsReady(scorecardInputRequirements) ? (
+            <p className="self-center text-xs text-amber-800">
+              Complete and save scorecard inputs above before starting underwriting.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

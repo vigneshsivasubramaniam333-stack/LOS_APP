@@ -22,6 +22,12 @@ export type ScorecardCategoryGroup = {
     description: string
     weightPercent: number
     score: number
+    status: 'pass' | 'fail' | 'missing' | 'no_match'
+    statusLabel: string
+    valueUsed: string
+    valueSource: string
+    pointsEarned: number | null
+    maxScore: number | null
     row: ScorecardParameterRow
   }>
 }
@@ -30,9 +36,21 @@ const CATEGORY_BY_PARAMETER: Record<string, string> = {
   BUREAU_SCORE: 'Credit History',
   REPAYMENT_HISTORY: 'Credit History',
   MONTHLY_INCOME: 'Financial Strength',
+  MONTHLY_OBLIGATION: 'Financial Strength',
+  DTI_RATIO: 'Financial Strength',
   GST_INCOME: 'Financial Strength',
   BANK_STATEMENT_INCOME: 'Financial Strength',
   AVERAGE_BANK_BALANCE: 'Financial Strength',
+  avgDailyBalance3m: 'Financial Strength',
+  avgMonthlyTransactions3m: 'Financial Strength',
+  avgMonthlySettlements3m: 'Financial Strength',
+  monthlyTransactions3m: 'Financial Strength',
+  inwardChequeReturns3m: 'Financial Strength',
+  avgDailySettlements3m: 'Financial Strength',
+  noOfTxns60days: 'Financial Strength',
+  txnMth1: 'Financial Strength',
+  txnMth2: 'Financial Strength',
+  txnMth3: 'Financial Strength',
   OBLIGATION_RATIO: 'Financial Strength',
   EMI_OBLIGATION: 'Financial Strength',
   EBITDA_PROXY: 'Financial Strength',
@@ -41,6 +59,13 @@ const CATEGORY_BY_PARAMETER: Record<string, string> = {
   KYC_PASS: 'Borrower Profile',
   BUSINESS_VINTAGE_MONTHS: 'Borrower Profile',
   INDUSTRY_RISK: 'Borrower Profile',
+  residenceOwned: 'Borrower Profile',
+  residenceStability: 'Borrower Profile',
+  businessStability: 'Borrower Profile',
+  existingLoanTrackRecordAll: 'Borrower Profile',
+  existingLoanTrackRecord15d: 'Borrower Profile',
+  qrTxnEDI: 'Borrower Profile',
+  eligibleOnePointFiveX: 'Borrower Profile',
   PROPERTY_VALUE: 'Transaction Risk',
   LTV: 'Transaction Risk',
   REQUESTED_AMOUNT: 'Transaction Risk',
@@ -57,7 +82,37 @@ const CATEGORY_ORDER = [
 
 function categoryForParameter(parameter: string | undefined): string {
   if (!parameter) return 'Other'
-  return CATEGORY_BY_PARAMETER[parameter.toUpperCase()] ?? 'Other'
+  return CATEGORY_BY_PARAMETER[parameter] ?? CATEGORY_BY_PARAMETER[parameter.toUpperCase()] ?? 'Other'
+}
+
+function rowStatus(row: ScorecardParameterRow): {
+  status: 'pass' | 'fail' | 'missing' | 'no_match'
+  statusLabel: string
+} {
+  const missing = (row.valueUsed == null || row.valueUsed === '') && row.matched === false
+  if (missing) {
+    return { status: 'missing', statusLabel: 'Missing input' }
+  }
+  if (row.matched) {
+    return { status: 'pass', statusLabel: 'Passed' }
+  }
+  if (row.valueUsed != null && row.valueUsed !== '') {
+    return { status: 'fail', statusLabel: 'Did not meet condition' }
+  }
+  return { status: 'no_match', statusLabel: 'No match' }
+}
+
+function scoringImpact(row: ScorecardParameterRow): string {
+  const earned = row.pointsEarned ?? 0
+  const max = row.maxScore ?? 0
+  if (max <= 0) return 'No points configured'
+  if (row.matched) {
+    return `Earned ${earned} of ${max} points`
+  }
+  if ((row.valueUsed == null || row.valueUsed === '') && row.matched === false) {
+    return `0 of ${max} points — input required`
+  }
+  return `Earned ${earned} of ${max} points — condition not met`
 }
 
 function rowDisplayScore(row: ScorecardParameterRow): number {
@@ -80,10 +135,12 @@ function criterionLabel(row: ScorecardParameterRow): string {
 
 function criterionDescription(row: ScorecardParameterRow): string {
   const help = helpForParameter(row.parameter)
+  const impact = scoringImpact(row)
   if (help.sources.length > 0) {
-    return help.sources[0]
+    return `${help.sources[0]} · ${impact}`
   }
-  return row.source ? `Sourced via ${row.source.replace(/_/g, ' ')}` : '—'
+  const base = row.source ? `Sourced via ${row.source.replace(/_/g, ' ')}` : '—'
+  return `${base} · ${impact}`
 }
 
 /** Groups scorecard parameter rows into LOS-style categories for underwriting summary display. */
@@ -96,11 +153,18 @@ export function buildScorecardCategoryGroups(
   for (const row of parameterResults) {
     const category = categoryForParameter(row.parameter)
     const list = buckets.get(category) ?? []
+    const statusInfo = rowStatus(row)
     list.push({
       criterion: criterionLabel(row),
       description: criterionDescription(row),
       weightPercent: row.weight ?? 0,
       score: rowDisplayScore(row),
+      status: statusInfo.status,
+      statusLabel: statusInfo.statusLabel,
+      valueUsed: row.valueUsed ?? '—',
+      valueSource: row.valueSource ?? '—',
+      pointsEarned: row.pointsEarned ?? null,
+      maxScore: row.maxScore ?? null,
       row,
     })
     buckets.set(category, list)

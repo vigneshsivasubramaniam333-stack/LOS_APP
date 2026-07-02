@@ -101,6 +101,21 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
 
     @Override
     @Transactional
+    public ApplicationResponse applyScorecardInputs(UUID applicationId, ManualCreditInputsRequest request, UUID performedBy) {
+        LoanApplication app = findApplicationOrThrow(applicationId);
+        if (request != null) {
+            creditControlService.mergeScorecardInputsOnly(app, request);
+        }
+        app = applicationRepository.save(app);
+        auditService.logEvent(applicationId, "CREDIT_CONTROL", "SCORECARD_INPUTS",
+                performedBy, null,
+                Map.of("saved", true),
+                "Scorecard underwriting inputs merged under financialInfo.creditControl");
+        return enrich(toResponse(app), app);
+    }
+
+    @Override
+    @Transactional
     public ApplicationResponse createApplication(CreateApplicationRequest request, UUID actingUserId, String actingUserRole) {
         AnchorIntakeValidation.validateCreate(request);
         AnchorIntakeValidation.rejectBorrowerSelfServiceAnchor(request);

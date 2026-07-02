@@ -16,6 +16,7 @@ import { documentSlotsForBorrowerType } from '@/lib/intake/intakeDocumentSlots'
 import type { BorrowerType } from '@/types/createApplication'
 
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/i
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i
 
 export function defaultWorkflowDrivenIntakeConfig(): WorkflowIntakeConfig {
   return {
@@ -191,6 +192,15 @@ export function validateWorkflowKycStep(
     }
     if (meta.fieldKey === 'aadhaar' && value.length !== 4 && value.length !== 12) {
       return 'Enter the last 4 digits of Aadhaar, or the full 12-digit number.'
+    }
+    if (stepName === 'BANK_PENNY_DROP') {
+      const acct = form.bankAccountNumber.replace(/\D/g, '')
+      if (acct.length < 5) {
+        return 'Enter a valid bank account number (at least 5 digits).'
+      }
+      if (!IFSC_RE.test(form.ifscCode.trim())) {
+        return 'Enter a valid 11-character IFSC (e.g. HDFC0XXXXXX).'
+      }
     }
   }
 

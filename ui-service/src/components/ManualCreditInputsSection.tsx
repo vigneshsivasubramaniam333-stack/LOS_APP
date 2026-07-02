@@ -2,10 +2,6 @@ import { useState, type ReactNode } from 'react'
 import { saveManualCreditInputs, type ManualCreditInputsPayload } from '@/api/applications'
 import { uploadDocument } from '@/api/documents'
 import { ErrorState } from '@/components/ErrorState'
-import {
-  buildScorecardMetricsPayload,
-  ScorecardMetricsManualSection,
-} from '@/components/scorecard/ScorecardMetricsManualSection'
 import { messageForKycAction } from '@/api/kycErrorMessage'
 import { providerSnapshotForManualForm } from '@/lib/manualCreditDisplay'
 import { getVisibleUnderwritingFields } from '@/lib/credit/underwritingFieldVisibility'
@@ -166,8 +162,6 @@ export function ManualCreditInputsSection({
   )
   const [incomeSource, setIncomeSource] = useState((ds?.incomeSource as string) || 'PROVIDER')
   const [kycSource, setKycSource] = useState((ds?.kycSource as string) || 'PROVIDER')
-  const [scorecardMetricValues, setScorecardMetricValues] = useState<Record<string, string>>({})
-  const [customScorecardMetrics, setCustomScorecardMetrics] = useState<Record<string, string>>({})
 
   const supRaw = manual?.supportingDocumentIds as { value?: unknown } | undefined
   const [supportingDocumentIds, setSupportingDocumentIds] = useState<string[]>(
@@ -219,7 +213,6 @@ export function ManualCreditInputsSection({
       manualBureauRemarks: manualBureauRemarks.trim() || undefined,
       manualKycOutcome: manualKycOutcome.trim() || undefined,
       supportingDocumentIds: supportingDocumentIds.length ? supportingDocumentIds : undefined,
-      ...buildScorecardMetricsPayload(scorecardMetricValues, customScorecardMetrics),
     }
     const n = Number.parseInt(manualBureauScore, 10)
     if (manualBureauScore.trim() && !Number.isNaN(n) && n > 0) {
@@ -659,27 +652,6 @@ export function ManualCreditInputsSection({
         ) : (
           <p className="text-xs text-slate-500">No document IDs linked yet. Upload, then press Save below.</p>
         )}
-      </Card>
-
-      <Card
-        title="H. Scorecard underwriting metrics"
-        subtitle="Bank statement, GST, and other manual fields referenced by underwriting scorecards."
-      >
-        <ScorecardMetricsManualSection
-          manual={manual as Record<string, unknown> | undefined}
-          values={scorecardMetricValues}
-          onChange={(key, value) => setScorecardMetricValues((prev) => ({ ...prev, [key]: value }))}
-          customMetrics={customScorecardMetrics}
-          onCustomChange={(key, value) => setCustomScorecardMetrics((prev) => ({ ...prev, [key]: value }))}
-          onAddCustom={(key) => setCustomScorecardMetrics((prev) => ({ ...prev, [key]: '' }))}
-          onRemoveCustom={(key) =>
-            setCustomScorecardMetrics((prev) => {
-              const next = { ...prev }
-              delete next[key]
-              return next
-            })
-          }
-        />
       </Card>
 
       <div className="flex flex-wrap items-center gap-3">

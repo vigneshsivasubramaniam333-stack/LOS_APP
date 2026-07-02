@@ -1008,6 +1008,8 @@ export function BorrowerIntakeWizard() {
               My mobile is suitable for e-KYC / Aadhaar-linked verification where required.
             </label>
             ) : null}
+            {shouldShowKycIntakeField(selectedWorkflow, 'BANK_PENNY_DROP', true) ? (
+            <>
             <label className="block text-sm text-slate-700 sm:col-span-2">
               <span className="mb-1 block text-xs font-medium text-slate-500">Account number *</span>
               <input
@@ -1049,6 +1051,8 @@ export function BorrowerIntakeWizard() {
               />
               {form.documentUploaded.BANK_STATEMENT ? <span className="text-xs text-emerald-800">Received</span> : null}
             </div>
+            </>
+            ) : null}
             <div className="sm:col-span-2">
               <span className="text-sm font-medium text-slate-800">Latest salary slip (optional)</span>
               <input

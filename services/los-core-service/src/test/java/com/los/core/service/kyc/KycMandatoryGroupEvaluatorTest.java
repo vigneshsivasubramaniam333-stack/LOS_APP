@@ -48,17 +48,29 @@ class KycMandatoryGroupEvaluatorTest {
     }
 
     @Test
-    void shouldSkipForMissingPayloadWhenStepIsInAnyGroup() {
-        Map<String, Object> intakeConfig = Map.of(
-                "mandatoryFieldGroups", List.of(Map.of(
-                        "logic", "ANY",
-                        "steps", List.of("DL_VERIFY", "VOTER_ID_VERIFY"))));
+    void mandatoryVideoKycDoesNotFailIdentityKycWhenPanAndVoterSucceed() {
+        List<Map<String, Object>> steps = List.of(
+                Map.of("step", "PAN_VERIFY", "mandatory", true),
+                Map.of("step", "VOTER_ID_VERIFY", "mandatory", true),
+                Map.of("step", "VIDEO_KYC", "mandatory", true));
 
-        assertThat(KycMandatoryGroupEvaluator.shouldSkipForMissingPayload(
-                "DL_VERIFY", intakeConfig, Map.of("epicNo", "ABC1234567"))).isTrue();
-        assertThat(KycMandatoryGroupEvaluator.shouldSkipForMissingPayload(
-                "VOTER_ID_VERIFY", intakeConfig, Map.of("epicNo", "ABC1234567"))).isFalse();
-        assertThat(KycMandatoryGroupEvaluator.shouldSkipForMissingPayload(
-                "PAN_VERIFY", intakeConfig, Map.of())).isFalse();
+        Map<String, StepOutcome> outcomes = Map.of(
+                "PAN_VERIFY", StepOutcome.SUCCESS,
+                "VOTER_ID_VERIFY", StepOutcome.SUCCESS);
+
+        assertThat(KycMandatoryGroupEvaluator.hasMandatoryFailure(outcomes, steps, Map.of())).isFalse();
+    }
+
+    @Test
+    void vkycAliasIsExcludedFromMandatoryIdentityFailure() {
+        List<Map<String, Object>> steps = List.of(
+                Map.of("step", "PAN_VERIFY", "mandatory", true),
+                Map.of("step", "VKYC", "mandatory", true));
+
+        Map<String, StepOutcome> outcomes = Map.of("PAN_VERIFY", StepOutcome.SUCCESS);
+
+        assertThat(KycMandatoryGroupEvaluator.hasMandatoryFailure(outcomes, steps, Map.of())).isFalse();
+        assertThat(KycIdentityWorkflow.isKycIdentitySubStepName("VKYC")).isFalse();
+        assertThat(KycIdentityWorkflow.isKycIdentitySubStepName("VIDEO_KYC")).isFalse();
     }
 }

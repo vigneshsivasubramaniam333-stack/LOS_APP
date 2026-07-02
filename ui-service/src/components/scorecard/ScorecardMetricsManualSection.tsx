@@ -90,7 +90,11 @@ export function ScorecardMetricsManualSection({
             {g.params.map((p) => {
               const key = p.manualKey ?? p.value
               return (
-                <label key={`${g.source}-${p.value}`} className="block text-xs text-slate-600">
+                <label
+                  key={`${g.source}-${p.value}`}
+                  id={`manual-credit-metric-${key}`}
+                  className="block scroll-mt-28 text-xs text-slate-600"
+                >
                   {p.label}
                   <FieldInput param={p} value={values[key] ?? readManualValue(manual, key)} onChange={(v) => onChange(key, v)} />
                 </label>

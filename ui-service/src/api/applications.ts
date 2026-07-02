@@ -129,9 +129,16 @@ export async function saveManualCreditInputs(
   applicationId: string,
   payload: ManualCreditInputsPayload,
 ): Promise<ApplicationResponse> {
-  const { data } = await http.post<ApplicationResponse>(`/applications/${applicationId}/manual-credit-inputs`, payload, {
-    headers: { 'X-User-Role': 'CREDIT_MANAGER' },
-  })
+  const { data } = await http.post<ApplicationResponse>(`/applications/${applicationId}/manual-credit-inputs`, payload)
+  return data
+}
+
+/** Scorecard OTHER/GST fields — available to operations and underwriting staff (not only credit managers). */
+export async function saveScorecardInputs(
+  applicationId: string,
+  payload: ManualCreditInputsPayload,
+): Promise<ApplicationResponse> {
+  const { data } = await http.post<ApplicationResponse>(`/applications/${applicationId}/scorecard-inputs`, payload)
   return data
 }
 

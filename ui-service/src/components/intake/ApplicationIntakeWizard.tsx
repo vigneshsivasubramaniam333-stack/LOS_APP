@@ -1104,6 +1104,44 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
               />
             </label>
             ) : null}
+            {shouldShowKycIntakeField(selectedWorkflow, 'BANK_PENNY_DROP', false) ? (
+              <>
+                <label className="block text-sm text-slate-700 sm:col-span-2">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">Account number *</span>
+                  <input
+                    className="bt-input w-full font-mono"
+                    value={form.bankAccountNumber}
+                    onChange={(e) => {
+                      clearFieldError('bankAccountNumber')
+                      setForm((f) => ({ ...f, bankAccountNumber: e.target.value }))
+                    }}
+                    inputMode="numeric"
+                  />
+                  <IntakeFieldError message={fieldErrors.bankAccountNumber} />
+                </label>
+                <label className="block text-sm text-slate-700">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">IFSC *</span>
+                  <input
+                    className="bt-input w-full font-mono uppercase"
+                    value={form.ifscCode}
+                    onChange={(e) => {
+                      clearFieldError('ifscCode')
+                      setForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))
+                    }}
+                    maxLength={11}
+                  />
+                  <IntakeFieldError message={fieldErrors.ifscCode} />
+                </label>
+                <label className="block text-sm text-slate-700">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">Bank name</span>
+                  <input
+                    className="bt-input w-full"
+                    value={form.bankName}
+                    onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
+                  />
+                </label>
+              </>
+            ) : null}
             {shouldShowKycIntakeField(selectedWorkflow, 'AADHAAR_OTP', true) ? (
             <label className="flex items-center gap-2 text-sm text-slate-800 sm:col-span-2">
               <input

@@ -88,6 +88,9 @@ public final class KycMandatoryGroupEvaluator {
             boolean anySuccess = false;
             boolean anyMandatory = false;
             for (String member : group.steps()) {
+                if (!KycIdentityWorkflow.isKycIdentitySubStepName(member)) {
+                    continue;
+                }
                 Boolean mandatory = mandatoryForStep(workflowSteps, member);
                 if (mandatory == null || !mandatory) {
                     continue;
@@ -111,6 +114,9 @@ public final class KycMandatoryGroupEvaluator {
         for (Map<String, Object> step : workflowSteps) {
             String stepName = stringValue(step.get("step")).toUpperCase();
             if (stepName.isBlank()) {
+                continue;
+            }
+            if (!KycIdentityWorkflow.isKycIdentitySubStepName(stepName)) {
                 continue;
             }
             if (!boolValue(step.getOrDefault("mandatory", true))) {
@@ -152,6 +158,9 @@ public final class KycMandatoryGroupEvaluator {
             boolean anySuccess = false;
             boolean allFailedOrMissing = true;
             for (String member : group.steps()) {
+                if (!KycIdentityWorkflow.isKycIdentitySubStepName(member)) {
+                    continue;
+                }
                 Boolean mandatory = mandatoryForStep(workflowSteps, member);
                 if (mandatory == null || !mandatory) {
                     continue;

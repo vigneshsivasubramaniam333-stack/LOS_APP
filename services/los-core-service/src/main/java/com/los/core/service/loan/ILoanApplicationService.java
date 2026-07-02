@@ -36,5 +36,7 @@ public interface ILoanApplicationService {
 
     ApplicationResponse applyManualCreditInputs(UUID applicationId, ManualCreditInputsRequest request, UUID performedBy);
 
+    ApplicationResponse applyScorecardInputs(UUID applicationId, ManualCreditInputsRequest request, UUID performedBy);
+
     Map<String, Object> getDashboardSummary();
 }
