@@ -1,5 +1,6 @@
 package com.los.core.service.integration;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +12,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.service.credit.CreditControlService;
+import com.los.lms.service.LmsApplicationConfigResolver;
 import jakarta.annotation.PostConstruct;
 import lombok.Builder;
 import lombok.Getter;
@@ -53,6 +55,7 @@ public class AiLosIntegrationService {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final CreditControlService creditControlService;
+    private final LmsApplicationConfigResolver lmsApplicationConfigResolver;
 
     private RestTemplate restTemplate;
 
@@ -96,14 +99,16 @@ public class AiLosIntegrationService {
         String employmentType = normalizeEmploymentType(originalEmploymentType);
         log.info("AI LOS employment type mapped: original={}, final={}",
                 originalEmploymentType, employmentType);
-        Integer tenureMonths = app.getTenureMonths() != null ? app.getTenureMonths() : 0;
+        Integer tenureMagnitude = app.getTenureMonths() != null ? app.getTenureMonths() : 0;
+        int tenureValue = tenureMagnitude > 0 ? tenureMagnitude : 12;
+        boolean dayTenure = "day".equalsIgnoreCase(lmsApplicationConfigResolver.resolveTenureUnit(app));
         BigDecimal propertyValue = resolvePropertyValue(app, effective);
         String purpose = firstNonBlank(
                 asString(app.getPersonalInfo(), "purpose"),
                 asString(app.getBusinessInfo(), "loanPurpose"),
                 "");
 
-        AiLosIngestRequest payload = AiLosIngestRequest.builder()
+        AiLosIngestRequest.AiLosIngestRequestBuilder payloadBuilder = AiLosIngestRequest.builder()
                 .loanId(loanRef)
                 .borrowerName(borrowerName.isBlank() ? "Borrower" : borrowerName)
                 .loanAmount(loanAmount.compareTo(BigDecimal.ZERO) > 0 ? loanAmount : BigDecimal.valueOf(100000))
@@ -111,12 +116,16 @@ public class AiLosIntegrationService {
                 .creditScore(creditScore > 0 ? creditScore : 650)
                 .annualIncome(annualIncome.compareTo(BigDecimal.ZERO) > 0 ? annualIncome : BigDecimal.valueOf(240000))
                 .employmentType(employmentType)
-                .loanTenureMonths(tenureMonths > 0 ? tenureMonths : 12)
                 .existingEmi(existingEmi != null && existingEmi > 0 ? existingEmi : 15000)
                 .propertyValue(propertyValue.compareTo(BigDecimal.ZERO) > 0 ? propertyValue : BigDecimal.valueOf(100000))
                 .sourceLos(integrationProperties.getAiLos().getSourceLos())
-                .sourceLoanRef(loanRef)
-                .build();
+                .sourceLoanRef(loanRef);
+        if (dayTenure) {
+            payloadBuilder.loanTenureDays(tenureValue);
+        } else {
+            payloadBuilder.loanTenureMonths(tenureValue);
+        }
+        AiLosIngestRequest payload = payloadBuilder.build();
 
         auditService.logEvent(
                 applicationId,
@@ -601,6 +610,7 @@ public class AiLosIntegrationService {
 
     @Getter
     @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private static class AiLosIngestRequest {
         @JsonProperty("loan_id")
         private String loanId;
@@ -618,6 +628,8 @@ public class AiLosIntegrationService {
         private String employmentType;
         @JsonProperty("loan_tenure_months")
         private Integer loanTenureMonths;
+        @JsonProperty("loan_tenure_days")
+        private Integer loanTenureDays;
         @JsonProperty("existing_emi")
         private Integer existingEmi;
         @JsonProperty("property_value")
