@@ -63,7 +63,8 @@ public class KfsPdfGenerationService {
      * and EDI schedule resolution — omitted from standard (non-EDI) OpenPDF section 7 to keep KFS at 2 pages.
      */
     private static final Set<String> STANDARD_KFS_PDF_SUPPRESSED_TERM_KEYS = Set.of(
-            "encorePreOpenSummaryJson");
+            "encorePreOpenSummaryJson",
+            "encoreRepaymentScheduleJson");
 
     /**
      * Generate a KFS PDF document from a KfsDocument entity.

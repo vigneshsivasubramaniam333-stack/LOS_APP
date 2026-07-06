@@ -146,6 +146,7 @@ class KfsPdfGenerationServiceEdiRoutingTest {
                 .otherCharges(BigDecimal.ZERO)
                 .additionalTerms(java.util.Map.of(
                         "encorePreOpenSummaryJson", "{\"summaryList\":[{\"amount\":\"99999\"}]}",
+                        "encoreRepaymentScheduleJson", "[{\"installment\":1,\"amount\":\"1000\"}]",
                         "kfsSource", "ENCORE_PRE_OPEN"))
                 .status("GENERATED")
                 .build();
@@ -157,6 +158,7 @@ class KfsPdfGenerationServiceEdiRoutingTest {
 
         verify(ediKfsDocxPdfService, never()).generatePdf(any(), any());
         assertThat(new String(pdf)).doesNotContain("encorePreOpenSummaryJson");
+        assertThat(new String(pdf)).doesNotContain("encoreRepaymentScheduleJson");
         assertThat(new String(pdf)).doesNotContain("summaryList");
         assertThat(new String(pdf)).contains("kfsSource");
     }
