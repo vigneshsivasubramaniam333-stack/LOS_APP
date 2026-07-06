@@ -117,4 +117,47 @@ class KfsPdfGenerationServiceEdiRoutingTest {
         verify(ediKfsDocxPdfService, never()).generatePdf(any(), any());
         assertThat(pdf.length).isGreaterThan(100);
     }
+
+    @Test
+    void generateKfsPdf_openPdfOmitsEncorePreOpenSummaryJsonFromAdditionalTerms() throws Exception {
+        UUID appId = UUID.randomUUID();
+        LoanApplication app = LoanApplication.builder()
+                .id(appId)
+                .applicationNumber("EMI-2")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("Personal")
+                .lmsTenureUnit("Month")
+                .build();
+        KfsDocument kfs = KfsDocument.builder()
+                .applicationId(appId)
+                .version("v1")
+                .sanctionedAmount(new BigDecimal("50000"))
+                .interestRate(new BigDecimal("18"))
+                .apr(new BigDecimal("20"))
+                .tenureMonths(12)
+                .emiAmount(new BigDecimal("4500"))
+                .totalInterest(new BigDecimal("4000"))
+                .totalRepayment(new BigDecimal("54000"))
+                .totalCostOfCredit(new BigDecimal("4000"))
+                .processingFee(BigDecimal.ZERO)
+                .stampDuty(BigDecimal.ZERO)
+                .insurancePremium(BigDecimal.ZERO)
+                .otherCharges(BigDecimal.ZERO)
+                .additionalTerms(java.util.Map.of(
+                        "encorePreOpenSummaryJson", "{\"summaryList\":[{\"amount\":\"99999\"}]}",
+                        "kfsSource", "ENCORE_PRE_OPEN"))
+                .status("GENERATED")
+                .build();
+
+        when(applicationRepository.findById(appId)).thenReturn(Optional.of(app));
+        when(ediKfsDocxPdfService.shouldUseEdiTemplate(app)).thenReturn(false);
+
+        byte[] pdf = kfsPdfGenerationService.generateKfsPdf(kfs);
+
+        verify(ediKfsDocxPdfService, never()).generatePdf(any(), any());
+        assertThat(new String(pdf)).doesNotContain("encorePreOpenSummaryJson");
+        assertThat(new String(pdf)).doesNotContain("summaryList");
+        assertThat(new String(pdf)).contains("kfsSource");
+    }
 }

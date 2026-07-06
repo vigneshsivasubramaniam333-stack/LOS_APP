@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -56,6 +57,13 @@ public class KfsPdfGenerationService {
     private static final Font VALUE_FONT = new Font(Font.HELVETICA, 10, Font.NORMAL);
     private static final Font SMALL_FONT = new Font(Font.HELVETICA, 8, Font.ITALIC, Color.GRAY);
     private static final Font DISCLAIMER_FONT = new Font(Font.HELVETICA, 9, Font.NORMAL, new Color(100, 100, 100));
+
+    /**
+     * Internal LMS JSON blobs stored on {@link KfsDocument#getAdditionalTerms()} for reconciliation
+     * and EDI schedule resolution — omitted from standard (non-EDI) OpenPDF section 7 to keep KFS at 2 pages.
+     */
+    private static final Set<String> STANDARD_KFS_PDF_SUPPRESSED_TERM_KEYS = Set.of(
+            "encorePreOpenSummaryJson");
 
     /**
      * Generate a KFS PDF document from a KfsDocument entity.
@@ -470,19 +478,32 @@ public class KfsPdfGenerationService {
             StringBuilder sb = new StringBuilder();
             int i = 1;
             for (Map.Entry<String, Object> entry : terms.entrySet()) {
+                if (!includeInStandardKfsPdfAdditionalTerms(entry.getKey())) {
+                    continue;
+                }
                 sb.append(i++).append(". ").append(entry.getKey()).append(": ")
                         .append(entry.getValue()).append("\n");
             }
-            termsText = sb.toString();
+            termsText = sb.isEmpty()
+                    ? defaultAdditionalTermsText()
+                    : sb.toString();
         } else {
-            termsText = "1. The borrower confirms having read and understood all terms.\n" +
-                    "2. Interest rate is subject to reset as per lender's policy for floating rate loans.\n" +
-                    "3. Loan disbursement shall be directly to the borrower's bank account.\n" +
-                    "4. Borrower's personal data will be processed as per the lender's privacy policy.\n" +
-                    "5. This KFS is an integral part of the loan agreement.";
+            termsText = defaultAdditionalTermsText();
         }
 
         return new Paragraph(termsText, VALUE_FONT);
+    }
+
+    private static boolean includeInStandardKfsPdfAdditionalTerms(String key) {
+        return key != null && !STANDARD_KFS_PDF_SUPPRESSED_TERM_KEYS.contains(key);
+    }
+
+    private static String defaultAdditionalTermsText() {
+        return "1. The borrower confirms having read and understood all terms.\n" +
+                "2. Interest rate is subject to reset as per lender's policy for floating rate loans.\n" +
+                "3. Loan disbursement shall be directly to the borrower's bank account.\n" +
+                "4. Borrower's personal data will be processed as per the lender's privacy policy.\n" +
+                "5. This KFS is an integral part of the loan agreement.";
     }
 
     private Paragraph disclaimerParagraph() {
