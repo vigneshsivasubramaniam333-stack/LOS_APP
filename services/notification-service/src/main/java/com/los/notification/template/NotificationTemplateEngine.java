@@ -299,6 +299,10 @@ public class NotificationTemplateEngine {
                         </html>""";
                 default -> "eSign pending for {{applicationNumber}}.";
             };
+            case "SANCTION_ANCHOR" -> switch (channel) {
+                case "EMAIL" -> StyledWorkflowEmailTemplates.anchorSanctionApprovedEmail();
+                default -> "Anchor program {{applicationNumber}} sanctioned. Portal: {{anchorPortalUrl}}";
+            };
             case "VKYC_LINK", "VKYC_URL" -> switch (channel) {
                 case "SMS" -> "Dear {{borrowerName}}, complete your Video KYC for application {{applicationNumber}}. Link: {{vkycLink}}";
                 case "EMAIL" -> """
@@ -388,6 +392,7 @@ public class NotificationTemplateEngine {
             case "DISBURSEMENT_COMPLETED" -> "Loan Disbursed — {{applicationNumber}}";
             case "EMI_REMINDER" -> "EMI Payment Reminder — {{applicationNumber}}";
             case "ESIGN_PENDING", "ESIGN_LINK" -> "eSign Required — {{applicationNumber}}";
+            case "SANCTION_ANCHOR" -> "Anchor Program Sanction Approved — {{applicationNumber}}";
             case "VKYC_LINK", "VKYC_URL" -> "Video KYC Link — {{applicationNumber}}";
             default -> "LOS Notification — {{applicationNumber}}";
         };
@@ -445,6 +450,7 @@ public class NotificationTemplateEngine {
         String canonical = switch (normalized) {
             case "ESIGN", "ESIGN_REQUIRED", "ESIGN_EMAIL", "ESIGN_NOTIFICATION" -> "ESIGN_PENDING";
             case "VKYC", "VIDEO_KYC", "VKYC_EMAIL", "VKYC_NOTIFICATION" -> "VKYC_LINK";
+            case "SANCTION_APPROVED_ANCHOR", "SANCTION_APPROVED_ANCHOR_EMAIL" -> "SANCTION_ANCHOR";
             default -> normalized;
         };
         // Keep template selection resilient to producer-side variants and hidden separators.
