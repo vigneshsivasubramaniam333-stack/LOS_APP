@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * Renders notification message body from template code + data.
- * Templates are keyed by "{eventType}.{channel}" convention.
+ * Fully styled DB templates win; plain/minimal DB rows defer to built-in layouts for EMAIL.
  */
 @Component
 @Slf4j
@@ -60,13 +60,38 @@ public class NotificationTemplateEngine {
     }
 
     private String getTemplate(String templateCode, String channel) {
-        String dbTemplate = notificationTemplateRepository
-                .findByTemplateCodeAndChannelAndActiveTrue(templateCode, channel)
-                .map(NotificationTemplate::getBodyTemplate)
-                .orElse(null);
+        String dbTemplate = lookupDbBody(templateCode, channel);
+        if (dbTemplate != null && isFullyStyledTemplate(dbTemplate)) {
+            return dbTemplate;
+        }
+
+        String builtIn = getBuiltInTemplate(templateCode, channel);
+        if (builtIn != null && !isDefaultTemplate(builtIn)) {
+            if ("EMAIL".equals(channel)
+                    && (dbTemplate == null || dbTemplate.isBlank() || !isFullyStyledTemplate(dbTemplate))) {
+                return builtIn;
+            }
+        }
+
         if (dbTemplate != null && !dbTemplate.isBlank()) {
             return dbTemplate;
         }
+
+        return builtIn != null ? builtIn : defaultBodyTemplate();
+    }
+
+    private String lookupDbBody(String templateCode, String channel) {
+        return notificationTemplateRepository
+                .findByTemplateCodeAndChannelAndActiveTrue(templateCode, channel)
+                .map(NotificationTemplate::getBodyTemplate)
+                .orElse(null);
+    }
+
+    private static String defaultBodyTemplate() {
+        return "Notification for application {{applicationNumber}}: {{eventType}}";
+    }
+
+    private String getBuiltInTemplate(String templateCode, String channel) {
         return switch (templateCode) {
             case "APPLICATION_CREATED" -> switch (channel) {
                 case "SMS" -> "Dear {{borrowerName}}, your loan application {{applicationNumber}} has been submitted. Track status at our portal.";
@@ -368,8 +393,17 @@ public class NotificationTemplateEngine {
                         </html>""";
                 default -> "VKYC link for {{applicationNumber}}: {{vkycLink}}";
             };
-            default -> "Notification for application {{applicationNumber}}: {{eventType}}";
+            default -> defaultBodyTemplate();
         };
+    }
+
+    private static boolean isFullyStyledTemplate(String template) {
+        if (template == null || template.isBlank() || !looksLikeHtml(template)) {
+            return false;
+        }
+        String lower = template.toLowerCase(Locale.ROOT);
+        return lower.contains("role=\"presentation\"")
+                || (lower.contains("<table") && lower.contains("style="));
     }
 
     private String getSubjectTemplate(String templateCode) {
@@ -480,7 +514,7 @@ public class NotificationTemplateEngine {
     }
 
     private static boolean isDefaultTemplate(String template) {
-        return "Notification for application {{applicationNumber}}: {{eventType}}".equals(template);
+        return defaultBodyTemplate().equals(template);
     }
 
     private static String printableChars(String value) {
