@@ -1,4 +1,5 @@
 import { BORROWER_TYPE_ORDER } from '@/catalog/borrowerTypes'
+import { DEFAULT_LMS_PRODUCT_CODE, DEFAULT_LMS_TENURE_UNIT } from '@/catalog/lmsTenureUnits'
 import type { BorrowerType } from '@/types/createApplication'
 
 export type IntakeMode = 'BORROWER_SELF_SERVICE' | 'SALES_ASSISTED' | 'ADMIN_INTERNAL'
@@ -14,10 +15,18 @@ export interface IntakeFormState {
   loanProduct: string
   requestedAmount: string
   tenureMonths: string
+  /** Encore LMS product code (prefilled from active workflow). */
+  lmsProductCode: string
+  /** Encore tenure unit: Day, Month, Week. */
+  lmsTenureUnit: string
   /** Staff only: when loan product is invoice discounting, user must pick Borrower vs Anchor before continuing. */
   invoiceOnboardingChoice: '' | 'BORROWER' | 'ANCHOR'
   /** Invoice discounting borrower: selected PLP sub-program id */
   selectedSubProgramId: string
+  /** Invoice discounting borrower: declared dependency on anchor (%) */
+  dependencyVintagePercent: string
+  /** Invoice discounting borrower: declared anchor relationship vintage (months) */
+  anchorRelationshipVintageMonths: string
   purpose: string
   /** Sales-assisted only */
   salesOfficerName: string
@@ -46,6 +55,8 @@ export interface IntakeFormState {
   /** KYC */
   panNumber: string
   aadhaar: string
+  voterId: string
+  dlNumber: string
   mobileLinkedAadhaar: boolean
   cin: string
   /** Borrower self-service (extra; merged into personalInfo / financialInfo) */
@@ -90,6 +101,25 @@ export interface IntakeFormState {
   collateralGoldPurityKarat: string
   collateralGoldEstimatedValue: string
   collateralGoldOrnamentDescription: string
+  /** Vehicle collateral */
+  collateralVehicleType: '' | 'TWO_WHEELER' | 'FOUR_WHEELER' | 'COMMERCIAL'
+  collateralVehicleMakeModel: string
+  collateralVehicleYear: string
+  collateralVehicleRegistrationNumber: string
+  collateralVehicleEstimatedMarketValue: string
+  collateralVehicleExistingLoan: '' | 'yes' | 'no'
+  /** Fixed deposit collateral */
+  collateralFdBankName: string
+  collateralFdAccountNumber: string
+  collateralFdAmount: string
+  collateralFdMaturityDate: string
+  collateralFdReceiptNumber: string
+  /** Machinery collateral */
+  collateralMachineryTypeDescription: string
+  collateralMachineryMakeModel: string
+  collateralMachineryYearOfPurchase: string
+  collateralMachineryEstimatedValue: string
+  collateralMachineryLocationAddress: string
 }
 
 export function createEmptyIntakeFormState(): IntakeFormState {
@@ -98,8 +128,12 @@ export function createEmptyIntakeFormState(): IntakeFormState {
     loanProduct: '',
     requestedAmount: '',
     tenureMonths: '',
+    lmsProductCode: DEFAULT_LMS_PRODUCT_CODE,
+    lmsTenureUnit: DEFAULT_LMS_TENURE_UNIT,
     invoiceOnboardingChoice: '',
     selectedSubProgramId: '',
+    dependencyVintagePercent: '',
+    anchorRelationshipVintageMonths: '',
     purpose: '',
     salesOfficerName: '',
     salesOfficerId: '',
@@ -124,6 +158,8 @@ export function createEmptyIntakeFormState(): IntakeFormState {
     businessPincode: '',
     panNumber: '',
     aadhaar: '',
+    voterId: '',
+    dlNumber: '',
     mobileLinkedAadhaar: false,
     cin: '',
     hasExistingLoans: '',
@@ -164,5 +200,21 @@ export function createEmptyIntakeFormState(): IntakeFormState {
     collateralGoldPurityKarat: '',
     collateralGoldEstimatedValue: '',
     collateralGoldOrnamentDescription: '',
+    collateralVehicleType: '',
+    collateralVehicleMakeModel: '',
+    collateralVehicleYear: '',
+    collateralVehicleRegistrationNumber: '',
+    collateralVehicleEstimatedMarketValue: '',
+    collateralVehicleExistingLoan: '',
+    collateralFdBankName: '',
+    collateralFdAccountNumber: '',
+    collateralFdAmount: '',
+    collateralFdMaturityDate: '',
+    collateralFdReceiptNumber: '',
+    collateralMachineryTypeDescription: '',
+    collateralMachineryMakeModel: '',
+    collateralMachineryYearOfPurchase: '',
+    collateralMachineryEstimatedValue: '',
+    collateralMachineryLocationAddress: '',
   }
 }

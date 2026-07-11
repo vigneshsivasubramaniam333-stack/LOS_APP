@@ -7,6 +7,7 @@ import com.los.plp.model.entity.AnchorMaster;
 import com.los.plp.model.entity.ProgramMaster;
 import com.los.plp.model.entity.SubProgramMaster;
 import com.los.plp.model.enums.PlpSyncStatus;
+import com.los.plp.model.enums.ProgramApprovalStatus;
 import com.los.plp.repository.AnchorMasterRepository;
 import com.los.plp.repository.ProgramMasterRepository;
 import com.los.plp.repository.SubProgramMasterRepository;
@@ -29,6 +30,7 @@ public class PlpProgramSetupService {
     private final PlpProgramSyncService plpProgramSyncService;
     private final PlpSubProgramSyncService plpSubProgramSyncService;
     private final PlpProperties plpProperties;
+    private final ProgramApprovalService programApprovalService;
 
     @Transactional
     public PlpProgramSetupResponse createProgramForAnchor(CreatePlpProgramRequest request) {
@@ -68,9 +70,12 @@ public class PlpProgramSetupService {
                 .validityEndDate(request.getValidityEndDate())
                 .lmsEntryIn(lmsEntry)
                 .encoreProductCode("YES".equals(lmsEntry) ? trimToNull(request.getEncoreProductCode()) : null)
+                .dependencyVintagePercent(request.getDependencyVintagePercent())
+                .anchorRelationshipVintageMonths(request.getAnchorRelationshipVintageMonths())
                 .plpLenderId(parseLenderId())
                 .plpProgramSyncStatus(PlpSyncStatus.NOT_SYNCED)
                 .build();
+        programApprovalService.initDraftFromPlp(program);
         program = programMasterRepository.save(program);
 
         String subName = request.getSubProgramName() != null && !request.getSubProgramName().isBlank()
@@ -168,6 +173,12 @@ public class PlpProgramSetupService {
                 .plpSubProgramId(subProgram.getPlpSubProgramId())
                 .programSyncedAt(program.getPlpProgramSyncedAt())
                 .subProgramSyncedAt(subProgram.getPlpSubProgramSyncedAt())
+                .approvalStatus(program.getApprovalStatus())
+                .approvalNotes(program.getApprovalNotes())
+                .assignedL1UserId(program.getAssignedL1UserId())
+                .assignedL2UserId(program.getAssignedL2UserId())
+                .dependencyVintagePercent(program.getDependencyVintagePercent())
+                .anchorRelationshipVintageMonths(program.getAnchorRelationshipVintageMonths())
                 .build();
     }
 
@@ -202,12 +213,16 @@ public class PlpProgramSetupService {
                 if ("SALES_BILL_DISCOUNTING".equals(flow)) {
                     return new SubProgramRoles(flow, "BUYER", "SELLER");
                 }
+                if ("PURCHASE_ORDER_DISCOUNTING".equals(flow)) {
+                    return new SubProgramRoles(flow, "BUYER", "SELLER");
+                }
                 if ("PURCHASE_BILL_DISCOUNTING".equals(flow)) {
                     return new SubProgramRoles(flow, "SELLER", "BUYER");
                 }
                 throw new IllegalArgumentException(
                         "Unsupported flowType for invoice discounting: " + flowType
-                                + ". Use PURCHASE_BILL_DISCOUNTING or SALES_BILL_DISCOUNTING");
+                                + ". Use PURCHASE_BILL_DISCOUNTING, SALES_BILL_DISCOUNTING, or "
+                                + "PURCHASE_ORDER_DISCOUNTING");
             case "PAY_DAY_LOAN":
                 return new SubProgramRoles("PAY_LOAN", "EMPLOYER", "EMPLOYEE");
             default:

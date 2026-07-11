@@ -21,6 +21,8 @@ export interface PlpProgramSummary {
   flowType?: string | null
   lmsEntryIn?: string | null
   encoreProductCode?: string | null
+  dependencyVintagePercent?: number | null
+  anchorRelationshipVintageMonths?: number | null
 }
 
 export interface PlpProgramSetupResponse {
@@ -43,7 +45,20 @@ export interface PlpProgramSetupResponse {
   plpSubProgramId: string | null
   programSyncedAt: string | null
   subProgramSyncedAt: string | null
+  approvalStatus?: ProgramApprovalStatus | null
+  approvalNotes?: string | null
+  assignedL1UserId?: string | null
+  assignedL2UserId?: string | null
+  dependencyVintagePercent?: number | null
+  anchorRelationshipVintageMonths?: number | null
 }
+
+export type ProgramApprovalStatus =
+  | 'DRAFT'
+  | 'PENDING_L2'
+  | 'SENT_BACK'
+  | 'APPROVED'
+  | 'REJECTED'
 
 export interface CreatePlpProgramRequest {
   anchorId: string
@@ -61,6 +76,8 @@ export interface CreatePlpProgramRequest {
   flowType?: string
   lmsEntryIn?: string
   encoreProductCode?: string
+  dependencyVintagePercent?: number
+  anchorRelationshipVintageMonths?: number
 }
 
 export interface PlpLinkedSubProgramSummary {
@@ -77,6 +94,19 @@ export interface PlpLinkedSubProgramSummary {
   subProgramSyncStatus: PlpSyncStatus
   plpProgramId: string | null
   plpSubProgramId: string | null
+  dependencyVintagePercent?: number | null
+  anchorRelationshipVintageMonths?: number | null
+}
+
+export interface VintageEligibility {
+  borrowerDependencyVintagePercent: number | null
+  borrowerAnchorRelationshipVintageMonths: number | null
+  programDependencyVintagePercent: number | null
+  programAnchorRelationshipVintageMonths: number | null
+  dependencyVintageStatus: 'ELIGIBLE' | 'LOWER' | 'NOT_CONFIGURED' | string
+  dependencyVintageMessage: string | null
+  anchorVintageStatus: 'ELIGIBLE' | 'LOWER' | 'NOT_CONFIGURED' | string
+  anchorVintageMessage: string | null
 }
 
 export interface PlpProgramDetail {

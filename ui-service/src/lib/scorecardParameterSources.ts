@@ -67,6 +67,22 @@ export const SCORECARD_PARAMETER_SOURCE_HELP: Record<
     label: 'Business vintage (months)',
     sources: ['Business proof / GST', 'Manual businessVintageMonths'],
   },
+  DEPENDENCY_VINTAGE_PERCENT: {
+    label: 'Dependency vintage (%)',
+    sources: ['Invoice discounting borrower intake', 'Program inputs scorecard source'],
+  },
+  ANCHOR_RELATIONSHIP_VINTAGE_MONTHS: {
+    label: 'Anchor relationship vintage (months)',
+    sources: ['Invoice discounting borrower intake', 'Program inputs scorecard source'],
+  },
+  PROGRAM_DEPENDENCY_VINTAGE_PERCENT: {
+    label: 'Program min dependency vintage (%)',
+    sources: ['PLP / LOS program configuration'],
+  },
+  PROGRAM_ANCHOR_RELATIONSHIP_VINTAGE_MONTHS: {
+    label: 'Program min anchor vintage (months)',
+    sources: ['PLP / LOS program configuration'],
+  },
   INDUSTRY_RISK: {
     label: 'Industry risk band',
     sources: ['Credit note / policy', 'Manual industryRisk (LOW / MED / HIGH)'],
@@ -85,6 +101,22 @@ export const SCORECARD_PARAMETER_SOURCE_HELP: Record<
   },
   REQUESTED_AMOUNT: { label: 'Requested loan amount', sources: ['Application'] },
   TENURE_MONTHS: { label: 'Tenure', sources: ['Application'] },
+  avgDailyBalance3m: {
+    label: 'Avg daily balance (3m)',
+    sources: ['Bank statement analytics', 'Manual credit → Scorecard metrics'],
+  },
+  avgGmv3m: {
+    label: 'Avg GMV (3m)',
+    sources: ['GST statement', 'Manual credit → Scorecard metrics'],
+  },
+  residenceOwned: {
+    label: 'Residence owned',
+    sources: ['Manual credit → Scorecard metrics (OTHER)'],
+  },
+  eligibleOnePointFiveX: {
+    label: 'Eligible 1.5×',
+    sources: ['Manual credit → Scorecard metrics (OTHER)'],
+  },
 }
 
 export function helpForParameter(parameter: string | undefined | null) {

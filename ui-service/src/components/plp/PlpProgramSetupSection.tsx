@@ -20,7 +20,11 @@ const PROGRAM_TYPES = [
 const INVOICE_FLOW_TYPES = [
   { value: 'PURCHASE_BILL_DISCOUNTING', label: 'Purchase bill discounting (anchor = seller)' },
   { value: 'SALES_BILL_DISCOUNTING', label: 'Sales bill discounting (anchor = buyer)' },
+  { value: 'PURCHASE_ORDER_DISCOUNTING', label: 'Purchase order discounting (anchor = buyer)' },
 ]
+
+const DEFAULT_ID_INTEREST_RATE = '12'
+const DEFAULT_ID_TENURE_DAYS = '90'
 
 function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpProgramSetupResponse {
   return {
@@ -62,6 +66,8 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   const [tenureDays, setTenureDays] = useState('')
   const [validityStart, setValidityStart] = useState('')
   const [validityEnd, setValidityEnd] = useState('')
+  const [dependencyVintagePercent, setDependencyVintagePercent] = useState('')
+  const [anchorRelationshipVintageMonths, setAnchorRelationshipVintageMonths] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<PlpProgramSetupResponse | null>(null)
@@ -102,6 +108,12 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
             if (existing.flowType) setFlowType(existing.flowType)
             if (existing.lmsEntryIn) setLmsEntryIn(existing.lmsEntryIn)
             if (existing.encoreProductCode) setEncoreProductCode(existing.encoreProductCode)
+            if (existing.dependencyVintagePercent != null) {
+              setDependencyVintagePercent(String(existing.dependencyVintagePercent))
+            }
+            if (existing.anchorRelationshipVintageMonths != null) {
+              setAnchorRelationshipVintageMonths(String(existing.anchorRelationshipVintageMonths))
+            }
             if (
               hydrated.programSyncStatus === 'SYNC_SUCCESS' &&
               hydrated.subProgramSyncStatus === 'SYNC_SUCCESS'
@@ -114,19 +126,30 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
         }
       }
       if (!hasExistingProgram && app.id) {
+        if (app.requestedAmount != null) {
+          setCreditLimit(String(app.requestedAmount))
+        }
+        setInterestRate((prev) => prev || DEFAULT_ID_INTEREST_RATE)
+        setTenureDays((prev) => prev || DEFAULT_ID_TENURE_DAYS)
         try {
           const cam = await getCam(app.id)
-          if (cam.recommendedAmount != null) setCreditLimit(String(cam.recommendedAmount))
-          if (cam.recommendedRate != null) setInterestRate(String(cam.recommendedRate))
-          if (cam.recommendedTenureMonths != null) setTenureDays(String(cam.recommendedTenureMonths * 30))
+          if (app.requestedAmount == null && cam.recommendedAmount != null) {
+            setCreditLimit(String(cam.recommendedAmount))
+          }
+          if (cam.recommendedRate != null) {
+            setInterestRate(String(cam.recommendedRate))
+          }
+          if (cam.recommendedTenureMonths != null) {
+            setTenureDays(String(cam.recommendedTenureMonths * 30))
+          }
         } catch {
-          /* CAM may not exist yet — leave fields empty */
+          /* CAM may not exist yet — keep requested amount / ID defaults */
         }
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load anchors.')
     }
-  }, [app.id])
+  }, [app.id, app.requestedAmount])
 
   useEffect(() => {
     void loadAnchors()
@@ -164,6 +187,14 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           programType === 'INVOICE_DISCOUNTING' && lmsEntryIn === 'YES'
             ? encoreProductCode.trim()
             : undefined,
+        dependencyVintagePercent:
+          programType === 'INVOICE_DISCOUNTING' && dependencyVintagePercent.trim()
+            ? Number(dependencyVintagePercent)
+            : undefined,
+        anchorRelationshipVintageMonths:
+          programType === 'INVOICE_DISCOUNTING' && anchorRelationshipVintageMonths.trim()
+            ? Number.parseInt(anchorRelationshipVintageMonths, 10)
+            : undefined,
       }
       const result = await createPlpProgram(body)
       setSaved(result)
@@ -199,7 +230,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
     <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50">
       <button
         type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-900"
+        className="flex w-full items-center justify-between px-4 py-3 text-left bt-card-title"
         onClick={() => setOpen((o) => !o)}
       >
         PLP Program Setup
@@ -230,6 +261,10 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           setValidityStart={setValidityStart}
           validityEnd={validityEnd}
           setValidityEnd={setValidityEnd}
+          dependencyVintagePercent={dependencyVintagePercent}
+          setDependencyVintagePercent={setDependencyVintagePercent}
+          anchorRelationshipVintageMonths={anchorRelationshipVintageMonths}
+          setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
           error={error}
           busy={busy}
           saved={saved}
@@ -303,6 +338,10 @@ function ProgramSetupForm(props: {
   setValidityStart: (v: string) => void
   validityEnd: string
   setValidityEnd: (v: string) => void
+  dependencyVintagePercent: string
+  setDependencyVintagePercent: (v: string) => void
+  anchorRelationshipVintageMonths: string
+  setAnchorRelationshipVintageMonths: (v: string) => void
   error: string | null
   successMsg: string | null
   busy: boolean
@@ -335,6 +374,10 @@ function ProgramSetupForm(props: {
     setValidityStart,
     validityEnd,
     setValidityEnd,
+    dependencyVintagePercent,
+    setDependencyVintagePercent,
+    anchorRelationshipVintageMonths,
+    setAnchorRelationshipVintageMonths,
     error,
     successMsg,
     busy,
@@ -350,7 +393,7 @@ function ProgramSetupForm(props: {
         <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
           Anchor
           <select
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={anchorId}
             onChange={(e) => setAnchorId(e.target.value)}
             disabled={anchors.length === 0}
@@ -374,7 +417,7 @@ function ProgramSetupForm(props: {
         <label className="block text-sm font-medium text-slate-700">
           Program name *
           <input
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={programName}
             onChange={(e) => setProgramName(e.target.value)}
           />
@@ -382,7 +425,7 @@ function ProgramSetupForm(props: {
         <label className="block text-sm font-medium text-slate-700">
           Program type *
           <select
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={programType}
             onChange={(e) => setProgramType(e.target.value)}
           >
@@ -397,7 +440,7 @@ function ProgramSetupForm(props: {
           <label className="block text-sm font-medium text-slate-700">
             Bill discounting flow *
             <select
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 bt-input w-full text-sm"
               value={flowType}
               onChange={(e) => setFlowType(e.target.value)}
             >
@@ -413,7 +456,7 @@ function ProgramSetupForm(props: {
           <label className="block text-sm font-medium text-slate-700">
             LMS entry (Encore)
             <select
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 bt-input w-full text-sm"
               value={lmsEntryIn}
               onChange={(e) => setLmsEntryIn(e.target.value)}
             >
@@ -426,18 +469,46 @@ function ProgramSetupForm(props: {
           <label className="block text-sm font-medium text-slate-700">
             Encore product code *
             <input
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 bt-input w-full text-sm"
               value={encoreProductCode}
               onChange={(e) => setEncoreProductCode(e.target.value)}
               placeholder="e.g. IPPOPAYM01"
             />
           </label>
         ) : null}
+        {programType === 'INVOICE_DISCOUNTING' ? (
+          <>
+            <label className="block text-sm font-medium text-slate-700">
+              Dependency vintage (%)
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                className="mt-1 bt-input w-full text-sm"
+                value={dependencyVintagePercent}
+                onChange={(e) => setDependencyVintagePercent(e.target.value)}
+                placeholder="e.g. 12.00"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Anchor relationship vintage (months)
+              <input
+                type="number"
+                step="1"
+                min={1}
+                className="mt-1 bt-input w-full text-sm"
+                value={anchorRelationshipVintageMonths}
+                onChange={(e) => setAnchorRelationshipVintageMonths(e.target.value)}
+                placeholder="e.g. 10"
+              />
+            </label>
+          </>
+        ) : null}
         <label className="block text-sm font-medium text-slate-700">
           Credit limit
           <input
             type="number"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={creditLimit}
             onChange={(e) => setCreditLimit(e.target.value)}
           />
@@ -447,7 +518,7 @@ function ProgramSetupForm(props: {
           <input
             type="number"
             step="0.01"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={interestRate}
             onChange={(e) => setInterestRate(e.target.value)}
           />
@@ -456,7 +527,7 @@ function ProgramSetupForm(props: {
           Tenure (days)
           <input
             type="number"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={tenureDays}
             onChange={(e) => setTenureDays(e.target.value)}
           />
@@ -465,7 +536,7 @@ function ProgramSetupForm(props: {
           Validity start
           <input
             type="date"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={validityStart}
             onChange={(e) => setValidityStart(e.target.value)}
           />
@@ -474,7 +545,7 @@ function ProgramSetupForm(props: {
           Validity end
           <input
             type="date"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 bt-input w-full text-sm"
             value={validityEnd}
             onChange={(e) => setValidityEnd(e.target.value)}
           />

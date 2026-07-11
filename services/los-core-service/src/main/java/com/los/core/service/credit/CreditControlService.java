@@ -3,6 +3,7 @@ package com.los.core.service.credit;
 import com.los.core.model.dto.request.ManualCreditInputsRequest;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.plp.service.InvoiceDiscountingVintageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +27,17 @@ public class CreditControlService {
     private static final BigDecimal DEMO_DEFAULT_MONTHLY_OBLIGATION = new BigDecimal("20000");
     private static final int DEMO_DEFAULT_BUREAU_SCORE = 720;
     private static final BigDecimal DEMO_DEFAULT_FOIR_RATIO = new BigDecimal("0.25");
+  /** Conservative placeholders when bank-statement extraction is not wired yet (does not override real inputs). */
+    private static final BigDecimal GAP_DEFAULT_MONTHLY_INCOME = new BigDecimal("85000");
+    private static final BigDecimal GAP_DEFAULT_MONTHLY_OBLIGATION = new BigDecimal("15000");
+    private static final BigDecimal GAP_DEFAULT_AVERAGE_BANK_BALANCE = new BigDecimal("120000");
+    private static final BigDecimal GAP_DEFAULT_FOIR_PERCENT = new BigDecimal("25");
+    private static final BigDecimal GAP_DEFAULT_DTI_RATIO = new BigDecimal("18");
+    private static final BigDecimal GAP_DEFAULT_BANK_METRIC = new BigDecimal("50000");
+    private static final BigDecimal GAP_DEFAULT_BANK_COUNT = new BigDecimal("120");
 
     private final IKycOrchestrationService kycOrchestrationService;
+    private final InvoiceDiscountingVintageService invoiceDiscountingVintageService;
 
     @SuppressWarnings("unchecked")
     public void mergeManualInputs(LoanApplication app, ManualCreditInputsRequest req) {
@@ -124,6 +134,8 @@ public class CreditControlService {
             putManualField(manual, "bureauRemarks", req.getManualBureauRemarks());
         }
 
+        mergeScorecardFieldsFromRequest(manual, req);
+
         if (req.getDecisionSources() != null) {
             Map<String, Object> ds = new LinkedHashMap<>();
             if (req.getDecisionSources().getBureauScoreSource() != null) {
@@ -146,6 +158,95 @@ public class CreditControlService {
         app.setFinancialInfo(fi);
     }
 
+    /**
+     * Merges scorecard underwriting fields (OTHER / GST / bank analytics) without touching bureau/KYC decision sources.
+     * Used by staff roles that cannot access full manual credit input.
+     */
+    @SuppressWarnings("unchecked")
+    public void mergeScorecardInputsOnly(LoanApplication app, ManualCreditInputsRequest req) {
+        if (req == null) {
+            return;
+        }
+        Map<String, Object> fi = app.getFinancialInfo() != null
+                ? new HashMap<>(app.getFinancialInfo())
+                : new HashMap<>();
+        Map<String, Object> cc = fi.get(ROOT) instanceof Map<?, ?> m
+                ? new LinkedHashMap<>((Map<String, Object>) m)
+                : new LinkedHashMap<>();
+        Map<String, Object> manual = cc.get(MANUAL) instanceof Map<?, ?> m2
+                ? new LinkedHashMap<>((Map<String, Object>) m2)
+                : new LinkedHashMap<>();
+        mergeScorecardFieldsFromRequest(manual, req);
+        cc.put(MANUAL, manual);
+        cc.put(PROVIDER_SNAPSHOT, buildProviderSnapshot(app));
+        fi.put(ROOT, cc);
+        app.setFinancialInfo(fi);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mergeScorecardFieldsFromRequest(Map<String, Object> manual, ManualCreditInputsRequest req) {
+        mergeScorecardMetricField(manual, "avgDailyBalance3m", req.getAvgDailyBalance3m());
+        mergeScorecardMetricField(manual, "avgMonthlyTransactions3m", req.getAvgMonthlyTransactions3m());
+        mergeScorecardMetricField(manual, "avgMonthlySettlements3m", req.getAvgMonthlySettlements3m());
+        mergeScorecardMetricField(manual, "monthlyTransactions3m", req.getMonthlyTransactions3m());
+        mergeScorecardMetricField(manual, "inwardChequeReturns3m", req.getInwardChequeReturns3m());
+        mergeScorecardMetricField(manual, "avgDailySettlements3m", req.getAvgDailySettlements3m());
+        mergeScorecardMetricField(manual, "noOfTxns60days", req.getNoOfTxns60days());
+        mergeScorecardMetricField(manual, "txnMth1", req.getTxnMth1());
+        mergeScorecardMetricField(manual, "txnMth2", req.getTxnMth2());
+        mergeScorecardMetricField(manual, "txnMth3", req.getTxnMth3());
+        mergeScorecardMetricField(manual, "avgGmv3m", req.getAvgGmv3m());
+        mergeScorecardMetricField(manual, "active90days", req.getActive90days());
+        mergeScorecardYesNoField(manual, "residenceOwned", req.getResidenceOwned());
+        mergeScorecardMetricField(manual, "residenceStability", req.getResidenceStability());
+        mergeScorecardMetricField(manual, "businessStability", req.getBusinessStability());
+        mergeScorecardYesNoField(manual, "existingLoanTrackRecordAll", req.getExistingLoanTrackRecordAll());
+        mergeScorecardYesNoField(manual, "existingLoanTrackRecord15d", req.getExistingLoanTrackRecord15d());
+        mergeScorecardYesNoField(manual, "qrTxnEDI", req.getQrTxnEDI());
+        mergeScorecardYesNoField(manual, "eligibleOnePointFiveX", req.getEligibleOnePointFiveX());
+        if (req.getScorecardMetrics() != null && !req.getScorecardMetrics().isEmpty()) {
+            Map<String, Object> existing = manual.get("scorecardMetrics") instanceof Map<?, ?> m
+                    ? new LinkedHashMap<>((Map<String, Object>) m)
+                    : new LinkedHashMap<>();
+            for (Map.Entry<String, Object> e : req.getScorecardMetrics().entrySet()) {
+                if (e.getKey() != null && !e.getKey().isBlank() && e.getValue() != null) {
+                    putManualField(existing, e.getKey().trim(), e.getValue());
+                }
+            }
+            manual.put("scorecardMetrics", existing);
+        }
+    }
+
+    /**
+     * Records a controlled KYC process override so underwriting can proceed using manual KYC pass
+     * even when provider/computed KYC outcome is FAIL.
+     */
+    @SuppressWarnings("unchecked")
+    public void applyManualKycPassOnProcessOverride(LoanApplication app, String remarks) {
+        Map<String, Object> fi = app.getFinancialInfo() != null
+                ? new LinkedHashMap<>(app.getFinancialInfo())
+                : new LinkedHashMap<>();
+        Map<String, Object> cc = fi.get(ROOT) instanceof Map<?, ?> existingCc
+                ? new LinkedHashMap<>((Map<String, Object>) existingCc)
+                : new LinkedHashMap<>();
+        Map<String, Object> manual = cc.get(MANUAL) instanceof Map<?, ?> existingManual
+                ? new LinkedHashMap<>((Map<String, Object>) existingManual)
+                : new LinkedHashMap<>();
+        Map<String, Object> ds = cc.get(DECISION_SOURCES) instanceof Map<?, ?> existingDs
+                ? new LinkedHashMap<>((Map<String, Object>) existingDs)
+                : new LinkedHashMap<>();
+
+        putManualField(manual, "manualKycOutcome", "PASS");
+        if (remarks != null && !remarks.isBlank()) {
+            putManualField(manual, "kycOverrideRemarks", remarks.trim());
+        }
+        ds.put("kycSource", SRC_MANUAL);
+        cc.put(MANUAL, manual);
+        cc.put(DECISION_SOURCES, ds);
+        fi.put(ROOT, cc);
+        app.setFinancialInfo(fi);
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> mergeDecisionSources(Map<String, Object> old, Map<String, Object> updates) {
         Map<String, Object> o = new LinkedHashMap<>(old);
@@ -161,13 +262,49 @@ public class CreditControlService {
         manual.put(key, cell);
     }
 
+    private void mergeScorecardMetricField(Map<String, Object> manual, String key, Object value) {
+        if (value == null) {
+            return;
+        }
+        putManualField(manual, key, value instanceof BigDecimal b ? b.toPlainString() : value);
+    }
+
+    private void mergeScorecardYesNoField(Map<String, Object> manual, String key, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        putManualField(manual, key, value.trim().toUpperCase());
+    }
+
     private static void putScorecardValue(Map<String, Object> manual, Map<String, BigDecimal> out, String key, String manKey) {
         if (manual.get(manKey) == null) {
             return;
         }
-        BigDecimal b = toBd(unwrapValue(manual.get(manKey)));
+        BigDecimal b = toYesNoOrNumberBd(unwrapValue(manual.get(manKey)));
         if (b != null) {
             out.put(key, b);
+        }
+    }
+
+    private static void putScorecardValueExact(Map<String, Object> manual, Map<String, BigDecimal> out, String key) {
+        putScorecardValue(manual, out, key, key);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void mergeScorecardMetricsMap(Map<String, Object> manual, Map<String, BigDecimal> out) {
+        Object raw = manual.get("scorecardMetrics");
+        if (!(raw instanceof Map<?, ?> map)) {
+            return;
+        }
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            String key = String.valueOf(e.getKey()).trim();
+            if (key.isEmpty()) {
+                continue;
+            }
+            BigDecimal b = toYesNoOrNumberBd(unwrapValue(e.getValue()));
+            if (b != null) {
+                out.put(key, b);
+            }
         }
     }
 
@@ -225,7 +362,7 @@ public class CreditControlService {
 
         int effBureau = resolveBureau(app, manual, bureauSource);
         boolean kycPass = resolveKyc(kycSource, manual, computedKycOutcome);
-        BigDecimal inc = resolveIncome(fi, manual, incomeSource);
+        BigDecimal inc = resolveIncome(app, fi, manual, incomeSource);
         BigDecimal obl = resolveObligation(fi, manual, incomeSource);
         boolean safeDemoFallback = shouldApplySafeFallback(app, fi, cc, inc, obl);
         if (safeDemoFallback) {
@@ -266,11 +403,32 @@ public class CreditControlService {
         putScorecardValue(manual, sc, "EBITDA_PROXY", "ebitdaProxy");
         putScorecardValue(manual, sc, "LEVERAGE_RATIO", "leverageRatio");
         putScorecardValue(manual, sc, "BUSINESS_VINTAGE_MONTHS", "businessVintageMonths");
+        putScorecardValueExact(manual, sc, "avgDailyBalance3m");
+        putScorecardValueExact(manual, sc, "avgMonthlyTransactions3m");
+        putScorecardValueExact(manual, sc, "avgMonthlySettlements3m");
+        putScorecardValueExact(manual, sc, "monthlyTransactions3m");
+        putScorecardValueExact(manual, sc, "inwardChequeReturns3m");
+        putScorecardValueExact(manual, sc, "avgDailySettlements3m");
+        putScorecardValueExact(manual, sc, "noOfTxns60days");
+        putScorecardValueExact(manual, sc, "txnMth1");
+        putScorecardValueExact(manual, sc, "txnMth2");
+        putScorecardValueExact(manual, sc, "txnMth3");
+        putScorecardValueExact(manual, sc, "avgGmv3m");
+        putScorecardValueExact(manual, sc, "active90days");
+        putScorecardValueExact(manual, sc, "residenceOwned");
+        putScorecardValueExact(manual, sc, "residenceStability");
+        putScorecardValueExact(manual, sc, "businessStability");
+        putScorecardValueExact(manual, sc, "existingLoanTrackRecordAll");
+        putScorecardValueExact(manual, sc, "existingLoanTrackRecord15d");
+        putScorecardValueExact(manual, sc, "qrTxnEDI");
+        putScorecardValueExact(manual, sc, "eligibleOnePointFiveX");
+        mergeScorecardMetricsMap(manual, sc);
         if (inc != null) {
             sc.put("MONTHLY_INCOME", inc);
         }
         if (obl != null) {
             sc.put("EMI_OBLIGATION", obl);
+            sc.put("MONTHLY_OBLIGATION", obl);
         }
         if (manual.get("emiObligation") != null) {
             BigDecimal emiO = toBd(unwrapValue(manual.get("emiObligation")));
@@ -290,6 +448,13 @@ public class CreditControlService {
         }
         if (ratio != null) {
             sc.put("OBLIGATION_RATIO", ratio.multiply(BigDecimal.valueOf(100)));
+        }
+        applyMissingScorecardDefaults(app, sc, inc, obl);
+        if (inc == null && sc.get("MONTHLY_INCOME") != null) {
+            inc = sc.get("MONTHLY_INCOME");
+        }
+        if (obl == null && sc.get("EMI_OBLIGATION") != null) {
+            obl = sc.get("EMI_OBLIGATION");
         }
         if (manual.get("ltv") != null) {
             putScorecardValue(manual, sc, "LTV", "ltv");
@@ -318,8 +483,34 @@ public class CreditControlService {
             sc.put("DEMO_FALLBACK_ACTIVE", BigDecimal.ONE);
         }
         sc.put("BUREAU_SCORE", BigDecimal.valueOf(effBureau));
+        applyProgramInputScorecardValues(app, sc);
         return new EffectiveUnderwritingContext(
                 effBureau, kycPass, inc, obl, st, city, bureauSource, incomeSource, kycSource, sc);
+    }
+
+    private void applyProgramInputScorecardValues(LoanApplication app, Map<String, BigDecimal> sc) {
+        invoiceDiscountingVintageService.evaluate(app).ifPresent(v -> {
+            putScorecardIfPresent(sc, "DEPENDENCY_VINTAGE_PERCENT", v.getBorrowerDependencyVintagePercent());
+            if (v.getBorrowerAnchorRelationshipVintageMonths() != null) {
+                putScorecardIfPresent(
+                        sc,
+                        "ANCHOR_RELATIONSHIP_VINTAGE_MONTHS",
+                        BigDecimal.valueOf(v.getBorrowerAnchorRelationshipVintageMonths()));
+            }
+            putScorecardIfPresent(sc, "PROGRAM_DEPENDENCY_VINTAGE_PERCENT", v.getProgramDependencyVintagePercent());
+            if (v.getProgramAnchorRelationshipVintageMonths() != null) {
+                putScorecardIfPresent(
+                        sc,
+                        "PROGRAM_ANCHOR_RELATIONSHIP_VINTAGE_MONTHS",
+                        BigDecimal.valueOf(v.getProgramAnchorRelationshipVintageMonths()));
+            }
+        });
+    }
+
+    private static void putScorecardIfPresent(Map<String, BigDecimal> sc, String key, BigDecimal value) {
+        if (value != null) {
+            sc.put(key, value);
+        }
     }
 
     private static boolean shouldApplySafeFallback(
@@ -328,14 +519,7 @@ public class CreditControlService {
             Map<String, Object> cc,
             BigDecimal income,
             BigDecimal obligation) {
-        boolean explicitDemo = isExplicitDemo(fi) || isExplicitDemo(cc) || isExplicitDemo(app.getPersonalInfo());
-        boolean incomeMissing = income == null || income.compareTo(BigDecimal.ZERO) <= 0;
-        boolean obligationMissing = obligation == null;
-        boolean bankExtractMissing = isBlankValue(fi.get("bankStatementIncome"))
-                && isBlankValue(fi.get("averageBankBalance"))
-                && isBlankValue(fi.get("bankData"))
-                && isBlankValue(fi.get("transactions"));
-        return explicitDemo || (incomeMissing && (obligationMissing || bankExtractMissing));
+        return isExplicitDemo(fi) || isExplicitDemo(cc) || isExplicitDemo(app.getPersonalInfo());
     }
 
     private static boolean isExplicitDemo(Map<String, Object> data) {
@@ -449,11 +633,129 @@ public class CreditControlService {
         return "PASS".equalsIgnoreCase(String.valueOf(computed).trim());
     }
 
-    private static BigDecimal resolveIncome(Map<String, Object> fi, Map<String, Object> manual, String incomeSource) {
+    private static BigDecimal resolveIncome(
+            LoanApplication app, Map<String, Object> fi, Map<String, Object> manual, String incomeSource) {
         if (SRC_MANUAL.equalsIgnoreCase(incomeSource) && manual.get("monthlyIncome") != null) {
             return toBd(unwrapValue(manual.get("monthlyIncome")));
         }
-        return toBd(fi.get("monthlyIncome"));
+        BigDecimal fromFi = toBd(fi.get("monthlyIncome"));
+        if (fromFi != null && fromFi.compareTo(BigDecimal.ZERO) > 0) {
+            return fromFi;
+        }
+        if (app.getPersonalInfo() != null) {
+            BigDecimal fromProfile = toBd(app.getPersonalInfo().get("monthlyNetIncome"));
+            if (fromProfile != null && fromProfile.compareTo(BigDecimal.ZERO) > 0) {
+                return fromProfile;
+            }
+        }
+        if (app.getBusinessInfo() != null) {
+            BigDecimal fromBusiness = toBd(app.getBusinessInfo().get("monthlyIncome"));
+            if (fromBusiness != null && fromBusiness.compareTo(BigDecimal.ZERO) > 0) {
+                return fromBusiness;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Fills scorecard parameters that normally depend on bank-statement extraction when no verified value exists.
+     * Never overwrites keys already present in the effective scorecard map.
+     */
+    private static void applyMissingScorecardDefaults(
+            LoanApplication app, Map<String, BigDecimal> sc, BigDecimal income, BigDecimal obligation) {
+        boolean applied = false;
+        if (!sc.containsKey("MONTHLY_INCOME") || isZeroOrMissing(sc.get("MONTHLY_INCOME"))) {
+            BigDecimal fallback = income;
+            if (fallback == null || fallback.compareTo(BigDecimal.ZERO) <= 0) {
+                fallback = incomeFromProfile(app);
+            }
+            if (fallback == null || fallback.compareTo(BigDecimal.ZERO) <= 0) {
+                fallback = GAP_DEFAULT_MONTHLY_INCOME;
+            }
+            sc.put("MONTHLY_INCOME", fallback);
+            applied = true;
+        }
+        if (!sc.containsKey("EMI_OBLIGATION") || isZeroOrMissing(sc.get("EMI_OBLIGATION"))) {
+            BigDecimal fallback = obligation;
+            if (fallback == null || fallback.compareTo(BigDecimal.ZERO) < 0) {
+                fallback = GAP_DEFAULT_MONTHLY_OBLIGATION;
+            }
+            sc.put("EMI_OBLIGATION", fallback);
+            sc.put("MONTHLY_OBLIGATION", fallback);
+            applied = true;
+        } else if (!sc.containsKey("MONTHLY_OBLIGATION") || isZeroOrMissing(sc.get("MONTHLY_OBLIGATION"))) {
+            sc.put("MONTHLY_OBLIGATION", sc.get("EMI_OBLIGATION"));
+            applied = true;
+        }
+        if (!sc.containsKey("DTI_RATIO") || isZeroOrMissing(sc.get("DTI_RATIO"))) {
+            BigDecimal inc = sc.get("MONTHLY_INCOME");
+            BigDecimal obl = sc.get("EMI_OBLIGATION");
+            if (inc != null && inc.compareTo(BigDecimal.ZERO) > 0 && obl != null) {
+                sc.put(
+                        "DTI_RATIO",
+                        obl.divide(inc, 6, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)));
+            } else {
+                sc.put("DTI_RATIO", GAP_DEFAULT_DTI_RATIO);
+            }
+            applied = true;
+        }
+        if (!sc.containsKey("OBLIGATION_RATIO") || isZeroOrMissing(sc.get("OBLIGATION_RATIO"))) {
+            BigDecimal inc = sc.get("MONTHLY_INCOME");
+            BigDecimal obl = sc.get("EMI_OBLIGATION");
+            if (inc != null && inc.compareTo(BigDecimal.ZERO) > 0 && obl != null) {
+                sc.put(
+                        "OBLIGATION_RATIO",
+                        obl.divide(inc, 6, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)));
+            } else {
+                sc.put("OBLIGATION_RATIO", GAP_DEFAULT_FOIR_PERCENT);
+            }
+            applied = true;
+        }
+        if (!sc.containsKey("AVERAGE_BANK_BALANCE") || isZeroOrMissing(sc.get("AVERAGE_BANK_BALANCE"))) {
+            sc.put("AVERAGE_BANK_BALANCE", GAP_DEFAULT_AVERAGE_BANK_BALANCE);
+            applied = true;
+        }
+        applied |= putBankGapDefault(sc, "avgDailyBalance3m", GAP_DEFAULT_AVERAGE_BANK_BALANCE);
+        applied |= putBankGapDefault(sc, "avgMonthlyTransactions3m", GAP_DEFAULT_BANK_METRIC);
+        applied |= putBankGapDefault(sc, "avgMonthlySettlements3m", GAP_DEFAULT_BANK_METRIC);
+        applied |= putBankGapDefault(sc, "monthlyTransactions3m", GAP_DEFAULT_BANK_METRIC);
+        applied |= putBankGapDefault(sc, "inwardChequeReturns3m", BigDecimal.ZERO);
+        applied |= putBankGapDefault(sc, "avgDailySettlements3m", GAP_DEFAULT_BANK_METRIC);
+        applied |= putBankGapDefault(sc, "noOfTxns60days", GAP_DEFAULT_BANK_COUNT);
+        applied |= putBankGapDefault(sc, "txnMth1", GAP_DEFAULT_BANK_METRIC);
+        applied |= putBankGapDefault(sc, "txnMth2", GAP_DEFAULT_BANK_METRIC);
+        applied |= putBankGapDefault(sc, "txnMth3", GAP_DEFAULT_BANK_METRIC);
+        if (applied) {
+            sc.put("PROVIDER_GAP_DEFAULT_ACTIVE", BigDecimal.ONE);
+        }
+    }
+
+    private static boolean putBankGapDefault(Map<String, BigDecimal> sc, String key, BigDecimal fallback) {
+        if (!sc.containsKey(key) || isZeroOrMissing(sc.get(key))) {
+            sc.put(key, fallback);
+            return true;
+        }
+        return false;
+    }
+
+    private static BigDecimal incomeFromProfile(LoanApplication app) {
+        if (app.getPersonalInfo() != null) {
+            BigDecimal fromProfile = toBd(app.getPersonalInfo().get("monthlyNetIncome"));
+            if (fromProfile != null && fromProfile.compareTo(BigDecimal.ZERO) > 0) {
+                return fromProfile;
+            }
+        }
+        if (app.getBusinessInfo() != null) {
+            BigDecimal fromBusiness = toBd(app.getBusinessInfo().get("monthlyIncome"));
+            if (fromBusiness != null && fromBusiness.compareTo(BigDecimal.ZERO) > 0) {
+                return fromBusiness;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isZeroOrMissing(BigDecimal value) {
+        return value == null || value.compareTo(BigDecimal.ZERO) <= 0;
     }
 
     private static BigDecimal resolveObligation(Map<String, Object> fi, Map<String, Object> manual, String incomeSource) {
@@ -502,5 +804,19 @@ public class CreditControlService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static BigDecimal toYesNoOrNumberBd(Object o) {
+        if (o == null) {
+            return null;
+        }
+        String s = String.valueOf(o).trim();
+        if ("Y".equalsIgnoreCase(s) || "YES".equalsIgnoreCase(s)) {
+            return BigDecimal.ONE;
+        }
+        if ("N".equalsIgnoreCase(s) || "NO".equalsIgnoreCase(s)) {
+            return BigDecimal.ZERO;
+        }
+        return toBd(o);
     }
 }

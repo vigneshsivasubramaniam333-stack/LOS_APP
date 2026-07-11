@@ -35,6 +35,7 @@ public class PlpFacadeController {
     private final PlpBorrowerSyncService plpBorrowerSyncService;
     private final PlpSanctionSyncOrchestrator plpSanctionSyncOrchestrator;
     private final AnchorMasterService anchorMasterService;
+    private final InvoiceDiscountingVintageService invoiceDiscountingVintageService;
     private final ILoanApplicationService loanApplicationService;
     private final LoanApplicationRepository loanApplicationRepository;
 
@@ -71,6 +72,15 @@ public class PlpFacadeController {
         return ResponseEntity.ok(plpProgramQueryService.getLinkedSubProgramSummary(subProgramId));
     }
 
+    @GetMapping("/applications/{applicationId}/vintage-eligibility")
+    @Operation(summary = "Evaluate invoice discounting vintage inputs against linked program thresholds")
+    public ResponseEntity<VintageEligibilityResponse> getVintageEligibility(@PathVariable UUID applicationId) {
+        LoanApplication app = loanApplicationRepository.findById(applicationId)
+                .orElseThrow(() -> new IllegalArgumentException("Application not found: " + applicationId));
+        return invoiceDiscountingVintageService.evaluate(app)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
+    }
     @GetMapping("/programs/anchor/{anchorId}")
     @Operation(summary = "List programs for a specific anchor")
     public ResponseEntity<List<PlpProgramSummaryResponse>> listProgramsForAnchor(
