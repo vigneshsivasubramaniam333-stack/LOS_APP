@@ -11,7 +11,6 @@ import com.los.plp.model.entity.AnchorMaster;
 import com.los.plp.model.entity.ProgramMaster;
 import com.los.plp.model.entity.SubProgramMaster;
 import com.los.plp.model.enums.PlpSyncStatus;
-import com.los.plp.model.enums.ProgramApprovalStatus;
 import com.los.plp.repository.AnchorMasterRepository;
 import com.los.plp.repository.ProgramMasterRepository;
 import com.los.plp.repository.SubProgramMasterRepository;
@@ -155,9 +154,6 @@ public class PlpProgramQueryService {
             if (syncedOnly && program.getPlpProgramSyncStatus() != PlpSyncStatus.SYNC_SUCCESS) {
                 continue;
             }
-            if (syncedOnly && program.getApprovalStatus() != ProgramApprovalStatus.APPROVED) {
-                continue;
-            }
             long count = loanApplicationRepository.countBySubProgramId(sp.getId());
             result.add(toSummary(program, sp, anchor, count));
         }
@@ -231,8 +227,6 @@ public class PlpProgramQueryService {
                 .flowType(sp != null ? sp.getFlowType() : null)
                 .lmsEntryIn(program.getLmsEntryIn())
                 .encoreProductCode(program.getEncoreProductCode())
-                .approvalStatus(program.getApprovalStatus())
-                .approvalNotes(program.getApprovalNotes())
                 .dependencyVintagePercent(program.getDependencyVintagePercent())
                 .anchorRelationshipVintageMonths(program.getAnchorRelationshipVintageMonths())
                 .build();

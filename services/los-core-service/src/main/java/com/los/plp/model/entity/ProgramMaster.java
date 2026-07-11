@@ -1,7 +1,6 @@
 package com.los.plp.model.entity;
 
 import com.los.plp.model.enums.PlpSyncStatus;
-import com.los.plp.model.enums.ProgramApprovalStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -83,36 +82,6 @@ public class ProgramMaster {
 
     @Column(name = "encore_product_code", length = 50)
     private String encoreProductCode;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "approval_status", nullable = false, length = 30)
-    @Builder.Default
-    private ProgramApprovalStatus approvalStatus = ProgramApprovalStatus.DRAFT;
-
-    @Column(name = "assigned_l1_user_id")
-    private UUID assignedL1UserId;
-
-    @Column(name = "assigned_l2_user_id")
-    private UUID assignedL2UserId;
-
-    @Column(name = "approval_notes", columnDefinition = "TEXT")
-    private String approvalNotes;
-
-    @Column(name = "approval_history_json", columnDefinition = "TEXT")
-    private String approvalHistoryJson;
-
-    @Column(name = "anchor_application_id")
-    private UUID anchorApplicationId;
-
-    @Column(name = "approved_at")
-    private Instant approvedAt;
-
-    @Column(name = "approved_by_user_id")
-    private UUID approvedByUserId;
-
-    /** Last known PLP program status (DRAFT, ACTIVE, etc.) mirrored from PLP integration. */
-    @Column(name = "plp_operational_status", length = 32)
-    private String plpOperationalStatus;
 
     /** Minimum dependency on anchor (% of business) required for borrower eligibility. */
     @Column(name = "dependency_vintage_percent", precision = 8, scale = 2)
