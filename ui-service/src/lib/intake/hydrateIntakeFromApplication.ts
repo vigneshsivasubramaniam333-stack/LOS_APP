@@ -17,11 +17,18 @@ export function hydrateIntakeFormFromApplication(
     o[k] != null && o[k] !== undefined ? String(o[k]) : ''
 
   const toBool = (o: Record<string, unknown>, k: string) => o[k] === true
+  const toChoice = (v: unknown): IntakeFormState['hasExistingLoans'] =>
+    v === 'yes' || v === 'no' ? v : ''
+
+  const invoiceOnboardingChoice: IntakeFormState['invoiceOnboardingChoice'] =
+    app.intakeSegment === 'ANCHOR' ? 'ANCHOR' : app.intakeSegment === 'BORROWER' ? 'BORROWER' : ''
 
   return {
     ...base,
     borrowerType: (app.borrowerType as IntakeFormState['borrowerType']) ?? base.borrowerType,
     loanProduct: app.loanProduct ?? base.loanProduct,
+    invoiceOnboardingChoice,
+    purpose: str(pi, 'purpose') || base.purpose,
     requestedAmount: app.requestedAmount != null ? String(app.requestedAmount) : base.requestedAmount,
     tenureMonths: app.tenureMonths != null ? String(app.tenureMonths) : base.tenureMonths,
     lmsProductCode: app.lmsProductCode?.trim() || base.lmsProductCode,
@@ -36,6 +43,22 @@ export function hydrateIntakeFormFromApplication(
     pincode: str(pi, 'pincode') || str(pi, 'postalCode') || base.pincode,
     addressLine2: str(pi, 'addressLine2') || base.addressLine2,
     businessName: str(bi, 'businessName') || base.businessName,
+    contactPersonName:
+      str(bi, 'contactPersonName') || str(pi, 'fullName') || str(pi, 'name') || base.contactPersonName,
+    contactMobile:
+      str(bi, 'contactMobile') ||
+      str(pi, 'mobile') ||
+      str(pi, 'phone') ||
+      str(pi, 'borrowerMobile') ||
+      base.contactMobile,
+    contactEmail:
+      str(bi, 'contactEmail') ||
+      str(pi, 'email') ||
+      str(pi, 'contactEmail') ||
+      str(pi, 'borrowerEmail') ||
+      base.contactEmail,
+    gstin: str(bi, 'gstin') || str(pi, 'gstin') || base.gstin,
+    udyam: str(bi, 'udyam') || str(bi, 'udyamNumber') || str(pi, 'udyam') || base.udyam,
     businessAddress: str(bi, 'addressLine') || str(bi, 'businessAddress') || base.businessAddress,
     businessCity: str(bi, 'city') || base.businessCity,
     businessState: str(bi, 'state') || base.businessState,
@@ -43,7 +66,15 @@ export function hydrateIntakeFormFromApplication(
     panNumber: str(pi, 'panNumber') || str(pi, 'pan') || base.panNumber,
     voterId: str(pi, 'voterId') || str(pi, 'epicNo') || base.voterId,
     dlNumber: str(pi, 'dlNumber') || str(pi, 'dlNo') || base.dlNumber,
-    aadhaar: str(pi, 'aadhaar') || str(pi, 'aadhaarNumber') || base.aadhaar,
+    aadhaar:
+      str(pi, 'aadhaar') ||
+      str(pi, 'aadhaarNumber') ||
+      (str(pi, 'aadhaarLast4') ? `XXXX-XXXX-${str(pi, 'aadhaarLast4')}` : '') ||
+      base.aadhaar,
+    cin: str(bi, 'cin') || base.cin,
+    mobileLinkedAadhaar: toBool(pi, 'mobileLinkedAadhaar') || base.mobileLinkedAadhaar,
+    occupationIndustry: str(pi, 'occupationIndustry') || base.occupationIndustry,
+    workExperienceYears: str(pi, 'workExperienceYears') || base.workExperienceYears,
     bankAccountNumber: str(pi, 'bankAccountNumber') || str(pi, 'accountNumber') || base.bankAccountNumber,
     ifscCode: str(pi, 'ifscCode') || str(pi, 'ifsc') || base.ifscCode,
     bankName: str(pi, 'bankName') || base.bankName,
@@ -52,11 +83,18 @@ export function hydrateIntakeFormFromApplication(
     monthlyNetIncome: str(fi, 'monthlyNetIncome') || str(pi, 'monthlyNetIncome') || base.monthlyNetIncome,
     gender: str(pi, 'gender') || base.gender,
     maritalStatus: str(pi, 'maritalStatus') || base.maritalStatus,
+    addressProofType: str(pi, 'addressProofType') || base.addressProofType,
+    hasExistingLoans: toChoice(pi.hasExistingLoans) || base.hasExistingLoans,
+    existingLoansDetails: str(pi, 'existingLoansDetails') || base.existingLoansDetails,
     consentKyc: toBool(fi, 'consentKyc') || toBool(pi, 'consentKyc') || base.consentKyc,
     consentBureau: toBool(fi, 'consentBureau') || toBool(pi, 'consentBureau') || base.consentBureau,
     consentAccountAggregator: toBool(fi, 'consentAccountAggregator') || base.consentAccountAggregator,
     consentComms: toBool(fi, 'consentComms') || toBool(pi, 'consentComms') || base.consentComms,
     collateralPropertyType: str(col, 'propertyType') || str(col, 'collateralPropertyType') || base.collateralPropertyType,
     collateralPropertyAddress: str(col, 'propertyAddress') || str(col, 'collateralPropertyAddress') || base.collateralPropertyAddress,
+    selectedSubProgramId: app.subProgramId ?? base.selectedSubProgramId,
+    dependencyVintagePercent: str(bi, 'dependencyVintagePercent') || base.dependencyVintagePercent,
+    anchorRelationshipVintageMonths:
+      str(bi, 'anchorRelationshipVintageMonths') || base.anchorRelationshipVintageMonths,
   }
 }

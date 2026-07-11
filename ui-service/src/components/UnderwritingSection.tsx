@@ -31,6 +31,8 @@ import {
 import { getVisibleUnderwritingFields } from '@/lib/credit/underwritingFieldVisibility'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
 import type { ApplicationResponse } from '@/types/application'
+import { isInvoiceDiscountingBorrowerApp } from '@/lib/invoiceDiscountingFlow'
+import { InvoiceDiscountingVintagePanel } from '@/components/plp/InvoiceDiscountingVintagePanel'
 
 function computeAaFoir(data: AaFetchedData): number | null {
   if (!data.avgMonthlyInflow || data.avgMonthlyInflow <= 0) return null
@@ -468,6 +470,9 @@ export function UnderwritingSection({
             ))}
           </dl>
         </AppSectionCard>
+      ) : null}
+      {isInvoiceDiscountingBorrowerApp(app) ? (
+        <InvoiceDiscountingVintagePanel applicationId={applicationId} />
       ) : null}
       <div className="bt-section-card bt-section-card--hero space-y-3 p-4 text-sm text-slate-800">
         <h2 className="text-base font-semibold text-slate-900">Credit decision header</h2>

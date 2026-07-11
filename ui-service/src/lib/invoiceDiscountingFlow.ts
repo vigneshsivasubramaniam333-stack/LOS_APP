@@ -15,6 +15,11 @@ export function anchorSkipsPostSanctionSteps(app: Pick<ApplicationResponse, 'loa
   return isInvoiceDiscountingAnchorApp(app)
 }
 
+/** Anchor hides CAM and disbursement tabs; eSign is required for program terms. */
+export function anchorHiddenDetailTabs(): Set<string> {
+  return new Set(['cam', 'disbursement'])
+}
+
 /** Invoice discounting borrower onboarding ends after eSign — no term-loan disbursement. */
 export function idBorrowerSkipsDisbursement(app: Pick<ApplicationResponse, 'loanProduct' | 'intakeSegment'>): boolean {
   return isInvoiceDiscountingBorrowerApp(app)

@@ -23,6 +23,10 @@ export interface IntakeFormState {
   invoiceOnboardingChoice: '' | 'BORROWER' | 'ANCHOR'
   /** Invoice discounting borrower: selected PLP sub-program id */
   selectedSubProgramId: string
+  /** Invoice discounting borrower: declared dependency on anchor (%) */
+  dependencyVintagePercent: string
+  /** Invoice discounting borrower: declared anchor relationship vintage (months) */
+  anchorRelationshipVintageMonths: string
   purpose: string
   /** Sales-assisted only */
   salesOfficerName: string
@@ -128,6 +132,8 @@ export function createEmptyIntakeFormState(): IntakeFormState {
     lmsTenureUnit: DEFAULT_LMS_TENURE_UNIT,
     invoiceOnboardingChoice: '',
     selectedSubProgramId: '',
+    dependencyVintagePercent: '',
+    anchorRelationshipVintageMonths: '',
     purpose: '',
     salesOfficerName: '',
     salesOfficerId: '',

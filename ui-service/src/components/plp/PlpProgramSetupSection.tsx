@@ -66,6 +66,8 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   const [tenureDays, setTenureDays] = useState('')
   const [validityStart, setValidityStart] = useState('')
   const [validityEnd, setValidityEnd] = useState('')
+  const [dependencyVintagePercent, setDependencyVintagePercent] = useState('')
+  const [anchorRelationshipVintageMonths, setAnchorRelationshipVintageMonths] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<PlpProgramSetupResponse | null>(null)
@@ -106,6 +108,12 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
             if (existing.flowType) setFlowType(existing.flowType)
             if (existing.lmsEntryIn) setLmsEntryIn(existing.lmsEntryIn)
             if (existing.encoreProductCode) setEncoreProductCode(existing.encoreProductCode)
+            if (existing.dependencyVintagePercent != null) {
+              setDependencyVintagePercent(String(existing.dependencyVintagePercent))
+            }
+            if (existing.anchorRelationshipVintageMonths != null) {
+              setAnchorRelationshipVintageMonths(String(existing.anchorRelationshipVintageMonths))
+            }
             if (
               hydrated.programSyncStatus === 'SYNC_SUCCESS' &&
               hydrated.subProgramSyncStatus === 'SYNC_SUCCESS'
@@ -179,6 +187,14 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           programType === 'INVOICE_DISCOUNTING' && lmsEntryIn === 'YES'
             ? encoreProductCode.trim()
             : undefined,
+        dependencyVintagePercent:
+          programType === 'INVOICE_DISCOUNTING' && dependencyVintagePercent.trim()
+            ? Number(dependencyVintagePercent)
+            : undefined,
+        anchorRelationshipVintageMonths:
+          programType === 'INVOICE_DISCOUNTING' && anchorRelationshipVintageMonths.trim()
+            ? Number.parseInt(anchorRelationshipVintageMonths, 10)
+            : undefined,
       }
       const result = await createPlpProgram(body)
       setSaved(result)
@@ -245,6 +261,10 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           setValidityStart={setValidityStart}
           validityEnd={validityEnd}
           setValidityEnd={setValidityEnd}
+          dependencyVintagePercent={dependencyVintagePercent}
+          setDependencyVintagePercent={setDependencyVintagePercent}
+          anchorRelationshipVintageMonths={anchorRelationshipVintageMonths}
+          setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
           error={error}
           busy={busy}
           saved={saved}
@@ -318,6 +338,10 @@ function ProgramSetupForm(props: {
   setValidityStart: (v: string) => void
   validityEnd: string
   setValidityEnd: (v: string) => void
+  dependencyVintagePercent: string
+  setDependencyVintagePercent: (v: string) => void
+  anchorRelationshipVintageMonths: string
+  setAnchorRelationshipVintageMonths: (v: string) => void
   error: string | null
   successMsg: string | null
   busy: boolean
@@ -350,6 +374,10 @@ function ProgramSetupForm(props: {
     setValidityStart,
     validityEnd,
     setValidityEnd,
+    dependencyVintagePercent,
+    setDependencyVintagePercent,
+    anchorRelationshipVintageMonths,
+    setAnchorRelationshipVintageMonths,
     error,
     successMsg,
     busy,
@@ -447,6 +475,34 @@ function ProgramSetupForm(props: {
               placeholder="e.g. IPPOPAYM01"
             />
           </label>
+        ) : null}
+        {programType === 'INVOICE_DISCOUNTING' ? (
+          <>
+            <label className="block text-sm font-medium text-slate-700">
+              Dependency vintage (%)
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                className="mt-1 bt-input w-full text-sm"
+                value={dependencyVintagePercent}
+                onChange={(e) => setDependencyVintagePercent(e.target.value)}
+                placeholder="e.g. 12.00"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Anchor relationship vintage (months)
+              <input
+                type="number"
+                step="1"
+                min={1}
+                className="mt-1 bt-input w-full text-sm"
+                value={anchorRelationshipVintageMonths}
+                onChange={(e) => setAnchorRelationshipVintageMonths(e.target.value)}
+                placeholder="e.g. 10"
+              />
+            </label>
+          </>
         ) : null}
         <label className="block text-sm font-medium text-slate-700">
           Credit limit

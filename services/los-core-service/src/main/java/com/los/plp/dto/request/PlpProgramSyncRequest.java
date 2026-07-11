@@ -23,4 +23,9 @@ public class PlpProgramSyncRequest {
     private LocalDate validTo;
     private String lmsEntryIn;
     private String encoreProductCode;
+    /** When false (default), PLP creates program as DRAFT pending LOS L2 approval. */
+    private Boolean preApproved;
+
+    private java.math.BigDecimal dependencyVintagePercent;
+    private Integer anchorRelationshipVintageMonths;
 }

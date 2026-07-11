@@ -99,10 +99,12 @@ export function validateProductStep(
   }
 
   if (isInvoiceDiscountingProduct(s.loanProduct)) {
-    if (s.invoiceOnboardingChoice !== 'BORROWER' && s.invoiceOnboardingChoice !== 'ANCHOR') {
+    const onboardingChoice =
+      mode === 'BORROWER_SELF_SERVICE' ? 'BORROWER' : s.invoiceOnboardingChoice
+    if (mode !== 'BORROWER_SELF_SERVICE' && onboardingChoice !== 'BORROWER' && onboardingChoice !== 'ANCHOR') {
       return 'For invoice discounting, select onboarding type: Borrower or Anchor.'
     }
-    if (s.invoiceOnboardingChoice === 'BORROWER') {
+    if (onboardingChoice === 'BORROWER' || mode === 'BORROWER_SELF_SERVICE') {
       const list = productsForBorrowerType(activeWorkflows, s.borrowerType)
       if (list.length === 0) {
         return 'No active borrower workflow for invoice discounting and this borrower type. Ask an admin to activate a BORROWER-segment workflow.'
@@ -146,6 +148,8 @@ export function validateProductStep(
       return 'Confirm that the borrower has agreed to start this application and share details with the lender.'
     }
   }
+  const vintageErr = validateInvoiceDiscountingVintageStep(s, mode)
+  if (vintageErr) return vintageErr
   return null
 }
 
@@ -423,6 +427,23 @@ export function validateBorrowerIncomeStep(s: IntakeFormState): string | null {
     if (Number.isNaN(n) || n < 0) {
       return 'Work experience should be a whole number of years, or leave blank.'
     }
+  }
+  return null
+}
+
+export function validateInvoiceDiscountingVintageStep(s: IntakeFormState, mode: IntakeMode): string | null {
+  if (!isInvoiceDiscountingProduct(s.loanProduct)) return null
+  const onboardingChoice = mode === 'BORROWER_SELF_SERVICE' ? 'BORROWER' : s.invoiceOnboardingChoice
+  if (onboardingChoice === 'ANCHOR') return null
+  const dep = s.dependencyVintagePercent.trim()
+  if (!dep) return 'Enter dependency vintage (%).'
+  const depN = Number.parseFloat(dep)
+  if (Number.isNaN(depN) || depN < 0) return 'Dependency vintage must be 0 or greater.'
+  const anchorMo = s.anchorRelationshipVintageMonths.trim()
+  if (!anchorMo) return 'Enter anchor relationship vintage (months).'
+  const anchorN = Number.parseInt(anchorMo, 10)
+  if (Number.isNaN(anchorN) || anchorN < 0) {
+    return 'Anchor relationship vintage must be a whole number of months (0 or greater).'
   }
   return null
 }

@@ -3,6 +3,7 @@ package com.los.core.service.credit;
 import com.los.core.model.dto.request.ManualCreditInputsRequest;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.plp.service.InvoiceDiscountingVintageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +37,7 @@ public class CreditControlService {
     private static final BigDecimal GAP_DEFAULT_BANK_COUNT = new BigDecimal("120");
 
     private final IKycOrchestrationService kycOrchestrationService;
+    private final InvoiceDiscountingVintageService invoiceDiscountingVintageService;
 
     @SuppressWarnings("unchecked")
     public void mergeManualInputs(LoanApplication app, ManualCreditInputsRequest req) {
@@ -481,8 +483,34 @@ public class CreditControlService {
             sc.put("DEMO_FALLBACK_ACTIVE", BigDecimal.ONE);
         }
         sc.put("BUREAU_SCORE", BigDecimal.valueOf(effBureau));
+        applyProgramInputScorecardValues(app, sc);
         return new EffectiveUnderwritingContext(
                 effBureau, kycPass, inc, obl, st, city, bureauSource, incomeSource, kycSource, sc);
+    }
+
+    private void applyProgramInputScorecardValues(LoanApplication app, Map<String, BigDecimal> sc) {
+        invoiceDiscountingVintageService.evaluate(app).ifPresent(v -> {
+            putScorecardIfPresent(sc, "DEPENDENCY_VINTAGE_PERCENT", v.getBorrowerDependencyVintagePercent());
+            if (v.getBorrowerAnchorRelationshipVintageMonths() != null) {
+                putScorecardIfPresent(
+                        sc,
+                        "ANCHOR_RELATIONSHIP_VINTAGE_MONTHS",
+                        BigDecimal.valueOf(v.getBorrowerAnchorRelationshipVintageMonths()));
+            }
+            putScorecardIfPresent(sc, "PROGRAM_DEPENDENCY_VINTAGE_PERCENT", v.getProgramDependencyVintagePercent());
+            if (v.getProgramAnchorRelationshipVintageMonths() != null) {
+                putScorecardIfPresent(
+                        sc,
+                        "PROGRAM_ANCHOR_RELATIONSHIP_VINTAGE_MONTHS",
+                        BigDecimal.valueOf(v.getProgramAnchorRelationshipVintageMonths()));
+            }
+        });
+    }
+
+    private static void putScorecardIfPresent(Map<String, BigDecimal> sc, String key, BigDecimal value) {
+        if (value != null) {
+            sc.put(key, value);
+        }
     }
 
     private static boolean shouldApplySafeFallback(

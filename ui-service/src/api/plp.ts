@@ -8,6 +8,7 @@ import type {
   PlpProgramSetupResponse,
   PlpProgramSummary,
   PlpSyncResult,
+  VintageEligibility,
 } from '@/types/plp'
 
 export async function listPlpPrograms(): Promise<PlpProgramSummary[]> {
@@ -32,6 +33,14 @@ export async function getLinkedSubProgramSummary(
     `/plp/sub-programs/${subProgramId}/summary`,
   )
   return data
+}
+
+export async function getVintageEligibility(applicationId: string): Promise<VintageEligibility | null> {
+  const res = await http.get<VintageEligibility>(`/plp/applications/${applicationId}/vintage-eligibility`, {
+    validateStatus: (s) => s === 200 || s === 204,
+  })
+  if (res.status === 204) return null
+  return res.data
 }
 
 export async function listPlpProgramsForAnchor(

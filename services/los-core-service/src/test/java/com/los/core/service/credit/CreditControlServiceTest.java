@@ -4,6 +4,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.BorrowerType;
 import com.los.core.service.credit.EffectiveUnderwritingContext;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.plp.service.InvoiceDiscountingVintageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,9 +22,16 @@ class CreditControlServiceTest {
     @Mock
     private IKycOrchestrationService kyc;
 
+    @Mock
+    private InvoiceDiscountingVintageService invoiceDiscountingVintageService;
+
+    private CreditControlService service() {
+        return new CreditControlService(kyc, invoiceDiscountingVintageService);
+    }
+
     @Test
     void resolveEffective_usesProviderBureauByDefault() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         LoanApplication app = LoanApplication.builder()
                 .applicationNumber("N")
                 .customerId(UUID.randomUUID())
@@ -38,7 +46,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_manualBureauSource_prefersEntityOverride() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         Map<String, Object> fi = new HashMap<>();
         Map<String, Object> cc = new HashMap<>();
         Map<String, Object> ds = new HashMap<>();
@@ -60,7 +68,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_scorecard_includesBureauKey() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         LoanApplication app = LoanApplication.builder()
                 .applicationNumber("N")
                 .customerId(UUID.randomUUID())
@@ -74,7 +82,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_doesNotApplyDemoFallbackWithoutExplicitDemoFlag() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         LoanApplication app = LoanApplication.builder()
                 .applicationNumber("N")
                 .customerId(UUID.randomUUID())
@@ -90,7 +98,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_appliesDemoFallbackWhenExplicitDemoFlag() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         Map<String, Object> fi = new HashMap<>();
         fi.put("demo", true);
         LoanApplication app = LoanApplication.builder()
@@ -109,7 +117,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_usesDeclaredMonthlyNetIncomeFromPersonalInfo() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         LoanApplication app = LoanApplication.builder()
                 .applicationNumber("N")
                 .customerId(UUID.randomUUID())
@@ -125,7 +133,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_appliesGapDefaultsForBankDerivedScorecardFields() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         LoanApplication app = LoanApplication.builder()
                 .applicationNumber("N")
                 .customerId(UUID.randomUUID())
@@ -144,7 +152,7 @@ class CreditControlServiceTest {
 
     @Test
     void resolveEffective_gapDefaultsDoNotOverrideManualBankBalance() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         Map<String, Object> fi = new HashMap<>();
         Map<String, Object> cc = new HashMap<>();
         Map<String, Object> manual = new HashMap<>();
@@ -166,7 +174,7 @@ class CreditControlServiceTest {
 
     @Test
     void applyManualKycPassOnProcessOverride_usesManualKycSource() {
-        CreditControlService svc = new CreditControlService(kyc);
+        CreditControlService svc = service();
         LoanApplication app = LoanApplication.builder()
                 .applicationNumber("N")
                 .customerId(UUID.randomUUID())

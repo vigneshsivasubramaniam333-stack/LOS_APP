@@ -107,6 +107,7 @@ export function buildIntakeCreateRequest(s: IntakeFormState, mode: IntakeMode, s
       if (s.businessCity.trim()) bi.city = s.businessCity.trim()
       if (s.businessState.trim()) bi.state = s.businessState.trim()
       if (s.businessPincode.replace(/\D/g, '').length === 6) bi.pincode = s.businessPincode.replace(/\D/g, '')
+      appendInvoiceVintageFields(s, bi)
       return withInvoiceBorrowerSegment(s, appendLmsConfigToCreate(s, { ...base, personalInfo: pi, businessInfo: Object.keys(bi).length ? bi : base.businessInfo }))
     }
     return withInvoiceBorrowerSegment(s, appendLmsConfigToCreate(s, { ...base, personalInfo: pi }))
@@ -154,11 +155,14 @@ export function buildIntakeCreateRequest(s: IntakeFormState, mode: IntakeMode, s
     if (s.gstin.trim()) business.gstin = s.gstin.trim()
     if (s.udyam.trim()) business.udyam = s.udyam.trim()
     if (s.contactPersonName.trim()) business.contactPersonName = s.contactPersonName.trim()
+    if (s.contactMobile.trim()) business.contactMobile = s.contactMobile.trim()
+    if (s.contactEmail.trim()) business.contactEmail = s.contactEmail.trim()
     if (s.businessAddress.trim()) business.addressLine = s.businessAddress.trim()
     if (s.businessCity.trim()) business.city = s.businessCity.trim()
     if (s.businessState.trim()) business.state = s.businessState.trim()
     if (s.businessPincode.replace(/\D/g, '').length === 6) business.pincode = s.businessPincode.replace(/\D/g, '')
   }
+  appendInvoiceVintageFields(s, business)
 
   const payload: CreateApplicationRequest = {
     borrowerType: s.borrowerType,
@@ -176,6 +180,16 @@ function withInvoiceBorrowerSegment(s: IntakeFormState, r: CreateApplicationRequ
     return { ...r, intakeSegment: 'BORROWER' }
   }
   return r
+}
+
+function appendInvoiceVintageFields(s: IntakeFormState, business: Record<string, string>): void {
+  if (!isInvoiceDiscountingProduct(s.loanProduct) || s.invoiceOnboardingChoice === 'ANCHOR') {
+    return
+  }
+  const dep = s.dependencyVintagePercent.trim()
+  const anchorMo = s.anchorRelationshipVintageMonths.trim()
+  if (dep) business.dependencyVintagePercent = dep
+  if (anchorMo) business.anchorRelationshipVintageMonths = anchorMo
 }
 
 /** Patch borrower / business / amount after step 0 edited while id exists, or re-save after step 1 edits. */
@@ -234,11 +248,14 @@ export function buildIntakeBorrowerUpdate(s: IntakeFormState, mode: IntakeMode, 
     if (s.gstin.trim()) business.gstin = s.gstin.trim()
     if (s.udyam.trim()) business.udyam = s.udyam.trim()
     if (s.contactPersonName.trim()) business.contactPersonName = s.contactPersonName.trim()
+    if (s.contactMobile.trim()) business.contactMobile = s.contactMobile.trim()
+    if (s.contactEmail.trim()) business.contactEmail = s.contactEmail.trim()
     if (s.businessAddress.trim()) business.addressLine = s.businessAddress.trim()
     if (s.businessCity.trim()) business.city = s.businessCity.trim()
     if (s.businessState.trim()) business.state = s.businessState.trim()
     if (s.businessPincode.replace(/\D/g, '').length === 6) business.pincode = s.businessPincode.replace(/\D/g, '')
   }
+  appendInvoiceVintageFields(s, business)
 
   out.personalInfo = personal
   if (Object.keys(business).length) out.businessInfo = business

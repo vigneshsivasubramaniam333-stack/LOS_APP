@@ -23,6 +23,9 @@ public final class PlpProgramPayloadMapper {
                 .validTo(program.getValidityEndDate())
                 .lmsEntryIn(program.getLmsEntryIn())
                 .encoreProductCode(program.getEncoreProductCode())
+                .preApproved(false)
+                .dependencyVintagePercent(program.getDependencyVintagePercent())
+                .anchorRelationshipVintageMonths(program.getAnchorRelationshipVintageMonths())
                 .build();
     }
 }

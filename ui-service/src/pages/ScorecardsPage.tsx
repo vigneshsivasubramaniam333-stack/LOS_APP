@@ -442,7 +442,7 @@ export function ScorecardsPage() {
                       + Add parameter
                     </button>
                   </div>
-                  <ScorecardParameterEditor rows={grid} onChange={setGrid} />
+                  <ScorecardParameterEditor rows={grid} onChange={setGrid} loanProduct={loanProduct} />
                 </DetailSection>
 
                 <DetailSection title="Hard rules" description="Evaluated before scoring — can force reject or manual review">

@@ -23,4 +23,6 @@ public class PlpLinkedSubProgramSummaryResponse {
     private PlpSyncStatus subProgramSyncStatus;
     private UUID plpProgramId;
     private UUID plpSubProgramId;
+    private java.math.BigDecimal dependencyVintagePercent;
+    private Integer anchorRelationshipVintageMonths;
 }

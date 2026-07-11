@@ -114,6 +114,17 @@ export const SCORECARD_SOURCES: ScorecardSourceDef[] = [
       ]},
     ],
   },
+  {
+    value: 'PROGRAM_INPUTS',
+    label: 'Program inputs',
+    description: 'Invoice discounting — borrower vintage inputs and program thresholds',
+    parameters: [
+      { value: 'DEPENDENCY_VINTAGE_PERCENT', label: 'Dependency vintage (%)', type: 'number' },
+      { value: 'ANCHOR_RELATIONSHIP_VINTAGE_MONTHS', label: 'Anchor relationship vintage (months)', type: 'number' },
+      { value: 'PROGRAM_DEPENDENCY_VINTAGE_PERCENT', label: 'Program min dependency vintage (%)', type: 'number' },
+      { value: 'PROGRAM_ANCHOR_RELATIONSHIP_VINTAGE_MONTHS', label: 'Program min anchor vintage (months)', type: 'number' },
+    ],
+  },
 ]
 
 export const SCORECARD_SOURCE_OPTIONS = SCORECARD_SOURCES.map((s) => ({ value: s.value, label: s.label }))
@@ -144,4 +155,16 @@ export function defaultParameterForSource(source: string): string {
 
 export function isKnownParameter(source: string, parameter: string): boolean {
   return parametersForSource(source).some((p) => p.value === parameter)
+}
+
+/** PROGRAM_INPUTS is only available for invoice discounting scorecards. */
+export function scorecardSourcesForLoanProduct(loanProduct: string): ScorecardSourceDef[] {
+  if (loanProduct === 'BUSINESS_WC_INVOICE_DISCOUNTING') {
+    return SCORECARD_SOURCES
+  }
+  return SCORECARD_SOURCES.filter((s) => s.value !== 'PROGRAM_INPUTS')
+}
+
+export function scorecardSourceOptionsForLoanProduct(loanProduct: string) {
+  return scorecardSourcesForLoanProduct(loanProduct).map((s) => ({ value: s.value, label: s.label }))
 }

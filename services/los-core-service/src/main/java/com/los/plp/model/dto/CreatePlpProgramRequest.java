@@ -46,4 +46,10 @@ public class CreatePlpProgramRequest {
 
     /** Encore product code when lmsEntryIn=YES. */
     private String encoreProductCode;
+
+    /** Minimum borrower dependency on anchor (%). */
+    private BigDecimal dependencyVintagePercent;
+
+    /** Minimum anchor relationship vintage (months). */
+    private Integer anchorRelationshipVintageMonths;
 }

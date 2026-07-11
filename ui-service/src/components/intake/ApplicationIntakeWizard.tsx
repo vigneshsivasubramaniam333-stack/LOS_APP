@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { canAccessAdminConfigNav } from '@/auth/types'
-import { createApplication, updateApplication } from '@/api/applications'
+import { createApplication, getApplication, updateApplication } from '@/api/applications'
+import { listBorrowerApplications, type BorrowerAppSummary } from '@/api/borrowerPortal'
 import { listDocuments, uploadDocument } from '@/api/documents'
 import { listWorkflows } from '@/api/workflows'
 import { submitApplicationForKyc } from '@/api/flow'
@@ -42,6 +43,8 @@ import {
 import { LmsWorkflowConfigReadonly } from '@/components/intake/LmsWorkflowConfigReadonly'
 import { linkApplicationToProgram } from '@/api/plp'
 import { SelectAnchorProgramStep } from '@/components/intake/SelectAnchorProgramStep'
+import { LinkedAnchorProgramReadonly } from '@/components/intake/LinkedAnchorProgramReadonly'
+import { InvoiceDiscountingVintageFields } from '@/components/intake/InvoiceDiscountingVintageFields'
 import { buildStaffStepLabels, staffIntakeStepIndices } from '@/lib/intake/staffIntakeSteps'
 import {
   checkBorrowerIdentity,
@@ -51,7 +54,14 @@ import {
 } from '@/lib/intake/checkIntakeIdentity'
 import { duplicateFieldErrors, duplicateFieldFromError } from '@/lib/userFriendlyError'
 import { notifyError, notifySuccess } from '@/lib/notify'
+import { notifyBorrowerToComplete, submitDelegatedBorrowerIntake } from '@/api/workflow'
 import { activeCatalogHasSecuredProduct, uniqueActiveWorkflowLoanProducts, workflowLoanProductDisplayName } from '@/utils/workflowProducts'
+import { hydrateIntakeFormFromApplication } from '@/lib/intake/hydrateIntakeFromApplication'
+import { applyHydratedIntakeDefaults, inferFirstIncompleteIntakeStep } from '@/lib/intake/intakeResume'
+import {
+  isBorrowerResumableIntakeStatus,
+  isDelegatedBorrowerIntake,
+} from '@/lib/borrowerApplicationDeletable'
 import {
   resolveDocumentSlots,
   shouldCollectPersonalField,
@@ -91,10 +101,13 @@ export interface ApplicationIntakeWizardProps {
   mode: IntakeMode
   /** Lender / sales pages use the staff header + back link; borrower layout uses its own shell. */
   variant: 'borrower' | 'staff'
+  /** Staff: resume intake on an existing DRAFT application (`/applications/:id/intake`). */
+  editApplicationId?: string
 }
 
-export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWizardProps) {
+export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: ApplicationIntakeWizardProps) {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<IntakeFormState>(createEmptyIntakeFormState)
@@ -112,6 +125,15 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     requestedAmount: string
     tenureMonths: string
   } | null>(null)
+  const [delegatedApp, setDelegatedApp] = useState(false)
+  const [sentBackNotes, setSentBackNotes] = useState<string | null>(null)
+  const [hydrating, setHydrating] = useState(false)
+  const [resumeError, setResumeError] = useState<string | null>(null)
+  const [incompleteServer, setIncompleteServer] = useState<BorrowerAppSummary[]>([])
+  const [resumeLoaded, setResumeLoaded] = useState(false)
+
+  const resumeApplicationId =
+    editApplicationId ?? (variant === 'borrower' ? searchParams.get('resume') : null)
 
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {
@@ -206,6 +228,112 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       })
     }
   }, [mode, user])
+
+  const reloadIncomplete = useCallback(() => {
+    if (variant !== 'borrower' || !user) return
+    void listBorrowerApplications(0, 40)
+      .then((p) => {
+        setIncompleteServer(p.content.filter((a) => isBorrowerResumableIntakeStatus(a.status)))
+      })
+      .catch(() => setIncompleteServer([]))
+  }, [variant, user])
+
+  useEffect(() => {
+    reloadIncomplete()
+  }, [reloadIncomplete])
+
+  useEffect(() => {
+    if (variant !== 'borrower' || !user) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- seed name/email from session when empty
+    setForm((f) => {
+      if (f.email.trim() && f.fullName.trim()) return f
+      return { ...f, fullName: f.fullName || user.name, email: f.email || user.email }
+    })
+  }, [variant, user])
+
+  useEffect(() => {
+    setResumeLoaded(false)
+  }, [resumeApplicationId])
+
+  useEffect(() => {
+    if (!resumeApplicationId || resumeLoaded || workflowsState !== 'ok') return
+    let cancelled = false
+    void (async () => {
+      setResumeError(null)
+      setHydrating(true)
+      try {
+        const app = await getApplication(resumeApplicationId)
+        if (cancelled) return
+        if (variant === 'borrower') {
+          if (!user || app.customerId !== user.userId) {
+            setResumeError('You can only open your own application.')
+            return
+          }
+          if (!isBorrowerResumableIntakeStatus(app.status)) {
+            setResumeError('This application is no longer a draft. Open it from your applications list.')
+            return
+          }
+        } else if (editApplicationId) {
+          if (app.status !== 'DRAFT' || app.intakeOwner === 'BORROWER') {
+            setResumeError('Only staff-owned DRAFT applications can be edited here.')
+            return
+          }
+        }
+        const h0 = hydrateIntakeFormFromApplication(app)
+        let h = applyHydratedIntakeDefaults(h0, app, variant)
+        try {
+          const docs = await listDocuments(app.id)
+          const uploaded = { ...h.documentUploaded }
+          for (const d of docs) {
+            uploaded[d.documentType] = true
+          }
+          h = { ...h, documentUploaded: uploaded }
+        } catch {
+          // optional — document flags improve resume step inference
+        }
+        setForm(h)
+        setApplicationId(app.id)
+        setDelegatedApp(isDelegatedBorrowerIntake(app))
+        setSentBackNotes(app.borrowerSentBackNotes ?? null)
+        const needPlpResume =
+          variant === 'staff' &&
+          isInvoiceDiscountingProduct(h.loanProduct) &&
+          h.invoiceOnboardingChoice === 'BORROWER'
+        const needCollResume = requiresCollateral(h.loanProduct)
+        const stepMap = staffIntakeStepIndices(needCollResume, needPlpResume)
+        setStep(
+          inferFirstIncompleteIntakeStep(
+            h,
+            stepMap,
+            mode,
+            activeWorkflows,
+            needPlpResume,
+            needCollResume,
+          ),
+        )
+        if (variant === 'borrower' && !editApplicationId) {
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev)
+              next.delete('resume')
+              return next
+            },
+            { replace: true },
+          )
+        }
+      } catch (e) {
+        if (!cancelled) setResumeError(intakeErrorMessage(e, 'Could not load application'))
+      } finally {
+        if (!cancelled) {
+          setHydrating(false)
+          setResumeLoaded(true)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [resumeApplicationId, resumeLoaded, workflowsState, variant, user, editApplicationId, setSearchParams])
 
   const syncDocumentsFromServer = useCallback(async (id: string) => {
     try {
@@ -460,6 +588,48 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     }
   }
 
+  async function onNotifyBorrower() {
+    if (anchorBranch) return
+    try {
+      await prefetchIntakeGeoForValidation(form)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load location master data. Try again.')
+      return
+    }
+    const v = validateBorrowerStep(form, mode, selectedWorkflow)
+    if (v) {
+      setError(v)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const dup = await checkBorrowerIdentity(form, mode, applicationId)
+      if (dup) {
+        setFieldErrors(dup)
+        return
+      }
+      let appId = applicationId
+      if (!appId) {
+        const req = buildIntakeCreateRequest(form, mode, user)
+        const res = await createApplication(req)
+        appId = res.id
+        setApplicationId(res.id)
+      } else {
+        await updateApplication(appId, buildIntakeBorrowerUpdate(form, mode, user))
+      }
+      await notifyBorrowerToComplete(appId, steps.kyc)
+      notifySuccess('Borrower notified to complete the application in the portal.')
+      void navigate(`/applications/${appId}`, { replace: true })
+    } catch (err) {
+      const msg = intakeErrorMessage(err, 'Could not notify borrower.')
+      setError(msg)
+      notifyError(err, 'Could not notify borrower.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function onSubmitFinal() {
     if (!applicationId) return
     if (!allConsentsChecked(form)) {
@@ -469,13 +639,26 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     setBusy(true)
     setError(null)
     try {
-      await submitApplicationForKyc(applicationId)
-      notifySuccess('Application submitted for verification.')
-      if (mode === 'BORROWER_SELF_SERVICE') {
+      let useDelegated = delegatedApp
+      if (variant === 'borrower' && !useDelegated) {
+        const app = await getApplication(applicationId)
+        useDelegated = isDelegatedBorrowerIntake(app)
+        if (useDelegated) setDelegatedApp(true)
+      }
+      if (useDelegated) {
+        await submitDelegatedBorrowerIntake(applicationId)
+        notifySuccess('Application submitted for lender review.')
         void navigate(`/borrower/applications/${applicationId}`, { replace: true })
       } else {
-        void navigate(`/applications/${applicationId}`, { replace: true })
+        await submitApplicationForKyc(applicationId)
+        notifySuccess('Application submitted for verification.')
+        if (mode === 'BORROWER_SELF_SERVICE') {
+          void navigate(`/borrower/applications/${applicationId}`, { replace: true })
+        } else {
+          void navigate(`/applications/${applicationId}`, { replace: true })
+        }
       }
+      if (variant === 'borrower') reloadIncomplete()
     } catch (err) {
       const dupField = duplicateFieldFromError(err)
       if (dupField) {
@@ -534,10 +717,20 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
     <div>
       {variant === 'staff' ? (
         <>
-          <PageHeader title={pageTitle(mode)} description={pageDescription(mode)} />
+          <PageHeader
+            title={editApplicationId ? 'Continue application intake' : pageTitle(mode)}
+            description={
+              editApplicationId
+                ? 'Resume filling this draft application. Fields follow the active workflow configuration.'
+                : pageDescription(mode)
+            }
+          />
           <p className="mb-4 text-sm text-slate-600">
-            <Link to="/applications" className="font-medium text-slate-800 underline">
-              ← Applications
+            <Link
+              to={editApplicationId ? `/applications/${editApplicationId}` : '/applications'}
+              className="font-medium text-slate-800 underline"
+            >
+              ← {editApplicationId ? 'Application details' : 'Applications'}
             </Link>
           </p>
         </>
@@ -547,6 +740,63 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
           <p className="mt-1 text-sm text-slate-600">{pageDescription(mode)}</p>
         </div>
       )}
+
+      {hydrating || resumeError ? (
+        <div className="mb-4 rounded border border-slate-200 bg-white p-3 text-sm text-slate-800 shadow-sm" role="status">
+          {hydrating ? 'Loading your saved application…' : null}
+          {resumeError ? <span className="text-rose-800">{resumeError}</span> : null}
+        </div>
+      ) : null}
+
+      {variant === 'borrower' && sentBackNotes ? (
+        <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-medium">Changes requested by the lender</p>
+          <p className="mt-1 whitespace-pre-wrap">{sentBackNotes}</p>
+        </div>
+      ) : null}
+
+      {variant === 'borrower' && incompleteServer.length > 0 && !applicationId ? (
+        <div className="mb-4 rounded border border-indigo-200 bg-indigo-50/90 p-4 text-sm text-indigo-950">
+          <p className="font-medium">Continue your application</p>
+          <p className="mt-1 text-indigo-900">
+            You have {incompleteServer.length === 1 ? 'an application' : `${incompleteServer.length} applications`}{' '}
+            waiting to be completed. Pick up where you left off.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {incompleteServer.map((a) => (
+              <li
+                key={a.applicationId}
+                className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-200/80 pb-2 last:border-0 last:pb-0"
+              >
+                <span>
+                  <span className="font-medium">{a.applicationNumber}</span>
+                  <span className="text-indigo-800"> — {a.friendlyStatus}</span>
+                </span>
+                <button
+                  type="button"
+                  className="rounded-md bg-indigo-900 px-3 py-1.5 text-xs font-medium text-white"
+                  onClick={() => {
+                    setSearchParams((prev) => {
+                      const n = new URLSearchParams(prev)
+                      n.set('resume', a.applicationId)
+                      return n
+                    })
+                    setResumeLoaded(false)
+                  }}
+                >
+                  Continue filling
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {variant === 'borrower' && delegatedApp ? (
+        <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
+          Your lender started this application. Complete the remaining steps and submit for their review.
+        </div>
+      ) : null}
 
       {workflowsState === 'loading' ? <p className="mb-4 text-sm text-slate-600">Loading active workflows…</p> : null}
       {workflowsState === 'err' && workflowsError ? <ErrorState message={workflowsError} /> : null}
@@ -562,6 +812,11 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
       {step === steps.product ? (
         <section className="space-y-4 bt-card p-5">
           <h2 className="bt-card-title">Product &amp; request</h2>
+          {variant === 'borrower' &&
+          isInvoiceDiscountingProduct(form.loanProduct) &&
+          form.selectedSubProgramId ? (
+            <LinkedAnchorProgramReadonly subProgramId={form.selectedSubProgramId} />
+          ) : null}
           {mode === 'SALES_ASSISTED' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-sm text-slate-700">
@@ -743,6 +998,16 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     />
                   </label>
                 ) : null}
+                {isInvoiceDiscountingProduct(form.loanProduct) &&
+                (form.invoiceOnboardingChoice === 'BORROWER' || variant === 'borrower') ? (
+                  <div className="sm:col-span-2">
+                    <p className="mb-2 text-sm font-medium text-slate-800">Anchor relationship details</p>
+                    <InvoiceDiscountingVintageFields
+                      form={form}
+                      onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                    />
+                  </div>
+                ) : null}
               </div>
             </>
           ) : (
@@ -829,6 +1094,15 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
                     placeholder="How you plan to use the funds (short note)"
                   />
                 </label>
+                {isInvoiceDiscountingProduct(form.loanProduct) ? (
+                  <div className="sm:col-span-2">
+                    <p className="mb-2 text-sm font-medium text-slate-800">Anchor relationship details</p>
+                    <InvoiceDiscountingVintageFields
+                      form={form}
+                      onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                    />
+                  </div>
+                ) : null}
               </div>
             </>
           )}
@@ -1380,11 +1654,32 @@ export function ApplicationIntakeWizard({ mode, variant }: ApplicationIntakeWiza
             disabled={busy}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? 'Submitting…' : 'Submit for verification'}
+            {busy
+              ? 'Submitting…'
+              : delegatedApp
+                ? 'Submit for review'
+                : variant === 'borrower'
+                  ? 'Submit application'
+                  : 'Submit for verification'}
           </button>
         )}
+        {variant === 'staff' && step === steps.borrower && !anchorBranch ? (
+          <button
+            type="button"
+            onClick={() => {
+              void onNotifyBorrower()
+            }}
+            disabled={busy}
+            className="rounded-md border border-indigo-400 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busy ? 'Please wait…' : 'Save draft & notify borrower'}
+          </button>
+        ) : null}
         {variant === 'staff' ? (
-          <Link to="/applications" className="text-sm text-slate-600 underline">
+          <Link
+            to={editApplicationId ? `/applications/${editApplicationId}` : '/applications'}
+            className="text-sm text-slate-600 underline"
+          >
             Cancel
           </Link>
         ) : null}
