@@ -1,5 +1,4 @@
 import { http } from './http'
-import type { PlpProgramSetupResponse } from '@/types/plp'
 
 export type ProgramApprovalStatus =
   | 'DRAFT'

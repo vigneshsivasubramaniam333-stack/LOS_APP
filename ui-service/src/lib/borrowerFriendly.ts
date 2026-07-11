@@ -7,6 +7,8 @@ export function friendlyStatusHeadline(status: ApplicationStatus): string {
   const m: Record<ApplicationStatus, string> = {
     DRAFT: 'Application in progress',
     CONSENT_PENDING: 'Waiting for your consent',
+    BORROWER_SUBMITTED: 'Submitted — we are reviewing your details',
+    BORROWER_SENT_BACK: 'Please update your application',
     KYC_IN_PROGRESS: 'Verification in progress',
     KYC_FAILED: 'We need a bit more information',
     UNDERWRITING: 'We are reviewing your application',
