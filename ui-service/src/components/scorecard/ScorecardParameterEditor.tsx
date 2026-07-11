@@ -3,19 +3,12 @@ import type { ScorecardRow } from '@/api/scorecards'
 import { ScorecardConditionEditor } from '@/components/scorecard/ScorecardConditionEditor'
 
 import {
-
   defaultParameterForSource,
-
   isKnownParameter,
-
   paramDef,
-
   parametersForSource,
-
-  SCORECARD_SOURCE_OPTIONS,
-
+  scorecardSourceOptionsForLoanProduct,
   sourceDef,
-
 } from '@/lib/credit/scorecardConfig'
 
 import { defaultConditionForParam } from '@/lib/credit/scorecardCondition'

@@ -4,6 +4,8 @@
 export type ApplicationStatus =
   | 'DRAFT'
   | 'CONSENT_PENDING'
+  | 'BORROWER_SUBMITTED'
+  | 'BORROWER_SENT_BACK'
   | 'KYC_IN_PROGRESS'
   | 'KYC_FAILED'
   | 'UNDERWRITING'
@@ -34,6 +36,9 @@ export interface ApplicationResponse {
   loanProduct: string
   /** Omitted in older rows — borrower loan origination. */
   intakeSegment?: ApplicationIntakeSegment | null
+  intakeOwner?: 'STAFF' | 'BORROWER' | null
+  intakeCompletedStep?: number | null
+  borrowerSentBackNotes?: string | null
   requestedAmount: number | null
   interestRate: number | null
   tenureMonths: number | null

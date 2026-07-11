@@ -999,7 +999,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                   </label>
                 ) : null}
                 {isInvoiceDiscountingProduct(form.loanProduct) &&
-                (form.invoiceOnboardingChoice === 'BORROWER' || variant === 'borrower') ? (
+                form.invoiceOnboardingChoice === 'BORROWER' ? (
                   <div className="sm:col-span-2">
                     <p className="mb-2 text-sm font-medium text-slate-800">Anchor relationship details</p>
                     <InvoiceDiscountingVintageFields
