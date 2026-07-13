@@ -13,6 +13,7 @@ import com.los.core.repository.UnderwritingEvaluationRepository;
 import com.los.core.repository.UnderwritingScorecardRepository;
 import com.los.core.service.credit.CreditControlService;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.core.service.loan.WorkflowRoleGuard;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -48,6 +49,8 @@ class CreditAppraisalServiceTest {
     private IKycOrchestrationService kycOrchestrationService;
     @Mock
     private CreditControlService creditControlService;
+    @Mock
+    private WorkflowRoleGuard workflowRoleGuard;
 
     @InjectMocks
     private CreditAppraisalService service;
@@ -79,6 +82,39 @@ class CreditAppraisalServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> ext = (Map<String, Object>) saved.getCamJson().get("sectionExtended");
         assertThat(ext).containsKeys("executiveSummary", "borrowerProfile", "riskFlags", "completenessPercent");
+    }
+
+    @Test
+    void ensureCam_loanRequestUsesLmsTenureUnitLabel() {
+        UUID id = UUID.randomUUID();
+        LoanApplication app = LoanApplication.builder()
+                .id(id)
+                .applicationNumber("T-1001D")
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("PERSONAL_LOAN")
+                .requestedAmount(new BigDecimal("500000"))
+                .tenureMonths(90)
+                .lmsTenureUnit("Day")
+                .status(ApplicationStatus.CAM_READY)
+                .personalInfo(Map.of("fullName", "Test User"))
+                .build();
+        when(underwritingEvaluationRepository.findTopByApplicationIdOrderByEvaluatedAtDesc(id))
+                .thenReturn(Optional.empty());
+        when(kycOrchestrationService.computeKycOutcome(id))
+                .thenReturn(Map.of("outcome", "PASS", "exceptions", List.of()));
+        when(creditControlService.buildReadView(any(LoanApplication.class))).thenReturn(Map.of("effective", Map.of()));
+        when(camRepository.findByApplicationId(id)).thenReturn(Optional.empty());
+        when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
+
+        CreditAppraisalMemo saved = service.ensureCamForApplication(app);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ext = (Map<String, Object>) saved.getCamJson().get("sectionExtended");
+        @SuppressWarnings("unchecked")
+        Map<String, String> loanRequest = (Map<String, String>) ext.get("loanRequest");
+        assertThat(loanRequest).containsKey("Tenure (days)");
+        assertThat(loanRequest.get("Tenure (days)")).isEqualTo("90");
+        assertThat(loanRequest).doesNotContainKey("Tenure (months)");
     }
 
     @Test
@@ -157,7 +193,7 @@ class CreditAppraisalServiceTest {
 
         CamUpdateRequest req = new CamUpdateRequest();
         req.setEditableSectionsPatch(Map.of("executiveSummaryNarrative", "Edited summary for committee"));
-        CamResponse res = service.updateCam(id, req);
+        CamResponse res = service.updateCam(id, req, null);
 
         ArgumentCaptor<CreditAppraisalMemo> cap = ArgumentCaptor.forClass(CreditAppraisalMemo.class);
         verify(camRepository).save(cap.capture());
@@ -178,7 +214,7 @@ class CreditAppraisalServiceTest {
         LoanApplication app = LoanApplication.builder().id(id).applicationNumber("X").status(ApplicationStatus.CAM_READY).build();
         when(applicationRepository.findById(id)).thenReturn(Optional.of(app));
 
-        CamResponse res = service.submitCam(id);
+        CamResponse res = service.submitCam(id, null);
         assertThat(res.getCamStatus()).isEqualTo("SUBMITTED");
     }
 

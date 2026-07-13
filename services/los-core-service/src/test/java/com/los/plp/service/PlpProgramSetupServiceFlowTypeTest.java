@@ -36,6 +36,8 @@ class PlpProgramSetupServiceFlowTypeTest {
     PlpSubProgramSyncService plpSubProgramSyncService;
     @Mock
     PlpProperties plpProperties;
+    @Mock
+    ProgramApprovalService programApprovalService;
 
     PlpProgramSetupService service;
 
@@ -47,7 +49,8 @@ class PlpProgramSetupServiceFlowTypeTest {
                 subProgramMasterRepository,
                 plpProgramSyncService,
                 plpSubProgramSyncService,
-                plpProperties);
+                plpProperties,
+                programApprovalService);
         when(plpProperties.isEnabled()).thenReturn(false);
         when(plpProperties.getLenderId()).thenReturn(UUID.randomUUID().toString());
     }
