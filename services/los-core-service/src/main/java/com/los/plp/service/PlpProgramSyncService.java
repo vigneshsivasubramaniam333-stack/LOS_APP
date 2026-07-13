@@ -3,6 +3,7 @@ package com.los.plp.service;
 import com.los.plp.client.PlpIntegrationClient;
 import com.los.plp.client.PlpIntegrationException;
 import com.los.plp.dto.PlpApiResponse;
+import com.los.plp.dto.request.PlpProgramActivateRequest;
 import com.los.plp.dto.response.PlpProgramSyncData;
 import com.los.plp.mapper.PlpProgramPayloadMapper;
 import com.los.plp.model.entity.ProgramMaster;
@@ -24,6 +25,7 @@ public class PlpProgramSyncService {
 
     private final ProgramMasterRepository programMasterRepository;
     private final PlpIntegrationClient plpIntegrationClient;
+    private final PlpProgramStatusMirrorService plpProgramStatusMirrorService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ProgramMaster sync(UUID programId) {
@@ -53,11 +55,43 @@ public class PlpProgramSyncService {
             program.setPlpProgramSyncStatus(PlpSyncStatus.SYNC_SUCCESS);
             program.setPlpProgramSyncError(null);
             program.setPlpProgramSyncedAt(PlpSyncSupport.now());
-            log.info("PLP program sync success: losProgramId={}, plpProgramId={}", programId, data.getPlpProgramId());
+            if (data.getStatus() != null) {
+                plpProgramStatusMirrorService.mirror(program, data.getStatus());
+            }
+            log.info("PLP program sync success: losProgramId={}, plpProgramId={}, plpStatus={}",
+                    programId, data.getPlpProgramId(), data.getStatus());
         } catch (PlpIntegrationException e) {
             program.setPlpProgramSyncStatus(PlpSyncStatus.SYNC_FAILED);
             program.setPlpProgramSyncError(PlpSyncSupport.truncateError(e.getMessage()));
             log.error("PLP program sync failed for {}: {}", programId, e.getMessage());
+        }
+        return programMasterRepository.save(program);
+    }
+
+    @Transactional
+    public ProgramMaster activate(ProgramMaster program) {
+        if (program == null || program.getId() == null) {
+            throw new IllegalArgumentException("Program id is required for PLP activation");
+        }
+        try {
+            PlpApiResponse<PlpProgramSyncData> response = plpIntegrationClient.activateProgram(
+                    PlpProgramActivateRequest.builder().losProgramId(program.getId().toString()).build());
+            PlpProgramSyncData data = response.getData();
+            if (data != null && data.getPlpProgramId() != null) {
+                program.setPlpProgramId(PlpSyncSupport.parseUuid(data.getPlpProgramId()));
+            }
+            program.setPlpProgramSyncStatus(PlpSyncStatus.SYNC_SUCCESS);
+            program.setPlpProgramSyncError(null);
+            program.setPlpProgramSyncedAt(PlpSyncSupport.now());
+            if (data != null && data.getStatus() != null) {
+                plpProgramStatusMirrorService.mirror(program, data.getStatus());
+            }
+            log.info("PLP program activated: losProgramId={}", program.getId());
+        } catch (PlpIntegrationException e) {
+            program.setPlpProgramSyncStatus(PlpSyncStatus.SYNC_FAILED);
+            program.setPlpProgramSyncError(PlpSyncSupport.truncateError(e.getMessage()));
+            log.error("PLP program activation failed for {}: {}", program.getId(), e.getMessage());
+            throw e;
         }
         return programMasterRepository.save(program);
     }

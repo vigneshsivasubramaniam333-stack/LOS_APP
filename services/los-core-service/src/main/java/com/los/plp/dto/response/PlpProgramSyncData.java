@@ -10,4 +10,6 @@ public class PlpProgramSyncData {
     private String programCode;
     private Boolean created;
     private Boolean updated;
+    /** PLP operational status: DRAFT, ACTIVE, PAUSED, CLOSED */
+    private String status;
 }
