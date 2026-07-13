@@ -62,10 +62,10 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                     null,
                     Map.of("status", app.getStatus().name(), "reason", "KFS_NOT_READY", "action", "ESIGN_INITIATE"),
                     null,
-                    "eSign blocked: requires KFS_GENERATED, SANCTION_ISSUED, or invoice discounting borrower SANCTIONED");
+                    "eSign blocked: requires KFS_GENERATED, SANCTION_ISSUED, anchor ESIGN_PENDING, or invoice discounting borrower SANCTIONED");
             throw new BusinessRuleException(
-                    "Cannot initiate eSign — application must be in KFS_GENERATED or SANCTION_ISSUED status"
-                            + " (invoice discounting borrower may start from SANCTIONED). Current: "
+                    "Cannot initiate eSign — application must be in KFS_GENERATED, SANCTION_ISSUED, "
+                            + "anchor ESIGN_PENDING (program terms), or invoice discounting borrower SANCTIONED. Current: "
                             + app.getStatus(),
                     "ESIGN_STATUS_INVALID",
                     "ESIGN_INITIATE",
@@ -172,6 +172,10 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
     }
 
     private static boolean esignAllowedForStatus(LoanApplication app) {
+        if (app.getStatus() == ApplicationStatus.ESIGN_PENDING
+                && InvoiceDiscountingApplicationRules.isAnchorFlow(app)) {
+            return true;
+        }
         if (app.getStatus() == ApplicationStatus.SANCTION_ISSUED
                 || app.getStatus() == ApplicationStatus.KFS_GENERATED) {
             return true;

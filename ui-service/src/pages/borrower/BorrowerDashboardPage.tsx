@@ -1,23 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteBorrowerDraftApplication, getBorrowerDashboard, getBorrowerNotifications } from '@/api/borrowerPortal'
+import { getBorrowerDashboard, getBorrowerNotifications } from '@/api/borrowerPortal'
+import { BorrowerContinueIntakeLink } from '@/components/borrower/BorrowerContinueIntakeLink'
 import { ApiError } from '@/api/http'
 import { PageHeader } from '@/components/PageHeader'
 import { BtCard, BtCardHeader } from '@/components/ui/BtCard'
 import { BtStatCard } from '@/components/ui/BtStatCard'
-import { isBorrowerDeletableApplicationStatus } from '@/lib/borrowerApplicationDeletable'
 import { hasLocalDraft } from '@/lib/borrowerWizardDraft'
 
 export function BorrowerDashboardPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getBorrowerDashboard>> | null>(null)
   const [notifs, setNotifs] = useState<Awaited<ReturnType<typeof getBorrowerNotifications>>>([])
   const [err, setErr] = useState<string | null>(null)
-  const [draftDeleteBusy, setDraftDeleteBusy] = useState<string | null>(null)
-  const [actionErr, setActionErr] = useState<string | null>(null)
 
   const load = useCallback(() => {
     setErr(null)
-    setActionErr(null)
     void getBorrowerDashboard()
       .then((d) => {
         setData(d)
@@ -26,23 +23,6 @@ export function BorrowerDashboardPage() {
       .then(setNotifs)
       .catch((e) => setErr(e instanceof ApiError ? e.message : 'Failed to load dashboard'))
   }, [])
-
-  const onDeleteServerDraft = useCallback(
-    async (id: string) => {
-      if (!window.confirm('Delete this draft? This cannot be undone.')) return
-      setDraftDeleteBusy(id)
-      setActionErr(null)
-      try {
-        await deleteBorrowerDraftApplication(id)
-        void load()
-      } catch (e) {
-        setActionErr(e instanceof ApiError ? e.message : 'Delete failed')
-      } finally {
-        setDraftDeleteBusy(null)
-      }
-    },
-    [load],
-  )
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async dashboard + notifications
@@ -67,7 +47,6 @@ export function BorrowerDashboardPage() {
     <div className="space-y-8">
       <PageHeader title={`Welcome, ${data.fullName}`} description="Track your loan applications and account activity." />
 
-      {actionErr ? <p className="bt-alert bt-alert-error text-sm">{actionErr}</p> : null}
       {data.secondLoanWarning ? (
         <p className="bt-alert bt-alert-warning text-sm">{data.secondLoanWarning}</p>
       ) : null}
@@ -125,16 +104,12 @@ export function BorrowerDashboardPage() {
                     {a.applicationNumber} · {a.friendlyStatus}
                   </span>
                   <span className="flex flex-wrap items-center gap-3">
-                    {isBorrowerDeletableApplicationStatus(a.status) ? (
-                      <button
-                        type="button"
-                        className="text-xs text-[var(--bt-red)] hover:underline"
-                        onClick={() => void onDeleteServerDraft(a.applicationId)}
-                        disabled={draftDeleteBusy === a.applicationId}
-                      >
-                        {draftDeleteBusy === a.applicationId ? 'Deleting…' : 'Delete draft'}
-                      </button>
-                    ) : null}
+                    <BorrowerContinueIntakeLink
+                      applicationId={a.applicationId}
+                      status={a.status}
+                      label="Continue"
+                      className="text-sm text-[var(--bt-orange)] hover:underline"
+                    />
                     <Link to={`/borrower/applications/${a.applicationId}`} className="shrink-0 text-sm text-[var(--bt-orange)] hover:underline">
                       Open
                     </Link>

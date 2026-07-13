@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteBorrowerDraftApplication, listBorrowerApplications, type BorrowerAppSummary } from '@/api/borrowerPortal'
+import { listBorrowerApplications, type BorrowerAppSummary } from '@/api/borrowerPortal'
+import { BorrowerContinueIntakeLink } from '@/components/borrower/BorrowerContinueIntakeLink'
 import { ApiError } from '@/api/http'
 import { PageHeader } from '@/components/PageHeader'
-import { isBorrowerDeletableApplicationStatus } from '@/lib/borrowerApplicationDeletable'
 import { loanProductLabel } from '@/catalog/loanProducts'
 import { formatInstant } from '@/lib/format'
 
 export function BorrowerApplicationsListPage() {
   const [list, setList] = useState<BorrowerAppSummary[]>([])
   const [err, setErr] = useState<string | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(() => {
     void listBorrowerApplications(0, 50)
@@ -21,20 +20,6 @@ export function BorrowerApplicationsListPage() {
   useEffect(() => {
     load()
   }, [load])
-
-  async function onDeleteDraft(id: string) {
-    if (!window.confirm('Delete this draft application? This cannot be undone.')) return
-    setBusyId(id)
-    setErr(null)
-    try {
-      await deleteBorrowerDraftApplication(id)
-      setList((prev) => prev.filter((a) => a.applicationId !== id))
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Delete failed')
-    } finally {
-      setBusyId(null)
-    }
-  }
 
   if (err && list.length === 0) {
     return <p className="text-sm text-rose-700">{err}</p>
@@ -76,17 +61,13 @@ export function BorrowerApplicationsListPage() {
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-600 tabular-nums">{formatInstant(a.updatedAt)}</td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center justify-end gap-4">
-                      {isBorrowerDeletableApplicationStatus(a.status) ? (
-                        <button
-                          type="button"
-                          className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
-                          onClick={() => void onDeleteDraft(a.applicationId)}
-                          disabled={busyId === a.applicationId}
-                        >
-                          {busyId === a.applicationId ? 'Deleting…' : 'Delete draft'}
-                        </button>
-                      ) : null}
+                    <div className="flex items-center justify-end gap-3">
+                      <BorrowerContinueIntakeLink
+                        applicationId={a.applicationId}
+                        status={a.status}
+                        label="Continue"
+                        className="text-sm font-medium text-indigo-800 underline-offset-2 hover:underline"
+                      />
                       <Link
                         to={`/borrower/applications/${a.applicationId}`}
                         className="text-sm font-medium text-slate-800 underline-offset-2 hover:underline"

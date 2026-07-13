@@ -25,7 +25,8 @@ export function EsignSection({
   const canInit =
     app.status === 'KFS_GENERATED' ||
     app.status === 'SANCTION_ISSUED' ||
-    app.status === 'SANCTIONED'
+    app.status === 'SANCTIONED' ||
+    (app.status === 'ESIGN_PENDING' && (rows?.length ?? 0) === 0)
 
   const canComplete = app.status === 'ESIGN_PENDING'
 

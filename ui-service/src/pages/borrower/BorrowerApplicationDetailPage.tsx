@@ -10,6 +10,7 @@ import {
 import { listEsignRequests } from '@/api/esignRequests'
 import { ApiError } from '@/api/http'
 import { loanProductLabel } from '@/catalog/loanProducts'
+import { BorrowerContinueIntakeLink } from '@/components/borrower/BorrowerContinueIntakeLink'
 import { isUuid } from '@/lib/format'
 
 type Tab = 'overview' | 'documents' | 'kfs' | 'loan'
@@ -119,6 +120,9 @@ export function BorrowerApplicationDetailPage() {
           {data.applicationNumber} · {loanProductLabel(data.product)}
         </p>
         <p className="mt-4 text-sm leading-relaxed text-slate-800">{data.currentStageMessage}</p>
+        <div className="mt-4">
+          <BorrowerContinueIntakeLink applicationId={data.applicationId} status={data.status} />
+        </div>
         {data.estimatedProcessingHint ? (
           <p className="mt-2 text-xs text-slate-500">{data.estimatedProcessingHint}</p>
         ) : null}
@@ -251,7 +255,7 @@ export function BorrowerApplicationDetailPage() {
           <div className="bt-card p-5 sm:p-6">
             <h2 className="bt-card-title">Application progress</h2>
             <ol className="mt-4 space-y-4">
-              {data.timeline.map((s) => (
+              {(data.timeline ?? []).map((s) => (
                 <li
                   key={s.id}
                   className="flex gap-4 rounded-lg border border-slate-100 bg-slate-50/50 p-4 text-sm"

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '@/auth/useAuth'
+import { isL2SanctionRole } from '@/auth/types'
 import { getCam } from '@/api/cam'
 import { downloadKfsPdfBlob, getLatestKfs, type KfsDocumentView } from '@/api/kfsApi'
 import { proceedToSanctionPendingFlow, rejectPostCreditFlow, sanctionApplicationFlow } from '@/api/flow'
@@ -58,6 +60,8 @@ export function SanctionKfsSection({
   const [busy, setBusy] = useState(false)
   const [kfsLoad, setKfsLoad] = useState(false)
   const [camStatusLine, setCamStatusLine] = useState<string | null>(null)
+  const { user } = useAuth()
+  const canSanctionL2 = user ? isL2SanctionRole(user.role) : false
 
   const isAnchor = isInvoiceDiscountingAnchorApp(app)
   const isIdBorrower = isInvoiceDiscountingBorrowerApp(app)
@@ -65,7 +69,8 @@ export function SanctionKfsSection({
 
   const canAct = isAnchor
     ? app.status === 'SANCTION_PENDING'
-    : app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED'
+    : (app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED') &&
+      canSanctionL2
 
   const refetchAncillary = useCallback(async () => {
     setKfsLoad(true)
@@ -286,7 +291,7 @@ export function SanctionKfsSection({
         <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-950">
           <span className="font-medium">Status:</span> {app.status}.{' '}
           {isAnchor
-            ? 'Sanction unlocks after due diligence approval (SANCTION_PENDING).'
+            ? 'Sanction unlocks after due diligence approval (SANCTION_PENDING). Complete program setup, approve the program in PLP (Programs listing), refresh PLP status, then generate program terms and eSign before onboarding is complete.'
             : 'Sanction and KFS actions unlock after the Credit Appraisal Memo is reviewed (CAM_REVIEWED or legacy APPROVED). You can still use this tab to read guidance and download PDFs if they already exist.'}
         </div>
       ) : null}
@@ -323,8 +328,9 @@ export function SanctionKfsSection({
           </h3>
           {isAnchor ? (
             <p className="mb-3 text-sm text-slate-700">
-              Set the program limit below and complete PLP program setup. No LMS loan or KFS is created for anchor
-              onboarding — this is the final step.
+              Set the program limit below and complete PLP program setup. Approve the program in PLP
+              in PLP (Programs listing), refresh status on LOS, then sanction to generate program terms
+              for anchor eSign — onboarding completes after eSign, not at this step.
             </p>
           ) : isIdBorrower ? (
             <p className="mb-3 text-sm text-slate-700">
@@ -422,7 +428,7 @@ export function SanctionKfsSection({
               {busy
                 ? 'Working…'
                 : isAnchor
-                  ? 'Complete anchor sanction'
+                  ? 'Generate program terms & start eSign'
                   : isIdBorrower
                     ? 'Approve & generate terms document'
                     : 'Approve & generate sanction + KFS'}
@@ -505,9 +511,14 @@ export function SanctionKfsSection({
 
       {skipKfsDoc && sanctionRec && isAnchor && (
         <div className="bt-section-card bt-section-card--default p-4">
-          <h3 className="mb-2 bt-card-title">Anchor sanction</h3>
+          <h3 className="mb-2 bt-card-title">Anchor program terms</h3>
           <p className="text-sm text-slate-700">
             Limit: {formatMoney(sanctionRec.approvedAmount)} · Recorded {sanctionRec.createdAt ?? '—'}
+            {app.status === 'ESIGN_PENDING'
+              ? ' · Awaiting anchor eSign on the eSign tab — SANCTIONED after signing.'
+              : app.status === 'SANCTIONED' || app.status === 'ESIGN_COMPLETED'
+                ? ' · eSign complete — anchor onboarding is SANCTIONED.'
+                : null}
           </p>
         </div>
       )}
