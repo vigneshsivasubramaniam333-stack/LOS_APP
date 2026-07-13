@@ -47,6 +47,7 @@ public class KfsPdfGenerationService {
     private final KfsDocumentRepository kfsDocumentRepository;
     private final EdiKfsDocxPdfService ediKfsDocxPdfService;
     private final EdiKfsProperties ediKfsProperties;
+    private final AnchorProgramTermsPdfService anchorProgramTermsPdfService;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("dd-MMM-yyyy").withZone(ZoneId.of("Asia/Kolkata"));
@@ -73,6 +74,10 @@ public class KfsPdfGenerationService {
      * @return byte array containing the PDF
      */
     public byte[] generateKfsPdf(KfsDocument kfs) {
+        if (isAnchorProgramTermsDocument(kfs)) {
+            LoanApplication app = applicationRepository.findById(kfs.getApplicationId()).orElse(null);
+            return anchorProgramTermsPdfService.generate(kfs, app);
+        }
         if (isInvoiceDiscountingTermsDocument(kfs)) {
             LoanApplication app = applicationRepository.findById(kfs.getApplicationId()).orElse(null);
             return generateInvoiceDiscountingTermsPdf(kfs, app);
@@ -297,6 +302,14 @@ public class KfsPdfGenerationService {
                             .build();
                     return generateInvoiceDiscountingTermsPdf(probe, app);
                 });
+    }
+
+    private boolean isAnchorProgramTermsDocument(KfsDocument kfs) {
+        if (kfs.getAdditionalTerms() == null) {
+            return false;
+        }
+        Object kind = kfs.getAdditionalTerms().get("documentKind");
+        return KfsService.DOCUMENT_KIND_ANCHOR_PROGRAM_TERMS.equals(String.valueOf(kind));
     }
 
     private boolean isInvoiceDiscountingTermsDocument(KfsDocument kfs) {

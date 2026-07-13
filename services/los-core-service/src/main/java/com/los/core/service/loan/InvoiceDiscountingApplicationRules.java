@@ -35,8 +35,13 @@ public final class InvoiceDiscountingApplicationRules {
         return isAnchorFlow(app) || isBorrowerFlow(app);
     }
 
-    /** Anchor sanction does not produce a KFS / terms PDF entity. */
+    /** Anchor sanction does not produce a borrower KFS; program terms use a separate document kind. */
     public static boolean skipsKfsAtSanction(LoanApplication app) {
+        return isAnchorFlow(app);
+    }
+
+    /** Anchor onboarding requires program-terms eSign after L2 program approval. */
+    public static boolean requiresProgramTermsEsign(LoanApplication app) {
         return isAnchorFlow(app);
     }
 

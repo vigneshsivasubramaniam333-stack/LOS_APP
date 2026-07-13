@@ -32,6 +32,35 @@ public class BorrowerAccountProvisioningService {
     private final LosUserRepository losUserRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional
+    public Optional<BorrowerProvisionResult> findOrCreateBorrowerWithCredential(
+            String name, String email, String mobile) {
+        String normalizedEmail = email == null ? "" : email.trim().toLowerCase();
+        if (normalizedEmail.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<LosUser> byEmail = losUserRepository.findByEmailIgnoreCase(normalizedEmail);
+        if (byEmail.isPresent()) {
+            return Optional.of(new BorrowerProvisionResult(byEmail.get(), null));
+        }
+        String mobileDigits = digitsOnly(mobile);
+        String tempPassword = temporaryPassword(mobileDigits);
+        String safeName = (name == null || name.isBlank()) ? normalizedEmail.split("@")[0] : name.trim();
+        LosUser created = LosUser.builder()
+                .name(safeName)
+                .email(normalizedEmail)
+                .mobile(mobileDigits.isBlank() ? null : mobileDigits)
+                .active(true)
+                .passwordHash(passwordEncoder.encode(tempPassword))
+                .passwordResetRequired(true)
+                .primaryLosRole(ROLE_BORROWER)
+                .build();
+        created = losUserRepository.save(created);
+        return Optional.of(new BorrowerProvisionResult(created, tempPassword));
+    }
+
+    public record BorrowerProvisionResult(LosUser user, String temporaryPasswordForEmail) {}
+
     /**
      * Returns the borrower account for the given identity, creating it if absent.
      *

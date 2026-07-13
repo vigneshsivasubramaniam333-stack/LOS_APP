@@ -246,6 +246,69 @@ public class KfsService {
     }
 
     public static final String DOCUMENT_KIND_INVOICE_DISCOUNTING_TERMS = "INVOICE_DISCOUNTING_TERMS";
+    public static final String DOCUMENT_KIND_ANCHOR_PROGRAM_TERMS = "ANCHOR_PROGRAM_TERMS";
+
+    /**
+     * Anchor program terms (2-page PDF) stored as a KFS row for eSign after L2 program approval.
+     */
+    @Transactional
+    public KfsDocument generateAnchorProgramTermsDocument(
+            UUID applicationId,
+            SanctionRecord sanction,
+            Map<String, Object> programDetails) {
+        LoanApplication app = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new RuntimeException("Application not found: " + applicationId));
+
+        BigDecimal principal = sanction.getApprovedAmount() != null
+                ? sanction.getApprovedAmount()
+                : app.getSanctionedAmount();
+        BigDecimal annualRate = sanction.getInterestRate() != null
+                ? sanction.getInterestRate()
+                : app.getApprovedRate() != null ? app.getApprovedRate() : app.getInterestRate();
+        int tenure = sanction.getApprovedTenure() != null
+                ? sanction.getApprovedTenure()
+                : app.getTenureMonths() != null ? app.getTenureMonths() : 12;
+
+        List<KfsDocument> existing = kfsDocumentRepository.findByApplicationIdOrderByCreatedAtDesc(applicationId);
+        String version = "v" + (existing.size() + 1);
+
+        Map<String, Object> additional = new LinkedHashMap<>();
+        additional.put("documentKind", DOCUMENT_KIND_ANCHOR_PROGRAM_TERMS);
+        if (programDetails != null) {
+            additional.put("programDetails", programDetails);
+        }
+        if (sanction.getConditionsText() != null) {
+            additional.put("conditionsText", sanction.getConditionsText());
+        }
+
+        KfsDocument kfs = KfsDocument.builder()
+                .applicationId(applicationId)
+                .version(version)
+                .sanctionedAmount(principal)
+                .interestRate(annualRate)
+                .apr(annualRate)
+                .tenureMonths(tenure)
+                .emiAmount(BigDecimal.ZERO)
+                .totalInterest(BigDecimal.ZERO)
+                .totalRepayment(principal)
+                .processingFee(BigDecimal.ZERO)
+                .stampDuty(BigDecimal.ZERO)
+                .insurancePremium(BigDecimal.ZERO)
+                .otherCharges(BigDecimal.ZERO)
+                .totalCostOfCredit(BigDecimal.ZERO)
+                .coolingOffHours(DEFAULT_COOLING_OFF_HOURS)
+                .grievanceMechanism(GRIEVANCE_DEFAULT)
+                .lspDisclosure(LSP_DEFAULT)
+                .additionalTerms(additional)
+                .status("GENERATED")
+                .build();
+
+        kfs = kfsDocumentRepository.save(kfs);
+        auditService.logEvent(applicationId, "ANCHOR_PROGRAM_TERMS_GENERATED",
+                Map.of("kfsId", kfs.getId().toString(), "version", version,
+                        "documentKind", DOCUMENT_KIND_ANCHOR_PROGRAM_TERMS));
+        return kfs;
+    }
 
     /**
      * Invoice discounting borrower: sanction terms document stored as a KFS row for eSign (2-page PDF, no LMS loan).
