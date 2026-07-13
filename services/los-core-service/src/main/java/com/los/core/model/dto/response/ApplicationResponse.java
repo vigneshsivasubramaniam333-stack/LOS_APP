@@ -2,6 +2,7 @@ package com.los.core.model.dto.response;
 
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.BorrowerType;
+import com.los.core.model.enums.IntakeOwner;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.model.enums.VkycCompletionMode;
 import com.los.core.model.enums.VkycStatus;
@@ -24,6 +25,9 @@ public class ApplicationResponse {
     private BorrowerType borrowerType;
     private String loanProduct;
     private IntakeSegment intakeSegment;
+    private IntakeOwner intakeOwner;
+    private Integer intakeCompletedStep;
+    private String borrowerSentBackNotes;
     private BigDecimal requestedAmount;
     private BigDecimal interestRate;
     private Integer tenureMonths;

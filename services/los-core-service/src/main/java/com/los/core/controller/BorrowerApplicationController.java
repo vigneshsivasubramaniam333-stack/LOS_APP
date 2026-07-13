@@ -9,6 +9,7 @@ import com.los.core.model.dto.response.BorrowerKfsSummaryResponse;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.borrower.BorrowerApplicationStatusService;
+import com.los.core.service.borrower.BorrowerIntakeDelegationService;
 import com.los.core.service.borrower.BorrowerPortalService;
 import com.los.core.service.document.IDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,8 +25,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
@@ -46,6 +50,7 @@ public class BorrowerApplicationController {
     private final IDocumentService documentService;
     private final BorrowerApplicationStatusService borrowerApplicationStatusService;
     private final BorrowerPortalService borrowerPortalService;
+    private final BorrowerIntakeDelegationService borrowerIntakeDelegationService;
 
     @GetMapping
     @Operation(summary = "List my applications (borrower only)")
@@ -173,6 +178,18 @@ public class BorrowerApplicationController {
         UUID uid = UUID.fromString(userId);
         borrowerPortalService.requireBorrower(role);
         borrowerPortalService.deleteUnsubmittedApplication(uid, applicationId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{applicationId}/submit-delegated")
+    @Operation(summary = "Borrower completes delegated intake and submits for admin review")
+    public ResponseEntity<Void> submitDelegated(
+            @PathVariable UUID applicationId,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        borrowerPortalService.requireBorrower(role);
+        borrowerIntakeDelegationService.submitBorrowerIntake(applicationId, uid);
         return ResponseEntity.noContent().build();
     }
 }

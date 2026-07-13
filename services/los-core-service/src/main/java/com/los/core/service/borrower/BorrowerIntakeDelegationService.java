@@ -99,14 +99,18 @@ public class BorrowerIntakeDelegationService {
         if (borrowerUserId != null && !borrowerUserId.equals(app.getCustomerId())) {
             throw new BusinessRuleException("You can only submit your own application");
         }
-        if (app.getIntakeOwner() != IntakeOwner.BORROWER) {
-            throw new BusinessRuleException("This application was not delegated to the borrower portal");
-        }
         if (app.getStatus() != ApplicationStatus.CONSENT_PENDING
                 && app.getStatus() != ApplicationStatus.BORROWER_SENT_BACK) {
             throw new BusinessRuleException(
                     "Borrower submit requires CONSENT_PENDING or BORROWER_SENT_BACK. Current: "
                             + app.getStatus());
+        }
+        if (app.getIntakeOwner() != null && app.getIntakeOwner() != IntakeOwner.BORROWER) {
+            throw new BusinessRuleException("This application was not delegated to the borrower portal");
+        }
+        // Heal older rows notified before intakeOwner was persisted/exposed on the API.
+        if (app.getIntakeOwner() == null) {
+            app.setIntakeOwner(IntakeOwner.BORROWER);
         }
         app.setStatus(ApplicationStatus.BORROWER_SUBMITTED);
         app.setBorrowerSentBackNotes(null);

@@ -10,7 +10,7 @@ import { ApiError } from '@/api/http'
 const LOS_STATUS_LABEL: Record<ProgramApprovalStatus, string> = {
   DRAFT: 'Pending PLP approval',
   PENDING_L2: 'Pending L2 in PLP',
-  SENT_BACK: 'Sent back to RM',
+  SENT_BACK: 'Sent back in PLP',
   APPROVED: 'Approved (mirrored from PLP)',
   REJECTED: 'Not active in PLP',
 }

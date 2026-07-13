@@ -21,4 +21,6 @@ public class PlpSubProgramSyncRequest {
     private BigDecimal subProgramLimit;
     private BigDecimal interestRate;
     private Integer maxTenureDays;
+    /** When false (default), PLP creates sub-program as DRAFT pending LOS L2 approval. */
+    private Boolean preApproved;
 }

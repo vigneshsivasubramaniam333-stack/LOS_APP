@@ -14,8 +14,8 @@ export function isDelegatedBorrowerIntake(app: {
   status: ApplicationStatus
   intakeOwner?: string | null
 }): boolean {
-  return (
-    app.intakeOwner === 'BORROWER' &&
-    (app.status === 'CONSENT_PENDING' || app.status === 'BORROWER_SENT_BACK')
-  )
+  if (app.status !== 'CONSENT_PENDING' && app.status !== 'BORROWER_SENT_BACK') return false
+  // Prefer explicit BORROWER owner; if API/DB omitted intakeOwner, still use delegated submit
+  // for these statuses (staff notify leaves apps in CONSENT_PENDING for the borrower portal).
+  return !app.intakeOwner || app.intakeOwner === 'BORROWER'
 }

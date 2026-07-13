@@ -27,6 +27,7 @@ public final class PlpSubProgramPayloadMapper {
                 .subProgramLimit(subProgram.getSubProgramLimit())
                 .interestRate(program.getInterestRate())
                 .maxTenureDays(program.getTenureDays())
+                .preApproved(false)
                 .build();
     }
 }

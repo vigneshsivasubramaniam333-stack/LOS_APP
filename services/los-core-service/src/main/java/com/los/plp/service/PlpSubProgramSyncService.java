@@ -3,6 +3,7 @@ package com.los.plp.service;
 import com.los.plp.client.PlpIntegrationClient;
 import com.los.plp.client.PlpIntegrationException;
 import com.los.plp.dto.PlpApiResponse;
+import com.los.plp.dto.request.PlpSubProgramActivateRequest;
 import com.los.plp.dto.response.PlpSubProgramSyncData;
 import com.los.plp.mapper.PlpSubProgramPayloadMapper;
 import com.los.plp.model.entity.AnchorMaster;
@@ -87,6 +88,33 @@ public class PlpSubProgramSyncService {
             subProgram.setPlpSubProgramSyncStatus(PlpSyncStatus.SYNC_FAILED);
             subProgram.setPlpSubProgramSyncError(PlpSyncSupport.truncateError(e.getMessage()));
             log.error("PLP sub-program sync failed for {}: {}", subProgramId, e.getMessage());
+        }
+        return subProgramMasterRepository.save(subProgram);
+    }
+
+    @Transactional
+    public SubProgramMaster activate(SubProgramMaster subProgram) {
+        if (subProgram == null || subProgram.getId() == null) {
+            throw new IllegalArgumentException("Sub-program id is required for PLP activation");
+        }
+        try {
+            PlpApiResponse<PlpSubProgramSyncData> response = plpIntegrationClient.activateSubProgram(
+                    PlpSubProgramActivateRequest.builder()
+                            .losSubProgramId(subProgram.getId().toString())
+                            .build());
+            PlpSubProgramSyncData data = response.getData();
+            if (data != null && data.getPlpSubProgramId() != null) {
+                subProgram.setPlpSubProgramId(PlpSyncSupport.parseUuid(data.getPlpSubProgramId()));
+            }
+            subProgram.setPlpSubProgramSyncStatus(PlpSyncStatus.SYNC_SUCCESS);
+            subProgram.setPlpSubProgramSyncError(null);
+            subProgram.setPlpSubProgramSyncedAt(PlpSyncSupport.now());
+            log.info("PLP sub-program activated: losSubProgramId={}", subProgram.getId());
+        } catch (PlpIntegrationException e) {
+            subProgram.setPlpSubProgramSyncStatus(PlpSyncStatus.SYNC_FAILED);
+            subProgram.setPlpSubProgramSyncError(PlpSyncSupport.truncateError(e.getMessage()));
+            log.error("PLP sub-program activation failed for {}: {}", subProgram.getId(), e.getMessage());
+            throw e;
         }
         return subProgramMasterRepository.save(subProgram);
     }

@@ -43,7 +43,14 @@ function canManageAa(role: string): boolean {
   const r = String(role ?? '')
     .trim()
     .toUpperCase()
-  return r === 'CREDIT_MANAGER' || r === 'ADMIN' || r === 'ADMINISTRATOR' || r === 'UNDERWRITER'
+  return (
+    r === 'CREDIT_MANAGER' ||
+    r === 'CREDIT_OFFICER' ||
+    r === 'CREDIT_ANALYST' ||
+    r === 'ADMIN' ||
+    r === 'ADMINISTRATOR' ||
+    r === 'UNDERWRITER'
+  )
 }
 
 function statusBadgeClass(status: AaConsentStatus): string {
