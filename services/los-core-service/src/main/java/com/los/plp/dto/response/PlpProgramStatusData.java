@@ -1,0 +1,16 @@
+package com.los.plp.dto.response;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.Data;
+
+@Data
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class PlpProgramStatusData {
+    private String plpProgramId;
+    private String programCode;
+    private String status;
+    /** Send-back / approval remarks from PLP when present. */
+    private String remarks;
+    private String approvalRemarks;
+    private String approvalNotes;
+}

@@ -8,9 +8,12 @@ import {
 } from '@/api/plp'
 import { getCam } from '@/api/cam'
 import { ApiError } from '@/api/http'
+import { useAuth } from '@/auth/useAuth'
+import { canCreateOrNotifyBorrowerIntake } from '@/auth/types'
 import type { ApplicationResponse } from '@/types/application'
 import type { CreatePlpProgramRequest, PlpProgramSetupResponse, PlpProgramSummary } from '@/types/plp'
 import { PlpSyncStatusBadge } from '@/components/plp/PlpSyncStatusBadge'
+import { PlpProgramStatusPanel } from '@/components/plp/PlpProgramStatusPanel'
 
 const PROGRAM_TYPES = [
   { value: 'INVOICE_DISCOUNTING', label: 'Invoice discounting' },
@@ -51,6 +54,8 @@ function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpPr
 }
 
 export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
+  const { user } = useAuth()
+  const canCreateProgram = canCreateOrNotifyBorrowerIntake(user?.role ?? '')
   const [open, setOpen] = useState(true)
   const [anchors, setAnchors] = useState<
     { id: string; name: string; code: string; sourceAnchorApplicationId?: string | null }[]
@@ -156,6 +161,10 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   }, [loadAnchors])
 
   async function handleSave() {
+    if (!canCreateProgram) {
+      setError('Only Relationship Manager or Admin can create or update PLP programs.')
+      return
+    }
     if (!anchorId || !programName.trim()) {
       setError('Anchor and program name are required.')
       return
@@ -267,6 +276,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
           error={error}
           busy={busy}
+          canCreate={canCreateProgram}
           saved={saved}
           onSave={() => void handleSave()}
           successMsg={successMsg}
@@ -310,6 +320,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           }}
         />
       ) : null}
+      {saved?.programId ? <PlpProgramStatusPanel programId={saved.programId} /> : null}
     </div>
   )
 }
@@ -345,6 +356,7 @@ function ProgramSetupForm(props: {
   error: string | null
   successMsg: string | null
   busy: boolean
+  canCreate: boolean
   saved: PlpProgramSetupResponse | null
   onSave: () => void
   onRetryProgram: () => Promise<void>
@@ -381,6 +393,7 @@ function ProgramSetupForm(props: {
     error,
     successMsg,
     busy,
+    canCreate,
     saved,
     onSave,
     onRetryProgram,
@@ -582,10 +595,15 @@ function ProgramSetupForm(props: {
         </div>
       ) : null}
 
+      {!canCreate ? (
+        <p className="mt-3 text-sm text-slate-600">
+          Only Relationship Manager or Admin can create or update PLP programs.
+        </p>
+      ) : null}
       <button
         type="button"
         className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        disabled={busy}
+        disabled={busy || !canCreate}
         onClick={onSave}
       >
         {busy ? 'Saving…' : saved ? 'Update program setup' : 'Save program to PLP'}

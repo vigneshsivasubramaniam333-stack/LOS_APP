@@ -119,8 +119,10 @@ public class LoanApplicationFlowController {
     @Operation(summary = "Step 5: Issue sanction letter + generate KFS (→ SANCTION_ISSUED)")
     public ResponseEntity<Map<String, Object>> sanction(
             @PathVariable UUID applicationId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestBody(required = false) Map<String, Object> sanctionParams) {
-        return ResponseEntity.ok(flowService.sanctionApplication(applicationId, sanctionParams));
+        UUID actor = userId != null && !userId.isBlank() ? UUID.fromString(userId.trim()) : null;
+        return ResponseEntity.ok(flowService.sanctionApplication(applicationId, sanctionParams, actor));
     }
 
     @PostMapping("/{applicationId}/esign")

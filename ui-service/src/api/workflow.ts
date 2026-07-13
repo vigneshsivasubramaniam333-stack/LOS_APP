@@ -76,8 +76,24 @@ export async function acceptBorrowerSubmission(applicationId: string) {
   return data
 }
 
-export async function sendBackBorrowerSubmission(applicationId: string, notes: string) {
-  const { data } = await http.post(`/applications/${applicationId}/review/send-back`, { notes })
+export async function sendBackBorrowerSubmission(applicationId: string, notes?: string) {
+  const { data } = await http.post(`/applications/${applicationId}/review/send-back`, {
+    notes: notes?.trim() ? notes.trim() : undefined,
+  })
+  return data
+}
+
+export async function handOffToCreditOfficer(applicationId: string, notes?: string) {
+  const { data } = await http.post(`/applications/${applicationId}/review/hand-off-to-co`, {
+    notes: notes?.trim() ? notes.trim() : undefined,
+  })
+  return data
+}
+
+export async function sendBackToRelationshipManager(applicationId: string, notes?: string) {
+  const { data } = await http.post(`/applications/${applicationId}/review/send-back-to-rm`, {
+    notes: notes?.trim() ? notes.trim() : undefined,
+  })
   return data
 }
 

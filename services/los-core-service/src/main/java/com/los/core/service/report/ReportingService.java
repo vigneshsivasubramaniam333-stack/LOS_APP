@@ -293,7 +293,8 @@ public class ReportingService {
 
     private String determineKycStatus(LoanApplication app) {
         return switch (app.getStatus()) {
-            case DRAFT, CONSENT_PENDING -> "NOT_STARTED";
+            case DRAFT, CONSENT_PENDING, BORROWER_SENT_BACK -> "NOT_STARTED";
+            case BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM -> "AWAITING_REVIEW";
             case KYC_IN_PROGRESS -> "IN_PROGRESS";
             case KYC_FAILED -> "FAILED";
             default -> "COMPLETED";

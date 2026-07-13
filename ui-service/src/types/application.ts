@@ -5,6 +5,8 @@ export type ApplicationStatus =
   | 'DRAFT'
   | 'CONSENT_PENDING'
   | 'BORROWER_SUBMITTED'
+  | 'PENDING_CREDIT_OFFICER'
+  | 'SENT_BACK_TO_RM'
   | 'BORROWER_SENT_BACK'
   | 'KYC_IN_PROGRESS'
   | 'KYC_FAILED'

@@ -63,19 +63,19 @@ export function inferFirstIncompleteIntakeStep(
     return steps.collateral
   }
 
-  if (validateKycStep(form, workflow)) {
-    return steps.kyc
+  if (workflow && isWorkflowDrivenIntake(workflow)) {
+    const missingDocs = missingIntakeDocumentTypes(form, workflow)
+    if (missingDocs.length > 0) {
+      return steps.documents
+    }
   }
 
   if (validateConsentStep(form)) {
     return steps.consent
   }
 
-  if (workflow && isWorkflowDrivenIntake(workflow)) {
-    const missingDocs = missingIntakeDocumentTypes(form, workflow)
-    if (missingDocs.length > 0) {
-      return steps.documents
-    }
+  if (validateKycStep(form, workflow)) {
+    return steps.kyc
   }
 
   return steps.review

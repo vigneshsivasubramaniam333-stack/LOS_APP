@@ -75,6 +75,49 @@ public class DocumentServiceImpl implements IDocumentService {
     }
 
     @Override
+    public DocumentResponse storeDocumentBytes(
+            UUID applicationId,
+            String documentType,
+            String fileName,
+            String contentType,
+            byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("Document bytes are required");
+        }
+        String originalFileName = (fileName == null || fileName.isBlank()) ? "document" : fileName.trim();
+        String storageKey = String.format("%s/%s/%s_%s",
+                applicationId, documentType, UUID.randomUUID(), originalFileName);
+        try {
+            String checksum = computeSha256(bytes);
+            String ct = normalizeContentType(contentType, originalFileName);
+            documentBlobStore.putObject(storageKey, bytes, bytes.length, ct);
+
+            Document document = Document.builder()
+                    .applicationId(applicationId)
+                    .documentType(documentType)
+                    .fileName(originalFileName)
+                    .storageKey(storageKey)
+                    .contentType(ct)
+                    .fileSize((long) bytes.length)
+                    .checksum(checksum)
+                    .build();
+
+            document = documentRepository.save(document);
+            log.info("Document stored: {} for application {}", documentType, applicationId);
+
+            auditService.logEvent(applicationId, "DOCUMENT", "UPLOADED",
+                    null, null,
+                    Map.of("documentType", documentType, "fileName", originalFileName, "source", "SERVICE"),
+                    "Document stored: " + documentType);
+
+            return toResponse(document);
+        } catch (Exception e) {
+            log.error("Failed to store document bytes: {}", e.getMessage());
+            throw new RuntimeException("Document store failed: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public List<DocumentResponse> getDocuments(UUID applicationId) {
         return documentRepository.findByApplicationIdOrderByCreatedAtDesc(applicationId)
                 .stream().map(this::toResponse).collect(Collectors.toList());

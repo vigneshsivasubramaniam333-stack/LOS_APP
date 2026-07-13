@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/auth/useAuth'
+import { canCreateOrNotifyBorrowerIntake } from '@/auth/types'
 import { formatStatusLabel } from '@/lib/dashboardLabels'
 import { ClearDemoDataButton } from '@/components/ClearDemoDataButton'
 import { ErrorState } from '@/components/ErrorState'
@@ -10,6 +12,8 @@ import { useDashboardSummary } from '@/hooks/useDashboardSummary'
 import type { DashboardSummary } from '@/types/api'
 
 export function DashboardPage() {
+  const { user } = useAuth()
+  const canCreate = canCreateOrNotifyBorrowerIntake(user?.role ?? '')
   const { data, loading, error, refetch } = useDashboardSummary()
 
   if (loading) return <LoadingState label="Loading dashboard…" />
@@ -25,12 +29,14 @@ export function DashboardPage() {
         />
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <ClearDemoDataButton onCleared={refetch} />
-          <Link
-            to="/applications/new"
-            className="bt-btn bt-btn-primary shrink-0"
-          >
-            New application
-          </Link>
+          {canCreate ? (
+            <Link
+              to="/applications/new"
+              className="bt-btn bt-btn-primary shrink-0"
+            >
+              New application
+            </Link>
+          ) : null}
         </div>
       </div>
       <SummaryBody data={data} />

@@ -28,6 +28,10 @@ const PRESET_DOC_TYPES = [
   { value: 'ITR', label: 'ITR / tax return' },
   { value: 'BOARD_RESOLUTION', label: 'Board resolution' },
   { value: 'SIGNED_AGREEMENT', label: 'Signed agreement' },
+  { value: 'SIGNED_KFS', label: 'Signed KFS' },
+  { value: 'SIGNED_PROGRAM_TERMS', label: 'Signed program terms' },
+  { value: 'SIGNED_SANCTION_TERMS', label: 'Signed sanction terms' },
+  { value: 'BUREAU_REPORT', label: 'Bureau report' },
   { value: 'PROPERTY_DOCUMENT', label: 'Property document (title / deed)' },
   { value: 'PROPERTY_VALUATION', label: 'Property valuation' },
   { value: 'SHARE_HOLDING_STATEMENT', label: 'Share / demat holding statement' },
@@ -45,6 +49,10 @@ function documentTypeLabel(code: string, intakeSegment?: ApplicationIntakeSegmen
   if (code === 'BORROWER_KYC') return applicationPartyLabels(intakeSegment).kycDocumentPreset
   if (DOC_TYPE_LABEL[code]) return DOC_TYPE_LABEL[code]
   if (code.startsWith('OTHER_')) return `Other (${code.replace(/^OTHER_/, '')})`
+  if (code.startsWith('ANCHOR_DD_')) {
+    return `Anchor due diligence (${code.replace(/^ANCHOR_DD_/, '').replaceAll('_', ' ')})`
+  }
+  if (code.startsWith('SIGNED_')) return code.replaceAll('_', ' ')
   return code.replaceAll('_', ' ')
 }
 

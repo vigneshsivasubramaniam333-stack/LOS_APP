@@ -22,6 +22,8 @@ public final class BorrowerFriendlyLabels {
             return switch (s) {
                 case DRAFT -> "Application in progress";
                 case CONSENT_PENDING -> "Waiting for your consent";
+                case BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM -> "Submitted — under review";
+                case BORROWER_SENT_BACK -> "Changes requested — please update and resubmit";
                 case KYC_IN_PROGRESS -> "Verification in progress";
                 case KYC_FAILED -> "We need a bit more information";
                 case UNDERWRITING, UNDERWRITING_COMPLETED -> "We are reviewing your application";
@@ -39,6 +41,8 @@ public final class BorrowerFriendlyLabels {
         return switch (s) {
             case DRAFT -> "Application in progress";
             case CONSENT_PENDING -> "Waiting for your consent";
+            case BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM -> "Submitted — under review";
+            case BORROWER_SENT_BACK -> "Changes requested — please update and resubmit";
             case KYC_IN_PROGRESS -> "Verification in progress";
             case KYC_FAILED -> "We need a bit more information";
             case UNDERWRITING, UNDERWRITING_COMPLETED -> "We are reviewing your application";

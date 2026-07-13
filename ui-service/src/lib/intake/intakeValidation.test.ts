@@ -35,6 +35,26 @@ describe('intakeValidation', () => {
     expect(err).toBeNull()
   })
 
+  it('accepts invoice discounting on borrower portal without staff onboarding type selection', () => {
+    const s: IntakeFormState = {
+      ...createEmptyIntakeFormState(),
+      borrowerType: 'INDIVIDUAL',
+      loanProduct: 'BUSINESS_WC_INVOICE_DISCOUNTING',
+      requestedAmount: '10000',
+      invoiceOnboardingChoice: '',
+    }
+    const workflows: WorkflowConfigResponse[] = [
+      wf({
+        loanProduct: 'BUSINESS_WC_INVOICE_DISCOUNTING',
+        borrowerType: 'INDIVIDUAL',
+        active: true,
+        intakeSegment: 'BORROWER',
+      }),
+    ]
+    const err = validateProductStep(s, 'BORROWER_SELF_SERVICE', workflows)
+    expect(err).toBeNull()
+  })
+
   it('validates all consents before moving past consent step', () => {
     const s = createEmptyIntakeFormState()
     s.consentKyc = true

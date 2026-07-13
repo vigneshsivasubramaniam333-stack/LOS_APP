@@ -12,8 +12,12 @@ import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.exception.ForbiddenException;
 import com.los.core.model.dto.request.DeleteApplicationRequest;
 import com.los.core.model.dto.response.ApplicationDeletionPreviewResponse;
+import com.los.core.service.loan.ApplicationReviewService;
+import com.los.core.service.borrower.BorrowerIntakeDelegationService;
 import com.los.core.service.loan.ApplicationDeletionService;
 import com.los.core.service.loan.ILoanApplicationService;
+import com.los.core.model.dto.request.ReviewNotesRequest;
+import com.los.core.service.loan.WorkflowRoleGuard;
 import com.los.core.service.integration.AiLosIntegrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +41,9 @@ public class LoanApplicationController {
     private final ILoanApplicationService loanApplicationService;
     private final AiLosIntegrationService aiLosIntegrationService;
     private final ApplicationDeletionService applicationDeletionService;
+    private final BorrowerIntakeDelegationService borrowerIntakeDelegationService;
+    private final ApplicationReviewService applicationReviewService;
+    private final WorkflowRoleGuard workflowRoleGuard;
 
     private static final java.util.Set<String> MANUAL_BUREAU_ALLOWED_ROLES = java.util.Set.of(
             "ADMIN",
@@ -64,6 +71,7 @@ public class LoanApplicationController {
             @Valid @RequestBody CreateApplicationRequest request,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        workflowRoleGuard.requireCreateApplicationRole(userRole);
         UUID actingUser = userId != null && !userId.isBlank() ? UUID.fromString(userId) : null;
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(loanApplicationService.createApplication(request, actingUser, userRole));
@@ -221,5 +229,56 @@ public class LoanApplicationController {
         UUID deletedBy = userId != null && !userId.isBlank() ? UUID.fromString(userId) : null;
         applicationDeletionService.deleteApplication(applicationId, request, deletedBy, userEmail, userRole);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{applicationId}/notify-borrower")
+    @Operation(summary = "Save draft and invite borrower to complete intake on portal")
+    public ResponseEntity<ApplicationResponse> notifyBorrower(
+            @PathVariable UUID applicationId,
+            @RequestParam(defaultValue = "1") int completedStep,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        workflowRoleGuard.requireIntakeRole(userRole);
+        borrowerIntakeDelegationService.saveDraftAndNotifyBorrower(applicationId, completedStep);
+        return ResponseEntity.ok(loanApplicationService.getApplication(applicationId));
+    }
+
+    @PostMapping("/{applicationId}/review/accept")
+    @Operation(summary = "Accept application for KYC processing (CO from PENDING_CREDIT_OFFICER; Admin may accept from BORROWER_SUBMITTED)")
+    public ResponseEntity<ApplicationResponse> acceptBorrowerSubmission(
+            @PathVariable UUID applicationId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        return ResponseEntity.ok(applicationReviewService.acceptForProcessing(applicationId, userRole));
+    }
+
+    @PostMapping("/{applicationId}/review/send-back")
+    @Operation(summary = "Send application back to borrower (RM / Admin only; notes optional)")
+    public ResponseEntity<ApplicationResponse> sendBackBorrowerSubmission(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) ReviewNotesRequest body,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        String notes = body != null ? body.getNotes() : null;
+        return ResponseEntity.ok(applicationReviewService.sendBackToBorrower(applicationId, notes, userRole));
+    }
+
+    @PostMapping("/{applicationId}/review/hand-off-to-co")
+    @Operation(summary = "RM hands off borrower submission to Credit Officer")
+    public ResponseEntity<ApplicationResponse> handOffToCreditOfficer(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) ReviewNotesRequest body,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        String notes = body != null ? body.getNotes() : null;
+        return ResponseEntity.ok(
+                applicationReviewService.handOffToCreditOfficer(applicationId, notes, userRole));
+    }
+
+    @PostMapping("/{applicationId}/review/send-back-to-rm")
+    @Operation(summary = "Credit Officer sends application back to Relationship Manager")
+    public ResponseEntity<ApplicationResponse> sendBackToRelationshipManager(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) ReviewNotesRequest body,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        String notes = body != null ? body.getNotes() : null;
+        return ResponseEntity.ok(
+                applicationReviewService.sendBackToRelationshipManager(applicationId, notes, userRole));
     }
 }

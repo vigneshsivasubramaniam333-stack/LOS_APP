@@ -83,3 +83,73 @@ export function canCompletePhysicalVkyc(role: string): boolean {
     r === 'KYC_REVIEWER'
   )
 }
+
+const CAM_MAKER_ROLES = new Set([
+  'CREDIT_OFFICER',
+  'ADMIN',
+  'ADMINISTRATOR',
+  'RISK_MANAGER',
+  'CREDIT_MANAGER',
+])
+
+const CAM_CHECKER_ROLES = new Set([
+  'CREDIT_MANAGER',
+  'ADMIN',
+  'ADMINISTRATOR',
+  'RISK_MANAGER',
+])
+
+const L2_SANCTION_ROLES = new Set([
+  'CREDIT_MANAGER',
+  'ADMIN',
+  'ADMINISTRATOR',
+  'RISK_MANAGER',
+])
+
+export function isCamMakerRole(role: string): boolean {
+  return CAM_MAKER_ROLES.has(String(role ?? '').trim().toUpperCase())
+}
+
+export function isCamCheckerRole(role: string): boolean {
+  return CAM_CHECKER_ROLES.has(String(role ?? '').trim().toUpperCase())
+}
+
+export function isL2SanctionRole(role: string): boolean {
+  return L2_SANCTION_ROLES.has(String(role ?? '').trim().toUpperCase())
+}
+
+/** Roles allowed to create applications and use Save draft & notify borrower (not CREDIT_OFFICER). */
+export function canCreateOrNotifyBorrowerIntake(role: string): boolean {
+  const r = String(role ?? '')
+    .trim()
+    .toUpperCase()
+  return r === 'RELATIONSHIP_MANAGER' || r === 'ADMIN' || r === 'ADMINISTRATOR'
+}
+
+export function canHandOffToCo(role: string): boolean {
+  const r = String(role ?? '')
+    .trim()
+    .toUpperCase()
+  return r === 'RELATIONSHIP_MANAGER' || r === 'ADMIN' || r === 'ADMINISTRATOR'
+}
+
+export function canSendBackToRm(role: string): boolean {
+  const r = String(role ?? '')
+    .trim()
+    .toUpperCase()
+  return r === 'CREDIT_OFFICER' || r === 'ADMIN' || r === 'ADMINISTRATOR'
+}
+
+export function canSendBackToBorrower(role: string): boolean {
+  const r = String(role ?? '')
+    .trim()
+    .toUpperCase()
+  return r === 'RELATIONSHIP_MANAGER' || r === 'ADMIN' || r === 'ADMINISTRATOR'
+}
+
+export function canAcceptBorrowerSubmission(role: string): boolean {
+  const r = String(role ?? '')
+    .trim()
+    .toUpperCase()
+  return r === 'CREDIT_OFFICER' || r === 'ADMIN' || r === 'ADMINISTRATOR'
+}

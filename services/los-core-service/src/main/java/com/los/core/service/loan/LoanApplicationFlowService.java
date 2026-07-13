@@ -36,7 +36,11 @@ import com.los.lms.service.LmsService;
 import com.los.plp.service.PlpAnchorSanctionHookService;
 import com.los.plp.service.PlpSanctionSyncOrchestrator;
 import com.los.plp.support.PlpApplicationSyncFieldMerge;
+import com.los.plp.model.entity.ProgramMaster;
+import com.los.plp.model.enums.ProgramApprovalStatus;
 import com.los.core.service.sanction.SanctionApprovedNotifier;
+import com.los.core.service.notification.AnchorKfsSignedNotifier;
+import com.los.core.service.esign.EsignSignedApplicationDocumentService;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.vkyc.VkycWorkflowService;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +97,9 @@ public class LoanApplicationFlowService {
     private final InvoiceDiscountingSanctionDefaultsService invoiceDiscountingSanctionDefaultsService;
     private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
     private final SanctionApprovedNotifier sanctionApprovedNotifier;
+    private final WorkflowRoleGuard workflowRoleGuard;
+    private final AnchorKfsSignedNotifier anchorKfsSignedNotifier;
+    private final EsignSignedApplicationDocumentService esignSignedApplicationDocumentService;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
      * disbursement) until VKYC is auditor-approved when VKYC is configured and applicable
@@ -690,6 +697,15 @@ public class LoanApplicationFlowService {
 
     @Transactional
     public ApplicationResponse markCamReviewed(UUID applicationId, String approvedByUserId) {
+        java.util.UUID approver = null;
+        if (approvedByUserId != null && !approvedByUserId.isBlank()) {
+            try {
+                approver = java.util.UUID.fromString(approvedByUserId.trim());
+            } catch (IllegalArgumentException ignored) {
+                // optional header — ignore invalid uuid
+            }
+        }
+        workflowRoleGuard.requireChecker(approver);
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.MARK_CAM_REVIEWED);
         LoanApplication app = findOrThrow(applicationId);
         if (app.getStatus() != ApplicationStatus.CAM_READY && app.getStatus() != ApplicationStatus.APPROVED) {
@@ -699,16 +715,9 @@ public class LoanApplicationFlowService {
                     "OPEN_CAM",
                     Map.of("status", app.getStatus().name()));
         }
-        java.util.UUID approver = null;
-        if (approvedByUserId != null && !approvedByUserId.isBlank()) {
-            try {
-                approver = java.util.UUID.fromString(approvedByUserId.trim());
-            } catch (IllegalArgumentException ignored) {
-                // optional header — ignore invalid uuid
-            }
-        }
         creditAppraisalService.markReviewed(applicationId, approver);
         creditAppraisalService.applyCamSanctionBasisToApplication(applicationId);
+        app = findOrThrow(applicationId);
         app.setStatus(ApplicationStatus.CAM_REVIEWED);
         app.setUpdatedAt(Instant.now());
         app = applicationRepository.save(app);
@@ -810,7 +819,7 @@ public class LoanApplicationFlowService {
      * SANCTIONED / KFS_GENERATED.
      */
     @Transactional
-    public Map<String, Object> sanctionApplication(UUID applicationId, Map<String, Object> sanctionParams) {
+    public Map<String, Object> sanctionApplication(UUID applicationId, Map<String, Object> sanctionParams, UUID actorUserId) {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.SANCTION);
         LoanApplication app = findOrThrow(applicationId);
         boolean anchorFlow = InvoiceDiscountingApplicationRules.isAnchorFlow(app);
@@ -818,7 +827,29 @@ public class LoanApplicationFlowService {
         boolean skipLms = idBorrowerFlow || InvoiceDiscountingApplicationRules.isAnchorFlow(app);
         boolean skipKfs = InvoiceDiscountingApplicationRules.skipsKfsAtSanction(app);
 
+        if (!anchorFlow) {
+            workflowRoleGuard.requireL2Sanction(actorUserId);
+        }
+
         if (anchorFlow) {
+            ProgramMaster program = invoiceDiscountingSanctionDefaultsService.resolveAnchorProgram(app)
+                    .orElseThrow(() -> new BusinessRuleException(
+                            "Complete PLP program setup before anchor sanction",
+                            "PROGRAM_REQUIRED",
+                            "ANCHOR_SANCTION",
+                            null));
+            if (program.getApprovalStatus() != ProgramApprovalStatus.APPROVED) {
+                throw new BusinessRuleException(
+                        "Program must be approved in PLP before anchor sanction. Approve in PLP workbench "
+                                + "(CREDIT_ANALYST → CREDIT_MANAGER), then refresh PLP status on LOS. Current: "
+                                + program.getApprovalStatus()
+                                + (program.getPlpOperationalStatus() != null
+                                        ? " (PLP: " + program.getPlpOperationalStatus() + ")"
+                                        : ""),
+                        "PROGRAM_NOT_APPROVED",
+                        "PROGRAM_APPROVAL",
+                        Map.of("approvalStatus", program.getApprovalStatus().name()));
+            }
             if (app.getStatus() != ApplicationStatus.SANCTION_PENDING) {
                 throw new BusinessRuleException(
                         "Anchor sanction requires SANCTION_PENDING after due diligence approval. Current: "
@@ -916,7 +947,10 @@ public class LoanApplicationFlowService {
         String approvedBy = sanctionParams != null && sanctionParams.get("approvedBy") != null
                 ? sanctionParams.get("approvedBy").toString() : null;
 
-        app.setStatus(ApplicationStatus.SANCTIONED);
+        boolean anchorTermsEsign = anchorFlow && InvoiceDiscountingApplicationRules.requiresProgramTermsEsign(app);
+        if (!anchorTermsEsign) {
+            app.setStatus(ApplicationStatus.SANCTIONED);
+        }
         app.setCurrentStepStartedAt(Instant.now());
         app = applicationRepository.save(app);
 
@@ -935,7 +969,18 @@ public class LoanApplicationFlowService {
 
         KfsDocument kfs = null;
         String lmsReferenceId = null;
-        if (skipKfs) {
+        if (skipKfs && anchorTermsEsign) {
+            Map<String, Object> programMeta = buildAnchorProgramMeta(app);
+            kfs = kfsService.generateAnchorProgramTermsDocument(applicationId, rec, programMeta);
+            app.setStatus(ApplicationStatus.ESIGN_PENDING);
+            app = applicationRepository.save(app);
+            auditService.logEvent(applicationId, "FLOW", "ANCHOR_PROGRAM_TERMS_ESIGN",
+                    null, Map.of("status", ApplicationStatus.SANCTION_PENDING.name()),
+                    Map.of("status", "ESIGN_PENDING", "kfsId", kfs.getId().toString()),
+                    "Anchor program terms generated — awaiting anchor eSign");
+            log.info("Anchor program terms for {} — awaiting eSign, kfs={}",
+                    app.getApplicationNumber(), kfs.getId());
+        } else if (skipKfs) {
             auditService.logEvent(applicationId, "FLOW", "SANCTION",
                     null, Map.of("status", app.getStatus().name()),
                     Map.of("status", "SANCTIONED", "sanctionedAmount", app.getSanctionedAmount().toString(),
@@ -1006,18 +1051,22 @@ public class LoanApplicationFlowService {
             }
         }
 
-        try {
-            plpAnchorSanctionHookService.onAnchorApplicationSanctioned(applicationId);
-        } catch (Exception anchorPlpEx) {
-            log.error("[PLP-ANCHOR-SANCTION] PLP anchor sync failed for {} — sanction is preserved: {}",
-                    app.getApplicationNumber(), anchorPlpEx.getMessage(), anchorPlpEx);
+        if (anchorFlow && app.getStatus() == ApplicationStatus.SANCTIONED) {
+            try {
+                plpAnchorSanctionHookService.onAnchorApplicationSanctioned(applicationId);
+            } catch (Exception anchorPlpEx) {
+                log.error("[PLP-ANCHOR-SANCTION] PLP anchor sync failed for {} — sanction is preserved: {}",
+                        app.getApplicationNumber(), anchorPlpEx.getMessage(), anchorPlpEx);
+            }
         }
 
-        try {
-            sanctionApprovedNotifier.publishSanctionApprovedEmail(app, rec, anchorFlow, idBorrowerFlow, kfs);
-        } catch (Exception emailEx) {
-            log.error("[SANCTION_EMAIL] notification failed for {} — sanction is preserved: {}",
-                    app.getApplicationNumber(), emailEx.getMessage(), emailEx);
+        if (!anchorTermsEsign || app.getStatus() == ApplicationStatus.SANCTIONED) {
+            try {
+                sanctionApprovedNotifier.publishSanctionApprovedEmail(app, rec, anchorFlow, idBorrowerFlow, kfs);
+            } catch (Exception emailEx) {
+                log.error("[SANCTION_EMAIL] notification failed for {} — sanction is preserved: {}",
+                        app.getApplicationNumber(), emailEx.getMessage(), emailEx);
+            }
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -1062,6 +1111,8 @@ public class LoanApplicationFlowService {
     public ApplicationResponse completeESign(UUID applicationId, String esignTransactionId) {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.COMPLETE_ESIGN);
         LoanApplication app = findOrThrow(applicationId);
+        boolean anchorFlow = InvoiceDiscountingApplicationRules.isAnchorFlow(app);
+        boolean idBorrowerFlow = invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app);
         if (app.getStatus() != ApplicationStatus.ESIGN_PENDING) {
             auditService.logEvent(applicationId, "PREREQUISITE_BLOCK", "ESIGN_COMPLETE_BLOCKED",
                     null,
@@ -1076,23 +1127,75 @@ public class LoanApplicationFlowService {
             );
         }
 
-        app.setStatus(ApplicationStatus.ESIGN_COMPLETED);
+        app.setStatus(anchorFlow ? ApplicationStatus.SANCTIONED : ApplicationStatus.ESIGN_COMPLETED);
         if (esignTransactionId != null) {
             app.setEsignTransactionId(esignTransactionId);
         }
         app.setCurrentStepStartedAt(Instant.now());
         app = applicationRepository.save(app);
 
+        try {
+            esignSignedApplicationDocumentService.registerSignedDocumentsFromKfs(applicationId);
+        } catch (Exception e) {
+            log.warn("[eSign] Failed to register signed application documents for {}: {}",
+                    applicationId, e.getMessage());
+        }
+
+        if (anchorFlow) {
+            try {
+                plpAnchorSanctionHookService.onAnchorApplicationSanctioned(applicationId);
+            } catch (Exception e) {
+                log.error("[PLP-ANCHOR-SANCTION] after eSign failed for {}: {}",
+                        app.getApplicationNumber(), e.getMessage(), e);
+            }
+            SanctionRecord rec = sanctionRecordRepository
+                    .findTopByApplicationIdOrderByCreatedAtDesc(applicationId)
+                    .orElse(null);
+            try {
+                sanctionApprovedNotifier.publishSanctionApprovedEmail(app, rec, true, false, null);
+            } catch (Exception e) {
+                log.error("[SANCTION_EMAIL] anchor post-esign failed: {}", e.getMessage());
+            }
+        } else if (idBorrowerFlow) {
+            try {
+                anchorKfsSignedNotifier.notifyAnchorAfterBorrowerKfsSigned(applicationId);
+            } catch (Exception e) {
+                log.error("[ANCHOR_KFS_EMAIL] failed for {}: {}", app.getApplicationNumber(), e.getMessage());
+            }
+        }
+
         auditService.logEvent(applicationId, "FLOW", "ESIGN_COMPLETE",
                 null, Map.of("status", "ESIGN_PENDING"),
-                Map.of("status", "ESIGN_COMPLETED", "esignTransactionId",
+                Map.of("status", app.getStatus().name(), "esignTransactionId",
                         esignTransactionId != null ? esignTransactionId : ""),
-                invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app)
-                        ? "Invoice discounting borrower terms signed — program onboarding complete"
-                        : "eSign completed — ready for disbursement");
+                anchorFlow
+                        ? "Anchor program terms signed — onboarding complete (SANCTIONED)"
+                        : (idBorrowerFlow
+                                ? "Invoice discounting borrower terms signed — program onboarding complete"
+                                : "eSign completed — ready for disbursement"));
 
-        log.info("eSign completed for {} — status: ESIGN_COMPLETED", app.getApplicationNumber());
+        log.info("eSign completed for {} — status: {}", app.getApplicationNumber(), app.getStatus());
         return toResponse(app);
+    }
+
+    private Map<String, Object> buildAnchorProgramMeta(LoanApplication app) {
+        Map<String, Object> meta = new LinkedHashMap<>();
+        invoiceDiscountingSanctionDefaultsService.resolveAnchorProgram(app).ifPresent(program -> {
+            meta.put("programName", program.getProgramName());
+            meta.put("programCode", program.getProgramCode());
+            meta.put("productType", program.getProductType());
+            meta.put("programLimit", program.getProgramLimit());
+            meta.put("maxBorrowerLimit", program.getMaxBorrowerLimit());
+            meta.put("interestRate", program.getInterestRate());
+            meta.put("tenureDays", program.getTenureDays());
+            meta.put("lmsEntryIn", program.getLmsEntryIn());
+            if (program.getValidityStartDate() != null || program.getValidityEndDate() != null) {
+                meta.put("validity",
+                        String.valueOf(program.getValidityStartDate()) + " to "
+                                + String.valueOf(program.getValidityEndDate()));
+            }
+        });
+        return meta;
     }
 
     // ========================== STEP 7: DISBURSE + LMS ==========================
@@ -1173,7 +1276,7 @@ public class LoanApplicationFlowService {
 
             // Step 5: Sanction + KFS
             currentStep = "SANCTION";
-            Map<String, Object> sanctionResult = self.sanctionApplication(applicationId, sanctionParams);
+            Map<String, Object> sanctionResult = self.sanctionApplication(applicationId, sanctionParams, null);
             flowResult.put("step5_sanction", sanctionResult);
 
             // Step 6: eSign

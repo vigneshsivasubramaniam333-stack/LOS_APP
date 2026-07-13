@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import { canAccessAdminConfigNav } from '@/auth/types'
+import { canAccessAdminConfigNav, canCreateOrNotifyBorrowerIntake } from '@/auth/types'
 import { createApplication, getApplication, updateApplication } from '@/api/applications'
 import { listBorrowerApplications, type BorrowerAppSummary } from '@/api/borrowerPortal'
 import { listDocuments, uploadDocument } from '@/api/documents'
@@ -30,6 +30,7 @@ import {
   validateCollateralIntakeStep,
   validateConsentStep,
   validateKycStep,
+  validateNotifyBasics,
   validateProductStep,
 } from '@/lib/intake/intakeValidation'
 import { BORROWER_TYPE_LABELS } from '@/catalog/borrowerTypes'
@@ -173,6 +174,11 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
     [selectedWorkflow, form],
   )
   const productLocked = Boolean(applicationId)
+  const staffCanCreateOrNotify =
+    variant === 'staff' && canCreateOrNotifyBorrowerIntake(user?.role ?? '')
+  const notifyBasicsOk =
+    staffCanCreateOrNotify &&
+    !validateNotifyBasics(form, mode, activeWorkflows, { needPlpProgram: needPlpAnchorStep })
 
   useEffect(() => {
     if (!selectedWorkflow || isInvoiceDiscountingProduct(form.loanProduct)) return
@@ -485,7 +491,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
         } else {
           await updateApplication(applicationId, buildIntakeBorrowerUpdate(form, mode, user))
         }
-        setStep(needColl ? steps.collateral : steps.kyc)
+        setStep(needColl ? steps.collateral : steps.documents)
       } catch (err) {
         const msg = intakeErrorMessage(err, 'Could not save application details.')
         setError(msg)
@@ -506,10 +512,45 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       setBusy(true)
       try {
         await persistBorrowerIntakeCollateral(applicationId, form, mode)
-        setStep(steps.kyc)
+        setStep(steps.documents)
       } catch (err) {
         setError(intakeErrorMessage(err, 'Could not save collateral details.'))
         notifyError(err, 'Could not save collateral details.')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+    if (step === steps.documents) {
+      const miss = missingIntakeDocumentTypes(form, selectedWorkflow)
+      if (miss.length && selectedWorkflow?.intakeConfig?.policy === 'WORKFLOW_DRIVEN') {
+        setError(`Required documents missing: ${miss.join(', ')}`)
+        return
+      }
+      if (miss.length) {
+        setDocWarning(
+          `For a complete package you may still add: ${miss.join(', ')}. You can continue to review, or go back to upload more.`,
+        )
+      } else {
+        setDocWarning(null)
+      }
+      setStep(steps.consent)
+      return
+    }
+    if (step === steps.consent) {
+      const v3 = validateConsentStep(form)
+      if (v3) {
+        setError(v3)
+        return
+      }
+      if (!applicationId) return
+      setBusy(true)
+      try {
+        await updateApplication(applicationId, buildConsentUpdate(form, mode, user))
+        setStep(steps.kyc)
+      } catch (err) {
+        setError(intakeErrorMessage(err, 'Could not save consents.'))
+        notifyError(err, 'Could not save consents.')
       } finally {
         setBusy(false)
       }
@@ -530,7 +571,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
           return
         }
         await updateApplication(applicationId, buildKycUpdate(form))
-        setStep(steps.consent)
+        setStep(steps.review)
       } catch (err) {
         const msg = intakeErrorMessage(err, 'Could not save KYC details.')
         setError(msg)
@@ -538,41 +579,6 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       } finally {
         setBusy(false)
       }
-      return
-    }
-    if (step === steps.consent) {
-      const v3 = validateConsentStep(form)
-      if (v3) {
-        setError(v3)
-        return
-      }
-      if (!applicationId) return
-      setBusy(true)
-      try {
-        await updateApplication(applicationId, buildConsentUpdate(form, mode, user))
-        setStep(steps.documents)
-      } catch (err) {
-        setError(intakeErrorMessage(err, 'Could not save consents.'))
-        notifyError(err, 'Could not save consents.')
-      } finally {
-        setBusy(false)
-      }
-      return
-    }
-    if (step === steps.documents) {
-      const miss = missingIntakeDocumentTypes(form, selectedWorkflow)
-      if (miss.length && selectedWorkflow?.intakeConfig?.policy === 'WORKFLOW_DRIVEN') {
-        setError(`Required documents missing: ${miss.join(', ')}`)
-        return
-      }
-      if (miss.length) {
-        setDocWarning(
-          `For a complete package you may still add: ${miss.join(', ')}. You can continue to review, or go back to upload more.`,
-        )
-      } else {
-        setDocWarning(null)
-      }
-      setStep(steps.review)
       return
     }
   }
@@ -590,15 +596,15 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
 
   async function onNotifyBorrower() {
     if (anchorBranch) return
-    try {
-      await prefetchIntakeGeoForValidation(form)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load location master data. Try again.')
+    if (!staffCanCreateOrNotify) {
+      setError('Only relationship managers and administrators can notify the borrower.')
       return
     }
-    const v = validateBorrowerStep(form, mode, selectedWorkflow)
-    if (v) {
-      setError(v)
+    const basicsErr = validateNotifyBasics(form, mode, activeWorkflows, {
+      needPlpProgram: needPlpAnchorStep,
+    })
+    if (basicsErr) {
+      setError(basicsErr)
       return
     }
     setBusy(true)
@@ -618,7 +624,8 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       } else {
         await updateApplication(appId, buildIntakeBorrowerUpdate(form, mode, user))
       }
-      await notifyBorrowerToComplete(appId, steps.kyc)
+      // Resume at Documents (first step after basics in the reordered wizard).
+      await notifyBorrowerToComplete(appId, steps.documents)
       notifySuccess('Borrower notified to complete the application in the portal.')
       void navigate(`/applications/${appId}`, { replace: true })
     } catch (err) {
@@ -998,16 +1005,6 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     />
                   </label>
                 ) : null}
-                {isInvoiceDiscountingProduct(form.loanProduct) &&
-                form.invoiceOnboardingChoice === 'BORROWER' ? (
-                  <div className="sm:col-span-2">
-                    <p className="mb-2 text-sm font-medium text-slate-800">Anchor relationship details</p>
-                    <InvoiceDiscountingVintageFields
-                      form={form}
-                      onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
-                    />
-                  </div>
-                ) : null}
               </div>
             </>
           ) : (
@@ -1094,15 +1091,6 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     placeholder="How you plan to use the funds (short note)"
                   />
                 </label>
-                {isInvoiceDiscountingProduct(form.loanProduct) ? (
-                  <div className="sm:col-span-2">
-                    <p className="mb-2 text-sm font-medium text-slate-800">Anchor relationship details</p>
-                    <InvoiceDiscountingVintageFields
-                      form={form}
-                      onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
-                    />
-                  </div>
-                ) : null}
               </div>
             </>
           )}
@@ -1308,6 +1296,19 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
               />
             </div>
           )}
+          {isInvoiceDiscountingProduct(form.loanProduct) &&
+          (form.invoiceOnboardingChoice === 'BORROWER' || mode === 'BORROWER_SELF_SERVICE') ? (
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-800">Anchor relationship details</p>
+              <InvoiceDiscountingVintageFields
+                form={form}
+                onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+              />
+            </div>
+          ) : null}
+          {needPlpAnchorStep && form.selectedSubProgramId ? (
+            <LinkedAnchorProgramReadonly subProgramId={form.selectedSubProgramId} />
+          ) : null}
         </section>
       ) : null}
 
@@ -1639,7 +1640,9 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                   (variant === 'staff' &&
                     isInvoiceDiscountingProduct(form.loanProduct) &&
                     !form.invoiceOnboardingChoice))) ||
-              (step === steps.kyc && !applicationId)
+              (step === steps.kyc && !applicationId) ||
+              (step === steps.documents && !applicationId) ||
+              (step === steps.consent && !applicationId)
             }
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -1663,7 +1666,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                   : 'Submit for verification'}
           </button>
         )}
-        {variant === 'staff' && step === steps.borrower && !anchorBranch ? (
+        {staffCanCreateOrNotify && step === steps.borrower && !anchorBranch && notifyBasicsOk ? (
           <button
             type="button"
             onClick={() => {

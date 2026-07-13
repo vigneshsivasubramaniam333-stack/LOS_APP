@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/auth/useAuth'
+import { isCamCheckerRole, isCamMakerRole } from '@/auth/types'
 import {
   calculateCollateralLtv,
   listCollateralValuations,
@@ -113,6 +115,7 @@ export function CamSection({
   const [recAmt, setRecAmt] = useState('')
   const [recTen, setRecTen] = useState('')
   const [recRate, setRecRate] = useState('')
+  const [interestType, setInterestType] = useState('')
   const [condPre, setCondPre] = useState('')
   const [condSub, setCondSub] = useState('')
   const [officerRem, setOfficerRem] = useState('')
@@ -121,6 +124,9 @@ export function CamSection({
   const [ltv, setLtv] = useState<CollateralLtvResult | null>(null)
   const [valuations, setValuations] = useState<CollateralValuation[]>([])
   const [ltvLoading, setLtvLoading] = useState(false)
+  const { user } = useAuth()
+  const isMaker = user ? isCamMakerRole(user.role) : false
+  const isChecker = user ? isCamCheckerRole(user.role) : false
 
   const loanAmountForLtv = useMemo(() => {
     const fromRec = recAmt.trim() ? Number.parseFloat(recAmt) : NaN
@@ -179,6 +185,7 @@ export function CamSection({
       setRecAmt(sanctionDefaults.amount)
       setRecTen(sanctionDefaults.tenure)
       setRecRate(sanctionDefaults.rate)
+      setInterestType(c.interestType === 'UPFRONT' || c.interestType === 'REDUCING' ? c.interestType : '')
       setPrefilledFromApplication(sanctionDefaults.fromApplication)
       setCondPre((c.conditionsPrecedent ?? []).join('\n'))
       setCondSub((c.conditionsSubsequent ?? []).join('\n'))
@@ -241,6 +248,7 @@ export function CamSection({
         recommendedAmount: recAmt ? Number.parseFloat(recAmt) : undefined,
         recommendedTenureMonths: recTen ? Number.parseInt(recTen, 10) : undefined,
         recommendedRate: recRate ? Number.parseFloat(recRate) : undefined,
+        interestType: interestType || undefined,
         conditionsPrecedent: condPre
           ? condPre
               .split('\n')
@@ -338,10 +346,11 @@ export function CamSection({
 
   const camStatus = cam?.camStatus ?? 'DRAFT'
   const isLocked = camStatus === 'APPROVED'
-  const canSubmit = !isLocked && (camStatus === 'DRAFT' || camStatus === 'SENT_BACK' || camStatus === 'REJECTED')
+  const canSubmit = isMaker && !isLocked && (camStatus === 'DRAFT' || camStatus === 'SENT_BACK' || camStatus === 'REJECTED')
   const isSubmitted = camStatus === 'SUBMITTED'
   const camReady = app.status === 'CAM_READY' || app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED'
   const canManagerApproveToReviewed =
+    isChecker &&
     (app.status === 'CAM_READY' || app.status === 'APPROVED') &&
     !isLocked &&
     (camStatus === 'SUBMITTED' || (camStatus === 'DRAFT' && app.status === 'CAM_READY'))
@@ -384,7 +393,7 @@ export function CamSection({
         <button
           type="button"
           onClick={() => void onSave()}
-          disabled={saving || isLocked}
+          disabled={saving || isLocked || !isMaker}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save draft'}
@@ -409,7 +418,7 @@ export function CamSection({
             {actionBusy ? '…' : 'Submit for manager'}
           </button>
         )}
-        {camReady && isSubmitted && (
+        {camReady && isSubmitted && isChecker && (
           <>
             <button
               type="button"
@@ -482,6 +491,19 @@ export function CamSection({
                   onChange={(e) => setRecRate(e.target.value)}
                   disabled={isLocked}
                 />
+              </label>
+              <label className="block text-xs text-slate-600">
+                Interest type
+                <select
+                  className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
+                  value={interestType}
+                  onChange={(e) => setInterestType(e.target.value)}
+                  disabled={isLocked}
+                >
+                  <option value="">(select)</option>
+                  <option value="UPFRONT">Upfront</option>
+                  <option value="REDUCING">Reducing</option>
+                </select>
               </label>
               <label className="block text-xs text-slate-600">
                 Suggested decision

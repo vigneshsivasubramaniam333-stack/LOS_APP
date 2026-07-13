@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/auth/useAuth'
+import { canCreateOrNotifyBorrowerIntake } from '@/auth/types'
 import { ApplicationTable } from '@/components/ApplicationTable'
 import { ClearDemoDataButton } from '@/components/ClearDemoDataButton'
 import { ErrorState } from '@/components/ErrorState'
@@ -12,6 +14,10 @@ const STATUS_OPTIONS: (ApplicationStatus | '')[] = [
   '',
   'DRAFT',
   'CONSENT_PENDING',
+  'BORROWER_SUBMITTED',
+  'PENDING_CREDIT_OFFICER',
+  'SENT_BACK_TO_RM',
+  'BORROWER_SENT_BACK',
   'KYC_IN_PROGRESS',
   'KYC_FAILED',
   'UNDERWRITING',
@@ -48,6 +54,8 @@ function parseIntakeSegment(s: string | null): string | undefined {
 }
 
 export function ApplicationsPage() {
+  const { user } = useAuth()
+  const canCreate = canCreateOrNotifyBorrowerIntake(user?.role ?? '')
   const [searchParams, setSearchParams] = useSearchParams()
   const status = useMemo(() => parseStatus(searchParams.get('status')), [searchParams])
   const intakeSegment = useMemo(() => parseIntakeSegment(searchParams.get('intakeSegment')), [searchParams])
@@ -73,9 +81,11 @@ export function ApplicationsPage() {
         actions={
           <>
             <ClearDemoDataButton onCleared={refetch} />
-            <Link to="/applications/new" className="bt-btn bt-btn-primary">
-              New application
-            </Link>
+            {canCreate ? (
+              <Link to="/applications/new" className="bt-btn bt-btn-primary">
+                New application
+              </Link>
+            ) : null}
           </>
         }
       />

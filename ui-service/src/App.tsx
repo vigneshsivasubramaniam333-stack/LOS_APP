@@ -34,8 +34,10 @@ import { SalesNewApplicationPage } from '@/pages/sales/SalesNewApplicationPage'
 import { ApplicationDetailPage } from '@/pages/ApplicationDetailPage'
 import { ApplicationsPage } from '@/pages/ApplicationsPage'
 import { NewApplicationPage } from '@/pages/NewApplicationPage'
+import { ApplicationIntakeEditPage } from '@/pages/ApplicationIntakeEditPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { KycQueuePage } from '@/pages/KycQueuePage'
+import { BorrowerSubmittedQueuePage } from '@/pages/BorrowerSubmittedQueuePage'
 import { UnderwritingQueuePage } from '@/pages/UnderwritingQueuePage'
 import { WorkflowsPage } from '@/pages/WorkflowsPage'
 import { UnderwritingRulesPage } from '@/pages/UnderwritingRulesPage'
@@ -135,7 +137,9 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
+        <Route path="borrower-submissions" element={<BorrowerSubmittedQueuePage />} />
         <Route path="applications/new" element={<NewApplicationPage />} />
+        <Route path="applications/:id/intake" element={<ApplicationIntakeEditPage />} />
         <Route path="applications/new-anchor" element={<Navigate to="/applications/new" replace />} />
         <Route path="sales/applications/new" element={<SalesNewApplicationPage />} />
         <Route path="applications/:id" element={<ApplicationDetailPage />} />

@@ -7,6 +7,7 @@ import {
   rejectAnchorManualUnderwritingFlow,
   saveAnchorDueDiligenceFlow,
 } from '@/api/flow'
+import { downloadDocumentAsBlob, listDocuments, uploadDocument } from '@/api/documents'
 import { ApiError } from '@/api/http'
 import { ErrorState } from '@/components/ErrorState'
 import { AppSectionCard } from '@/components/ui/AppSectionCard'
@@ -21,9 +22,14 @@ import {
 } from '@/lib/anchorDueDiligenceChecklist'
 import { readAnchorDueDiligence } from '@/lib/invoiceDiscountingFlow'
 import type { ApplicationResponse } from '@/types/application'
+import type { DocumentResponse } from '@/types/document'
 
 const inputCls = 'bt-input w-full text-sm disabled:cursor-not-allowed disabled:bg-slate-50'
 const labelCls = 'bt-label'
+
+function anchorDdDocumentType(questionKey: string): string {
+  return `ANCHOR_DD_${questionKey}`
+}
 
 function statusChip(status: string): { label: string; cls: string } {
   const u = status.toUpperCase()
@@ -164,6 +170,8 @@ export function AnchorDueDiligenceSection({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [savedMsg, setSavedMsg] = useState<string | null>(null)
+  const [docsByQuestion, setDocsByQuestion] = useState<Record<string, DocumentResponse[]>>({})
+  const [uploadBusyKey, setUploadBusyKey] = useState<string | null>(null)
 
   const answeredCount = useMemo(
     () => questions.filter((q) => Boolean(answers[q.key]?.trim())).length,
@@ -192,6 +200,23 @@ export function AnchorDueDiligenceSection({
     if (block.score != null) setScore(Number(block.score))
   }, [])
 
+  const refreshDocs = useCallback(async () => {
+    try {
+      const docs = await listDocuments(applicationId)
+      const byQ: Record<string, DocumentResponse[]> = {}
+      for (const d of docs) {
+        const t = d.documentType ?? ''
+        if (!t.startsWith('ANCHOR_DD_')) continue
+        const key = t.slice('ANCHOR_DD_'.length)
+        if (!byQ[key]) byQ[key] = []
+        byQ[key].push(d)
+      }
+      setDocsByQuestion(byQ)
+    } catch {
+      /* optional */
+    }
+  }, [applicationId])
+
   const loadKyc = useCallback(async () => {
     try {
       const o = await getKycOutcome(applicationId)
@@ -213,7 +238,38 @@ export function AnchorDueDiligenceSection({
   useEffect(() => {
     void loadKyc()
     void refreshDd()
-  }, [loadKyc, refreshDd, app.updatedAt])
+    void refreshDocs()
+  }, [loadKyc, refreshDd, refreshDocs, app.updatedAt])
+
+  async function onUploadQuestionDoc(questionKey: string, file: File | null) {
+    if (!file) return
+    setUploadBusyKey(questionKey)
+    setError(null)
+    try {
+      await uploadDocument(applicationId, file, anchorDdDocumentType(questionKey))
+      await refreshDocs()
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Document upload failed')
+    } finally {
+      setUploadBusyKey(null)
+    }
+  }
+
+  async function onViewDoc(doc: DocumentResponse) {
+    try {
+      const { blob, suggestedFileName } = await downloadDocumentAsBlob(doc.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.download = suggestedFileName || doc.fileName || 'document'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not open document')
+    }
+  }
 
   async function persistChecklist() {
     return saveAnchorDueDiligenceFlow(applicationId, { answers, comments })
@@ -448,6 +504,44 @@ export function AnchorDueDiligenceSection({
                     })
                   }
                 />
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Supporting document <span className="font-normal normal-case text-slate-400">(optional)</span>
+                  </p>
+                  {(docsByQuestion[q.key] ?? []).length > 0 ? (
+                    <ul className="mt-1.5 space-y-1">
+                      {(docsByQuestion[q.key] ?? []).map((d) => (
+                        <li key={d.id} className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                          <span className="truncate font-medium">{d.fileName || d.documentType}</span>
+                          <button
+                            type="button"
+                            className="font-medium text-blue-600 hover:text-blue-800"
+                            onClick={() => void onViewDoc(d)}
+                          >
+                            View
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400">No file uploaded for this question yet.</p>
+                  )}
+                  {!decisionDone ? (
+                    <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600 hover:text-blue-700">
+                      <span>{uploadBusyKey === q.key ? 'Uploading…' : 'Upload file'}</span>
+                      <input
+                        type="file"
+                        className="sr-only"
+                        disabled={busy || uploadBusyKey === q.key}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null
+                          e.target.value = ''
+                          void onUploadQuestionDoc(q.key, f)
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </div>
               </div>
             )
           })}

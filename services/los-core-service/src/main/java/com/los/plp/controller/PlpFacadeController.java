@@ -35,6 +35,7 @@ public class PlpFacadeController {
     private final PlpBorrowerSyncService plpBorrowerSyncService;
     private final PlpSanctionSyncOrchestrator plpSanctionSyncOrchestrator;
     private final AnchorMasterService anchorMasterService;
+    private final ProgramApprovalService programApprovalService;
     private final InvoiceDiscountingVintageService invoiceDiscountingVintageService;
     private final ILoanApplicationService loanApplicationService;
     private final LoanApplicationRepository loanApplicationRepository;
@@ -65,6 +66,12 @@ public class PlpFacadeController {
         return ResponseEntity.ok(plpProgramQueryService.getProgramDetail(programId));
     }
 
+    @PostMapping("/programs/{programId}/refresh-plp-status")
+    @Operation(summary = "Refresh mirrored PLP program status (DRAFT/ACTIVE) from PLP")
+    public ResponseEntity<ProgramApprovalResponse> refreshPlpStatus(@PathVariable UUID programId) {
+        return ResponseEntity.ok(programApprovalService.refreshFromPlp(programId));
+    }
+
     @GetMapping("/sub-programs/{subProgramId}/summary")
     @Operation(summary = "Summary of anchor/program/sub-program linked to a borrower application")
     public ResponseEntity<PlpLinkedSubProgramSummaryResponse> getSubProgramSummary(
@@ -81,6 +88,7 @@ public class PlpFacadeController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.noContent().build());
     }
+
     @GetMapping("/programs/anchor/{anchorId}")
     @Operation(summary = "List programs for a specific anchor")
     public ResponseEntity<List<PlpProgramSummaryResponse>> listProgramsForAnchor(

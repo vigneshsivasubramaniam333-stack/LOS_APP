@@ -9,13 +9,16 @@ import com.los.plp.dto.request.PlpApplicationCleanupRequest;
 import com.los.plp.dto.request.PlpAnchorSyncRequest;
 import com.los.plp.dto.request.PlpBorrowerProgramMappingRequest;
 import com.los.plp.dto.request.PlpBorrowerSyncRequest;
+import com.los.plp.dto.request.PlpProgramActivateRequest;
 import com.los.plp.dto.request.PlpProgramSyncRequest;
+import com.los.plp.dto.request.PlpSubProgramActivateRequest;
 import com.los.plp.dto.request.PlpSubProgramBorrowerLinkRequest;
 import com.los.plp.dto.request.PlpSubProgramSyncRequest;
 import com.los.plp.dto.response.PlpApplicationCleanupResponse;
 import com.los.plp.dto.response.PlpAnchorSyncData;
 import com.los.plp.dto.response.PlpBorrowerProgramMappingData;
 import com.los.plp.dto.response.PlpBorrowerSyncData;
+import com.los.plp.dto.response.PlpProgramStatusData;
 import com.los.plp.dto.response.PlpProgramSyncData;
 import com.los.plp.dto.response.PlpSubProgramBorrowerLinkData;
 import com.los.plp.dto.response.PlpSubProgramSyncData;
@@ -45,7 +48,10 @@ public class PlpIntegrationClient {
     private static final String PATH_LOGIN = "/api/v1/auth/login";
     private static final String PATH_ANCHORS = "/api/v1/integrations/los/anchors";
     private static final String PATH_PROGRAMS = "/api/v1/integrations/los/programs";
+    private static final String PATH_PROGRAMS_ACTIVATE = "/api/v1/integrations/los/programs/activate";
+    private static final String PATH_PROGRAMS_STATUS = "/api/v1/integrations/los/programs/status";
     private static final String PATH_SUB_PROGRAMS = "/api/v1/integrations/los/sub-programs";
+    private static final String PATH_SUB_PROGRAMS_ACTIVATE = "/api/v1/integrations/los/sub-programs/activate";
     private static final String PATH_BORROWERS = "/api/v1/integrations/los/borrowers";
     private static final String PATH_LINKS = "/api/v1/integrations/los/sub-program-borrower-links";
     private static final String PATH_MAPPINGS = "/api/v1/integrations/los/borrower-program-mappings";
@@ -55,6 +61,7 @@ public class PlpIntegrationClient {
 
     private static final TypeReference<PlpApiResponse<PlpAnchorSyncData>> ANCHOR_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpProgramSyncData>> PROGRAM_TYPE = new TypeReference<>() {};
+    private static final TypeReference<PlpApiResponse<PlpProgramStatusData>> PROGRAM_STATUS_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpSubProgramSyncData>> SUB_PROGRAM_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpBorrowerSyncData>> BORROWER_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpSubProgramBorrowerLinkData>> LINK_TYPE = new TypeReference<>() {};
@@ -79,9 +86,31 @@ public class PlpIntegrationClient {
         return post(PATH_PROGRAMS, request, PROGRAM_TYPE);
     }
 
+    public PlpApiResponse<PlpProgramSyncData> activateProgram(PlpProgramActivateRequest request) {
+        request.setSourceSystem(SOURCE_SYSTEM);
+        return post(PATH_PROGRAMS_ACTIVATE, request, PROGRAM_TYPE);
+    }
+
+    public PlpApiResponse<PlpProgramStatusData> getProgramStatus(String losProgramId) {
+        if (!plpProperties.isEnabled()) {
+            throw new PlpIntegrationException("PLP sync is disabled (los.plp.enabled=false)");
+        }
+        String path = PATH_PROGRAMS_STATUS
+                + "?sourceSystem="
+                + SOURCE_SYSTEM
+                + "&losProgramId="
+                + losProgramId;
+        return getAuthenticated(path, PROGRAM_STATUS_TYPE, false);
+    }
+
     public PlpApiResponse<PlpSubProgramSyncData> syncSubProgram(PlpSubProgramSyncRequest request) {
         request.setSourceSystem(SOURCE_SYSTEM);
         return post(PATH_SUB_PROGRAMS, request, SUB_PROGRAM_TYPE);
+    }
+
+    public PlpApiResponse<PlpSubProgramSyncData> activateSubProgram(PlpSubProgramActivateRequest request) {
+        request.setSourceSystem(SOURCE_SYSTEM);
+        return post(PATH_SUB_PROGRAMS_ACTIVATE, request, SUB_PROGRAM_TYPE);
     }
 
     public PlpApiResponse<PlpBorrowerSyncData> syncBorrower(PlpBorrowerSyncRequest request) {
@@ -126,6 +155,58 @@ public class PlpIntegrationClient {
             throw new PlpIntegrationException("PLP sync is disabled (los.plp.enabled=false)");
         }
         return postAuthenticated(path, body, type, false);
+    }
+
+    private <T> PlpApiResponse<T> getAuthenticated(String path, TypeReference<PlpApiResponse<T>> type, boolean retried401AfterRefresh) {
+        return getAuthenticated(path, type, retried401AfterRefresh, 0);
+    }
+
+    private <T> PlpApiResponse<T> getAuthenticated(String path, TypeReference<PlpApiResponse<T>> type, boolean retried401AfterRefresh, int unavailableRetries) {
+        String accessToken = currentAccessToken();
+        HttpHeaders logHeaders = new HttpHeaders();
+        logHeaders.setBearerAuth(accessToken);
+
+        log.info("[PLP][REQUEST] GET {} — headers: {}", path, summarizeHeadersForLog(logHeaders));
+
+        String bearer = "Bearer " + accessToken;
+
+        try {
+            ResponseEntity<String> entity = plpRestClient.get()
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, bearer)
+                    .retrieve()
+                    .toEntity(String.class);
+            log.info("[PLP][RESPONSE] Status: {}, Body: {}", entity.getStatusCode(), truncateForLog(entity.getBody()));
+            String raw = entity.getBody();
+            PlpApiResponse<T> response = objectMapper.readValue(raw, type);
+            if (response == null || !"SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                String msg = response != null && response.getMessage() != null
+                        ? response.getMessage()
+                        : "PLP returned non-SUCCESS status";
+                throw new PlpIntegrationException(msg);
+            }
+            return response;
+        } catch (PlpIntegrationException e) {
+            throw e;
+        } catch (RestClientResponseException e) {
+            log.info("[PLP][RESPONSE] Status: {}, Body: {}", e.getStatusCode(),
+                    truncateForLog(e.getResponseBodyAsString()));
+            if (shouldRetryUnauthorized(e, retried401AfterRefresh)) {
+                clearCachedAccessToken();
+                return getAuthenticated(path, type, true, unavailableRetries);
+            }
+            if (shouldRetryUnavailable(e, unavailableRetries)) {
+                log.warn("[PLP] {} {} — retry {}/{} after {}ms",
+                        e.getStatusCode(), path, unavailableRetries + 1, MAX_UNAVAILABLE_RETRIES, UNAVAILABLE_RETRY_DELAY_MS);
+                sleepQuietly(UNAVAILABLE_RETRY_DELAY_MS);
+                return getAuthenticated(path, type, retried401AfterRefresh, unavailableRetries + 1);
+            }
+            throw new PlpIntegrationException(
+                    "PLP HTTP " + e.getStatusCode() + ": " + safeBody(e.getResponseBodyAsString()));
+        } catch (Exception e) {
+            log.error("PLP call failed for {}: {}", path, e.getMessage());
+            throw new PlpIntegrationException(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+        }
     }
 
     private static final int MAX_UNAVAILABLE_RETRIES = 4;

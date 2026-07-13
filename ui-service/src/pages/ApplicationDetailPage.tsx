@@ -9,6 +9,7 @@ import { CollateralIntakeStaffPanel } from '@/components/CollateralIntakeStaffPa
 import { CollateralPanel } from '@/components/CollateralPanel'
 import { AaConsentPanel } from '@/components/AaConsentPanel'
 import { BorrowerSubmittedIntakePanel } from '@/components/BorrowerSubmittedIntakePanel'
+import { BorrowerSubmissionReviewPanel } from '@/components/application/BorrowerSubmissionReviewPanel'
 import { CamSection } from '@/components/CamSection'
 import { DisbursementSection } from '@/components/DisbursementSection'
 import { EsignSection } from '@/components/EsignSection'
@@ -36,8 +37,10 @@ import { DetailField } from '@/components/ui/AdminLayout'
 import { AppSectionCard } from '@/components/ui/AppSectionCard'
 import { VkycDetailsSection } from '@/components/VkycDetailsSection'
 import { VkycDownstreamGate } from '@/components/VkycDownstreamGate'
+import { staffCanContinueIntake } from '@/lib/intake/intakeResume'
 import {
   anchorSkipsPostSanctionSteps,
+  anchorHiddenDetailTabs,
   idBorrowerSkipsDisbursement,
   isInvoiceDiscountingAnchorApp,
   isInvoiceDiscountingBorrowerApp,
@@ -131,7 +134,7 @@ export function ApplicationDetailPage() {
     const skipPostSanction = app ? anchorSkipsPostSanctionSteps(app) : false
     const skipDisbursement = app ? idBorrowerSkipsDisbursement(app) : false
     const hidden = skipPostSanction
-      ? new Set<string>(['cam', 'esign', 'disbursement'])
+      ? anchorHiddenDetailTabs()
       : skipDisbursement
         ? new Set<string>(['disbursement'])
         : new Set<string>()
@@ -187,13 +190,33 @@ export function ApplicationDetailPage() {
               ? 'Review KYC, underwriting, CAM, sanction, terms eSign, and PLP program linkage for this invoice discounting borrower.'
               : 'Review KYC, underwriting, CAM, sanction, KFS, eSign, and disbursement for this loan.'
         }
-        actions={app && id ? <ApplicationDeletePanel applicationId={id} app={app} /> : null}
+        actions={
+          app && id ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {staffCanContinueIntake(app) ? (
+                <Link
+                  to={`/applications/${id}/intake`}
+                  className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white"
+                >
+                  Continue intake
+                </Link>
+              ) : null}
+              <ApplicationDeletePanel applicationId={id} app={app} />
+            </div>
+          ) : null
+        }
       />
       <p className="mb-4 text-sm">
         <Link to="/applications" className="font-medium text-[var(--bt-orange)] hover:underline">
           ← Back to applications
         </Link>
       </p>
+      {app?.status === 'CONSENT_PENDING' && app.intakeOwner === 'BORROWER' ? (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Waiting for the borrower to complete intake in the borrower portal. They can resume from the link in their
+          notification email.
+        </div>
+      ) : null}
 
       {appLoading && !app && <LoadingState label="Loading application…" />}
       {appError && !app && <ErrorState message={appError} />}
@@ -224,7 +247,7 @@ export function ApplicationDetailPage() {
               {appLoading ? (
                 <p className="mb-3 text-sm text-slate-500">Refreshing application data…</p>
               ) : null}
-              {tab === 'summary' && <SummaryPanel app={app} applicationId={id} />}
+              {tab === 'summary' && <SummaryPanel app={app} applicationId={id} onRefetch={refetchApp} />}
               {tab === 'borrower' && (() => {
                 const partyLabels = applicationPartyLabels(app.intakeSegment)
                 return (
@@ -414,7 +437,15 @@ function formatIntakeLine(raw: string): string {
   return raw
 }
 
-function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applicationId: string }) {
+function SummaryPanel({
+  app,
+  applicationId,
+  onRefetch,
+}: {
+  app: ApplicationResponse
+  applicationId: string
+  onRefetch: () => void | Promise<unknown>
+}) {
   const partyLabels = applicationPartyLabels(app.intakeSegment)
   const statusUrl = typeof window !== 'undefined' ? borrowerStatusPath(applicationId, window.location.origin) : ''
   const phone = readPhoneFromPersonal(app.personalInfo)
@@ -431,6 +462,7 @@ function SummaryPanel({ app, applicationId }: { app: ApplicationResponse; applic
       'MANUALLY_OVERRIDDEN' || manualOverrideCount > 0
   return (
     <div>
+      <BorrowerSubmissionReviewPanel app={app} onRefetch={onRefetch} />
       <h2 className="mb-3 bt-card-title">Application summary</h2>
       <div className="mb-4 flex flex-wrap gap-2">
         {app.intakeSegment === 'ANCHOR' ? (

@@ -1,6 +1,7 @@
 package com.los.plp.model.dto;
 
 import com.los.plp.model.enums.PlpSyncStatus;
+import com.los.plp.model.enums.ProgramApprovalStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -32,6 +33,8 @@ public class PlpProgramSummaryResponse {
     private String flowType;
     private String lmsEntryIn;
     private String encoreProductCode;
+    private ProgramApprovalStatus approvalStatus;
+    private String approvalNotes;
     private BigDecimal dependencyVintagePercent;
     private Integer anchorRelationshipVintageMonths;
 }

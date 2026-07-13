@@ -15,6 +15,7 @@ import com.los.core.repository.UnderwritingScorecardRepository;
 import com.los.core.service.credit.CreditControlKeys;
 import com.los.core.service.credit.CreditControlService;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.core.service.loan.WorkflowRoleGuard;
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.Element;
@@ -54,6 +55,7 @@ public class CreditAppraisalService {
     private final UnderwritingScorecardRepository scorecardRepository;
     private final IKycOrchestrationService kycOrchestrationService;
     private final CreditControlService creditControlService;
+    private final WorkflowRoleGuard workflowRoleGuard;
 
     private static final DateTimeFormatter ZONED_TS =
             DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm z").withZone(ZoneId.systemDefault());
@@ -70,7 +72,8 @@ public class CreditAppraisalService {
     }
 
     @Transactional
-    public CamResponse updateCam(UUID applicationId, CamUpdateRequest req) {
+    public CamResponse updateCam(UUID applicationId, CamUpdateRequest req, UUID actorUserId) {
+        workflowRoleGuard.requireMaker(actorUserId);
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not found: " + applicationId));
         String cst = cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT";
@@ -101,6 +104,20 @@ public class CreditAppraisalService {
         }
         if (req.getRecommendedRate() != null) {
             cam.setRecommendedRate(req.getRecommendedRate());
+        }
+        if (req.getInterestType() != null) {
+            String it = req.getInterestType().trim().toUpperCase(Locale.ROOT);
+            if (it.isEmpty()) {
+                cam.setInterestType(null);
+            } else if ("UPFRONT".equals(it) || "REDUCING".equals(it)) {
+                cam.setInterestType(it);
+            } else {
+                throw new BusinessRuleException(
+                        "Interest type must be UPFRONT or REDUCING",
+                        "CAM_INTEREST_TYPE_INVALID",
+                        "OPEN_CAM",
+                        Map.of("interestType", req.getInterestType()));
+            }
         }
         if (req.getConditionsPrecedent() != null) {
             cam.setConditionsPrecedentJson(new ArrayList<>(req.getConditionsPrecedent()));
@@ -170,7 +187,8 @@ public class CreditAppraisalService {
      * Officer submits CAM for credit manager review (stays in CAM_READY; does not change application status).
      */
     @Transactional
-    public CamResponse submitCam(UUID applicationId) {
+    public CamResponse submitCam(UUID applicationId, UUID actorUserId) {
+        workflowRoleGuard.requireMaker(actorUserId);
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not found: " + applicationId));
         String st = cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT";
@@ -192,7 +210,8 @@ public class CreditAppraisalService {
      * Credit manager sends the CAM back to the officer (SUBMITTED → SENT_BACK). Application status unchanged.
      */
     @Transactional
-    public CamResponse sendBackCam(UUID applicationId) {
+    public CamResponse sendBackCam(UUID applicationId, UUID actorUserId) {
+        workflowRoleGuard.requireChecker(actorUserId);
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not found: " + applicationId));
         String st = cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT";
@@ -213,7 +232,8 @@ public class CreditAppraisalService {
      * Manager rejects the CAM draft (does not change application status; officer may re-edit and resubmit).
      */
     @Transactional
-    public CamResponse rejectMemorandum(UUID applicationId) {
+    public CamResponse rejectMemorandum(UUID applicationId, UUID actorUserId) {
+        workflowRoleGuard.requireChecker(actorUserId);
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not found: " + applicationId));
         String st = cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT";
@@ -843,6 +863,7 @@ public class CreditAppraisalService {
                         cam.getRecommendedTenureMonths() != null ? cam.getRecommendedTenureMonths() : app.getTenureMonths())
                 .recommendedRate(
                         cam.getRecommendedRate() != null ? cam.getRecommendedRate() : app.getInterestRate())
+                .interestType(cam.getInterestType())
                 .conditionsPrecedent(cam.getConditionsPrecedentJson())
                 .conditionsSubsequent(cam.getConditionsSubsequentJson())
                 .creditOfficerRemarks(cam.getCreditOfficerRemarks())

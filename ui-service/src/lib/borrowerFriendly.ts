@@ -8,6 +8,8 @@ export function friendlyStatusHeadline(status: ApplicationStatus): string {
     DRAFT: 'Application in progress',
     CONSENT_PENDING: 'Waiting for your consent',
     BORROWER_SUBMITTED: 'Submitted — we are reviewing your details',
+    PENDING_CREDIT_OFFICER: 'Submitted — under credit review',
+    SENT_BACK_TO_RM: 'Submitted — under review',
     BORROWER_SENT_BACK: 'Please update your application',
     KYC_IN_PROGRESS: 'Verification in progress',
     KYC_FAILED: 'We need a bit more information',

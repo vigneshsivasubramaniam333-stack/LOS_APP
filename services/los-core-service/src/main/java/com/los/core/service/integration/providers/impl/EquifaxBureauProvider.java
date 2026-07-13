@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.los.core.config.IntegrationProperties;
 import com.los.core.model.entity.ApiAuditLog;
 import com.los.core.repository.ApiAuditLogRepository;
+import com.los.core.service.document.IDocumentService;
 import com.los.core.service.integration.providers.IBureauProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -20,6 +22,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -49,6 +52,7 @@ public class EquifaxBureauProvider implements IBureauProvider {
     private final IntegrationProperties integrationProperties;
     private final ApiAuditLogRepository apiAuditLogRepository;
     private final ObjectMapper objectMapper;
+    private final IDocumentService documentService;
 
     /** Equifax SOAP namespace used in response XPath queries */
     private static final String EQUIFAX_NS = "http://services.equifax.com/eport/ws/schemas/1.0";
@@ -375,7 +379,46 @@ public class EquifaxBureauProvider implements IBureauProvider {
         reportData.put("dpd90Plus", 0);
         reportData.put("suitFiled", false);
 
+        attachSimulatedBureauReport(borrowerInfo);
+
         return new BureauPullResult(true, creditScore, reportData, transactionId, null);
+    }
+
+    private void attachSimulatedBureauReport(Map<String, Object> borrowerInfo) {
+        Object appIdRaw = borrowerInfo != null ? borrowerInfo.get("applicationId") : null;
+        if (appIdRaw == null || appIdRaw.toString().isBlank()) {
+            log.warn("[Equifax] Simulated report HTML not attached — applicationId missing from borrowerInfo");
+            return;
+        }
+        try {
+            UUID applicationId = UUID.fromString(appIdRaw.toString().trim());
+            byte[] html = loadSimulatedBureauHtml();
+            if (html == null || html.length == 0) {
+                log.warn("[Equifax] Simulated sample-bureau-report.html is empty or missing");
+                return;
+            }
+            documentService.storeDocumentBytes(
+                    applicationId,
+                    "BUREAU_REPORT",
+                    "sample-bureau-report.html",
+                    "text/html",
+                    html);
+            log.info("[Equifax] Attached simulated BUREAU_REPORT HTML for application {}", applicationId);
+        } catch (Exception e) {
+            log.warn("[Equifax] Failed to attach simulated BUREAU_REPORT: {}", e.getMessage());
+        }
+    }
+
+    private byte[] loadSimulatedBureauHtml() {
+        try {
+            ClassPathResource resource = new ClassPathResource("simulated/sample-bureau-report.html");
+            try (InputStream in = resource.getInputStream()) {
+                return in.readAllBytes();
+            }
+        } catch (Exception e) {
+            log.warn("[Equifax] Could not load simulated/sample-bureau-report.html: {}", e.getMessage());
+            return null;
+        }
     }
 
     private String getTagValue(Document doc, XPath xpath, String expression) {

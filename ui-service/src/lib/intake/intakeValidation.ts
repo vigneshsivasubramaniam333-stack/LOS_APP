@@ -148,8 +148,63 @@ export function validateProductStep(
       return 'Confirm that the borrower has agreed to start this application and share details with the lender.'
     }
   }
-  const vintageErr = validateInvoiceDiscountingVintageStep(s, mode)
-  if (vintageErr) return vintageErr
+  return null
+}
+
+/**
+ * Minimal fields for staff "Save draft & notify borrower" — does not require full address / KYC / docs.
+ */
+export function validateNotifyBasics(
+  s: IntakeFormState,
+  mode: IntakeMode,
+  activeWorkflows: WorkflowConfigResponse[],
+  opts?: { needPlpProgram?: boolean },
+): string | null {
+  const globalProducts = uniqueActiveWorkflowLoanProducts(activeWorkflows)
+  if (globalProducts.length === 0) {
+    return 'No active loan product is available. Ask an admin to configure a workflow.'
+  }
+  if (!s.loanProduct || !globalProducts.includes(s.loanProduct)) {
+    return 'Select a loan product before notifying the borrower.'
+  }
+  if (!s.borrowerType) {
+    return 'Select a borrower type before notifying the borrower.'
+  }
+
+  if (isInvoiceDiscountingProduct(s.loanProduct)) {
+    const onboardingChoice =
+      mode === 'BORROWER_SELF_SERVICE' ? 'BORROWER' : s.invoiceOnboardingChoice
+    if (mode !== 'BORROWER_SELF_SERVICE' && onboardingChoice !== 'BORROWER' && onboardingChoice !== 'ANCHOR') {
+      return 'Select onboarding type (Borrower or Anchor) before notifying.'
+    }
+    if (onboardingChoice === 'ANCHOR') {
+      return 'Anchor onboarding cannot be delegated to the borrower portal.'
+    }
+    if (opts?.needPlpProgram !== false && !s.selectedSubProgramId?.trim()) {
+      return 'Select an anchor program before notifying the borrower.'
+    }
+  }
+
+  if (s.borrowerType === 'INDIVIDUAL') {
+    if (!s.fullName.trim()) return 'Enter the borrower’s name before notifying.'
+    const mobile =
+      normalizeMobile(s.mobile) || (mode === 'SALES_ASSISTED' ? normalizeMobile(s.borrowerMobile) : '')
+    if (mobile.length < 10) {
+      return 'Enter a valid mobile number before notifying.'
+    }
+    const emailError = validateRequiredEmail(s.email)
+    if (emailError) return emailError
+  } else {
+    if (!s.businessName.trim()) return 'Enter the business or entity name before notifying.'
+    if (!s.contactPersonName.trim()) return 'Enter a contact person name before notifying.'
+    const m = normalizeMobile(s.contactMobile)
+    if (m.length < 10) {
+      return 'Enter a valid contact mobile before notifying.'
+    }
+    const email = s.contactEmail.trim()
+    if (!email) return 'Enter a contact email before notifying.'
+    if (!EMAIL_RE.test(email)) return 'Please enter a valid contact email address.'
+  }
   return null
 }
 
@@ -187,6 +242,8 @@ export function validateBorrowerStep(
     const loc = validateIntakeLocation(s.businessState, s.businessCity, s.businessPincode, 'staff_basic')
     if (loc) return loc
   }
+  const vintageErr = validateInvoiceDiscountingVintageStep(s, mode)
+  if (vintageErr) return vintageErr
   return null
 }
 
