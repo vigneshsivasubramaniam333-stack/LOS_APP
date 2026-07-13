@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUSINESS_WC_INVOICE_DISCOUNTING } from '@/catalog/loanProducts'
+import { INVOICE_DISCOUNTING_PRODUCT_CODE } from '@/catalog/loanProducts'
 import { createEmptyIntakeFormState } from './intakeTypes'
 import { applyHydratedIntakeDefaults, inferFirstIncompleteIntakeStep } from './intakeResume'
 import { staffIntakeStepIndices } from './staffIntakeSteps'
@@ -13,7 +13,7 @@ function app(over: Partial<ApplicationResponse>): ApplicationResponse {
     applicationNumber: 'LOS-1',
     customerId: 'c1',
     borrowerType: 'INDIVIDUAL',
-    loanProduct: BUSINESS_WC_INVOICE_DISCOUNTING,
+    loanProduct: INVOICE_DISCOUNTING_PRODUCT_CODE,
     status: 'CONSENT_PENDING',
     intakeSegment: 'BORROWER',
     intakeOwner: 'BORROWER',
@@ -41,7 +41,7 @@ const workflows: WorkflowConfigResponse[] = [
   {
     id: 'w1',
     name: 'ID',
-    loanProduct: BUSINESS_WC_INVOICE_DISCOUNTING,
+    loanProduct: INVOICE_DISCOUNTING_PRODUCT_CODE,
     borrowerType: 'INDIVIDUAL',
     intakeSegment: 'BORROWER',
     active: true,
@@ -54,7 +54,7 @@ const workflows: WorkflowConfigResponse[] = [
 describe('intakeResume', () => {
   it('applyHydratedIntakeDefaults sets borrower invoice onboarding for portal', () => {
     const form = createEmptyIntakeFormState()
-    form.loanProduct = BUSINESS_WC_INVOICE_DISCOUNTING
+    form.loanProduct = INVOICE_DISCOUNTING_PRODUCT_CODE
     const next = applyHydratedIntakeDefaults(form, app({}), 'borrower')
     expect(next.invoiceOnboardingChoice).toBe('BORROWER')
   })
@@ -63,7 +63,7 @@ describe('intakeResume', () => {
     const form = {
       ...createEmptyIntakeFormState(),
       borrowerType: 'INDIVIDUAL' as const,
-      loanProduct: BUSINESS_WC_INVOICE_DISCOUNTING,
+      loanProduct: INVOICE_DISCOUNTING_PRODUCT_CODE,
       requestedAmount: '500000',
       tenureMonths: '12',
       invoiceOnboardingChoice: '' as const,
@@ -77,7 +77,7 @@ describe('intakeResume', () => {
       {
         ...createEmptyIntakeFormState(),
         borrowerType: 'INDIVIDUAL',
-        loanProduct: BUSINESS_WC_INVOICE_DISCOUNTING,
+        loanProduct: INVOICE_DISCOUNTING_PRODUCT_CODE,
         requestedAmount: '500000',
         tenureMonths: '12',
         fullName: 'Test',
@@ -112,7 +112,7 @@ describe('intakeResume', () => {
       {
         ...createEmptyIntakeFormState(),
         borrowerType: 'INDIVIDUAL',
-        loanProduct: BUSINESS_WC_INVOICE_DISCOUNTING,
+        loanProduct: INVOICE_DISCOUNTING_PRODUCT_CODE,
         requestedAmount: '500000',
         tenureMonths: '12',
         fullName: 'Test',
