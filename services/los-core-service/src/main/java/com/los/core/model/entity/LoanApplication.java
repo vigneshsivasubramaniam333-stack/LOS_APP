@@ -2,6 +2,7 @@ package com.los.core.model.entity;
 
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.BorrowerType;
+import com.los.core.model.enums.IntakeOwner;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.plp.model.enums.PlpSyncStatus;
 import com.los.core.model.enums.VkycCompletionMode;
@@ -89,6 +90,17 @@ public class LoanApplication {
 
     @Column(length = 500)
     private String remarks;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "intake_owner", nullable = false, length = 20)
+    @Builder.Default
+    private IntakeOwner intakeOwner = IntakeOwner.STAFF;
+
+    @Column(name = "intake_completed_step")
+    private Integer intakeCompletedStep;
+
+    @Column(name = "borrower_sent_back_notes", columnDefinition = "TEXT")
+    private String borrowerSentBackNotes;
 
     private UUID assignedTo;
 
