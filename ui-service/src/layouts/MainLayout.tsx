@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import { canAccessAdminConfigNav } from '@/auth/types'
+import { canAccessAdminConfigNav, isRelationshipManager } from '@/auth/types'
 import { BrandLogo } from '@/components/BrandLogo'
 import {
   ApplicationsIcon,
@@ -50,6 +50,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Operations',
     items: [
       { to: '/applications', label: 'Applications', icon: ApplicationsIcon },
+      { to: '/borrower-submissions', label: 'Borrower submissions', icon: ApplicationsIcon },
       { to: '/kyc', label: 'KYC in progress', icon: KycIcon },
       { to: '/underwriting', label: 'Underwriting', icon: UnderwritingIcon },
       { to: '/plp/programs', label: 'PLP Programs', icon: ProgramsIcon },
@@ -78,6 +79,7 @@ export function MainLayout() {
   const { user, logout } = useAuth()
   const nav = useNavigate()
   const showAdmin = user ? canAccessAdminConfigNav(user.role) : false
+  const hideUnderwritingQueue = user ? isRelationshipManager(user.role) : false
 
   return (
     <div className="bt-app-canvas bt-app-shell">
@@ -90,7 +92,9 @@ export function MainLayout() {
           {NAV_GROUPS.filter((g) => !g.adminOnly || showAdmin).map((group) => (
             <div key={group.label} className="mb-1">
               <div className="bt-sidebar-group-label">{group.label}</div>
-              {group.items.map((item) => (
+              {group.items
+                .filter((item) => !(hideUnderwritingQueue && item.to === '/underwriting'))
+                .map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}

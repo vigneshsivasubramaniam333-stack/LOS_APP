@@ -73,7 +73,7 @@ public class CreditAppraisalService {
 
     @Transactional
     public CamResponse updateCam(UUID applicationId, CamUpdateRequest req, UUID actorUserId) {
-        workflowRoleGuard.requireMaker(actorUserId);
+        workflowRoleGuard.requireCamEditor(actorUserId);
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not found: " + applicationId));
         String cst = cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT";
@@ -208,9 +208,10 @@ public class CreditAppraisalService {
 
     /**
      * Credit manager sends the CAM back to the officer (SUBMITTED → SENT_BACK). Application status unchanged.
+     * Optional {@code remarks} are stored as credit manager remarks when non-blank.
      */
     @Transactional
-    public CamResponse sendBackCam(UUID applicationId, UUID actorUserId) {
+    public CamResponse sendBackCam(UUID applicationId, UUID actorUserId, String remarks) {
         workflowRoleGuard.requireChecker(actorUserId);
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("CAM not found: " + applicationId));
@@ -221,6 +222,9 @@ public class CreditAppraisalService {
                     "CAM_SENDBACK_INVALID",
                     "OPEN_CAM",
                     Map.of("camStatus", st));
+        }
+        if (remarks != null && !remarks.isBlank()) {
+            cam.setCreditManagerRemarks(remarks.trim());
         }
         cam.setCamStatus("SENT_BACK");
         cam = camRepository.save(cam);

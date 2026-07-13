@@ -89,7 +89,15 @@ const CAM_MAKER_ROLES = new Set([
   'ADMIN',
   'ADMINISTRATOR',
   'RISK_MANAGER',
+])
+
+/** Roles allowed to edit CAM fields (makers + credit manager checkers). */
+const CAM_EDITOR_ROLES = new Set([
+  'CREDIT_OFFICER',
   'CREDIT_MANAGER',
+  'ADMIN',
+  'ADMINISTRATOR',
+  'RISK_MANAGER',
 ])
 
 const CAM_CHECKER_ROLES = new Set([
@@ -110,12 +118,47 @@ export function isCamMakerRole(role: string): boolean {
   return CAM_MAKER_ROLES.has(String(role ?? '').trim().toUpperCase())
 }
 
+export function isCamEditorRole(role: string): boolean {
+  return CAM_EDITOR_ROLES.has(String(role ?? '').trim().toUpperCase())
+}
+
 export function isCamCheckerRole(role: string): boolean {
   return CAM_CHECKER_ROLES.has(String(role ?? '').trim().toUpperCase())
 }
 
 export function isL2SanctionRole(role: string): boolean {
   return L2_SANCTION_ROLES.has(String(role ?? '').trim().toUpperCase())
+}
+
+export function isRelationshipManager(role: string): boolean {
+  return String(role ?? '').trim().toUpperCase() === 'RELATIONSHIP_MANAGER'
+}
+
+/** CO, CM, Admin — not RM. */
+export function canRunKycFlow(role: string): boolean {
+  const r = String(role ?? '').trim().toUpperCase()
+  return (
+    r === 'CREDIT_OFFICER' ||
+    r === 'CREDIT_MANAGER' ||
+    r === 'ADMIN' ||
+    r === 'ADMINISTRATOR' ||
+    r === 'RISK_MANAGER'
+  )
+}
+
+/** Same gate as KYC run for underwriting actions. */
+export function canRunUnderwriting(role: string): boolean {
+  return canRunKycFlow(role)
+}
+
+/** CAM tab actions — not RM. */
+export function canAccessCamActions(role: string): boolean {
+  return isCamEditorRole(role) || isCamCheckerRole(role)
+}
+
+/** Sanction decision actions — CM/Admin only (not CO, not RM). */
+export function canAccessSanction(role: string): boolean {
+  return isL2SanctionRole(role)
 }
 
 /** Roles allowed to create applications and use Save draft & notify borrower (not CREDIT_OFFICER). */

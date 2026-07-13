@@ -16,6 +16,9 @@ public class WorkflowRoleGuard {
 
     private static final Set<String> MAKER_ROLES = Set.of(
             "CREDIT_OFFICER", "ADMIN", "ADMINISTRATOR", "RISK_MANAGER");
+    /** Officers and managers who may edit CAM fields (not necessarily submit). */
+    private static final Set<String> CAM_EDITOR_ROLES = Set.of(
+            "CREDIT_OFFICER", "CREDIT_MANAGER", "ADMIN", "ADMINISTRATOR", "RISK_MANAGER");
     private static final Set<String> CHECKER_ROLES = Set.of(
             "CREDIT_MANAGER", "ADMIN", "ADMINISTRATOR", "RISK_MANAGER");
     private static final Set<String> L2_SANCTION_ROLES = Set.of(
@@ -33,6 +36,10 @@ public class WorkflowRoleGuard {
 
     public void requireMaker(UUID userId) {
         requireRole(userId, MAKER_ROLES, "Credit officer (maker) role required");
+    }
+
+    public void requireCamEditor(UUID userId) {
+        requireRole(userId, CAM_EDITOR_ROLES, "CAM editor role required");
     }
 
     public void requireChecker(UUID userId) {

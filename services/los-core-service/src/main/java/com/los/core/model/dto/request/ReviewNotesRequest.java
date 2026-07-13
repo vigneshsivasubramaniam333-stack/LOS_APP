@@ -7,4 +7,7 @@ import lombok.Data;
 public class ReviewNotesRequest {
 
     private String notes;
+
+    /** Alias accepted by CAM send-back and similar endpoints. */
+    private String remarks;
 }

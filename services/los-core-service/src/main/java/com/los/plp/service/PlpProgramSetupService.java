@@ -43,7 +43,7 @@ public class PlpProgramSetupService {
         List<SubProgramMaster> existingSubs = subProgramMasterRepository
                 .findByAnchorIdAndProgramName(anchor.getId(), request.getProgramName());
         if (!existingSubs.isEmpty()) {
-            return reuseExistingProgram(existingSubs.get(0), anchor);
+            return resubmitExistingProgram(existingSubs.get(0), anchor, request);
         }
 
         String programCode = "PRG-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
@@ -120,6 +120,112 @@ public class PlpProgramSetupService {
         }
 
         return buildResponse(program, subProgram, anchor);
+    }
+
+    /**
+     * RM correction / resubmit after L1 send-back (or idempotent retry of the same create).
+     * Applies updated commercial fields, resets LOS approval to DRAFT, and force-syncs to PLP
+     * so PLP status returns to DRAFT for another L1 review cycle.
+     */
+    private PlpProgramSetupResponse resubmitExistingProgram(
+            SubProgramMaster existingSub,
+            AnchorMaster anchor,
+            CreatePlpProgramRequest request) {
+        final UUID existingProgramId = existingSub.getProgramId();
+        ProgramMaster program = programMasterRepository.findById(existingProgramId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Inconsistent state: sub-program references missing program " + existingProgramId));
+
+        if (program.getApprovalStatus() == ProgramApprovalStatus.APPROVED) {
+            throw new IllegalStateException(
+                    "Program is already approved in PLP; create a new program or edit limits in PLP.");
+        }
+
+        String lmsEntry = normalizeLmsEntry(request.getLmsEntryIn() != null
+                ? request.getLmsEntryIn()
+                : program.getLmsEntryIn());
+        if ("YES".equals(lmsEntry)
+                && "INVOICE_DISCOUNTING".equalsIgnoreCase(
+                        request.getProgramType() != null ? request.getProgramType() : program.getProductType())
+                && (request.getEncoreProductCode() == null || request.getEncoreProductCode().isBlank())
+                && (program.getEncoreProductCode() == null || program.getEncoreProductCode().isBlank())) {
+            throw new IllegalArgumentException("encoreProductCode is required when LMS entry is YES for invoice discounting");
+        }
+
+        if (request.getProgramType() != null && !request.getProgramType().isBlank()) {
+            program.setProductType(request.getProgramType().trim());
+        }
+        if (request.getCreditLimit() != null) {
+            program.setProgramLimit(request.getCreditLimit());
+            program.setMaxBorrowerLimit(request.getCreditLimit());
+        }
+        if (request.getInterestRate() != null) {
+            program.setInterestRate(request.getInterestRate());
+        }
+        if (request.getTenureDays() != null) {
+            program.setTenureDays(request.getTenureDays());
+        }
+        if (request.getCurrency() != null && !request.getCurrency().isBlank()) {
+            program.setCurrency(request.getCurrency().trim());
+        }
+        if (request.getValidityStartDate() != null) {
+            program.setValidityStartDate(request.getValidityStartDate());
+        }
+        if (request.getValidityEndDate() != null) {
+            program.setValidityEndDate(request.getValidityEndDate());
+        }
+        program.setLmsEntryIn(lmsEntry);
+        if ("YES".equals(lmsEntry)) {
+            String code = request.getEncoreProductCode() != null
+                    ? trimToNull(request.getEncoreProductCode())
+                    : program.getEncoreProductCode();
+            program.setEncoreProductCode(code);
+        } else {
+            program.setEncoreProductCode(null);
+        }
+        if (request.getDependencyVintagePercent() != null) {
+            program.setDependencyVintagePercent(request.getDependencyVintagePercent());
+        }
+        if (request.getAnchorRelationshipVintageMonths() != null) {
+            program.setAnchorRelationshipVintageMonths(request.getAnchorRelationshipVintageMonths());
+        }
+
+        // Ready for another L1 cycle (send-back again or submit to L2).
+        program.setApprovalStatus(ProgramApprovalStatus.DRAFT);
+        program.setPlpOperationalStatus("DRAFT");
+        program.setApprovalNotes(null);
+        program = programMasterRepository.save(program);
+
+        if (request.getSubProgramLimit() != null) {
+            existingSub.setSubProgramLimit(request.getSubProgramLimit());
+        } else if (request.getCreditLimit() != null) {
+            existingSub.setSubProgramLimit(request.getCreditLimit());
+        }
+        if (request.getFlowType() != null && !request.getFlowType().isBlank()) {
+            SubProgramRoles roles = resolveSubProgramRoles(program.getProductType(), request.getFlowType());
+            existingSub.setFlowType(roles.flowType());
+            existingSub.setAnchorRole(roles.anchorRole());
+            existingSub.setBorrowerRole(roles.borrowerRole());
+        }
+        existingSub = subProgramMasterRepository.save(existingSub);
+
+        if (plpProperties.isEnabled()) {
+            try {
+                program = plpProgramSyncService.sync(program);
+            } catch (Exception e) {
+                log.error("PLP program resubmit-sync failed for {}: {}", program.getId(), e.getMessage(), e);
+            }
+            try {
+                existingSub = plpSubProgramSyncService.sync(existingSub, program, anchor);
+            } catch (Exception e) {
+                log.error("PLP sub-program resubmit-sync failed for {}: {}",
+                        existingSub.getId(), e.getMessage(), e);
+            }
+            program = programMasterRepository.findById(program.getId()).orElse(program);
+            existingSub = subProgramMasterRepository.findById(existingSub.getId()).orElse(existingSub);
+        }
+
+        return buildResponse(program, existingSub, anchor);
     }
 
     private PlpProgramSetupResponse reuseExistingProgram(SubProgramMaster existingSub, AnchorMaster anchor) {

@@ -43,10 +43,13 @@ export function UnderwritingSection({
   applicationId,
   app,
   onRefetch,
+  allowRunUnderwriting = true,
 }: {
   applicationId: string
   app: ApplicationResponse
   onRefetch: () => void
+  /** When false (e.g. Relationship Manager), hide run-underwriting actions. */
+  allowRunUnderwriting?: boolean
 }) {
   const [kycOutcome, setKycOutcome] = useState<Record<string, unknown> | null>(null)
   const [kycError, setKycError] = useState<string | null>(null)
@@ -185,7 +188,7 @@ export function UnderwritingSection({
   const decisionDone =
     Boolean(app.creditDecision) &&
     !(app.status === 'UNDERWRITING' && app.creditDecision === 'MANUAL_REVIEW')
-  const canRunUnderwriting = kycPass && hasBureau && !decisionDone
+  const canRunUnderwriting = allowRunUnderwriting && kycPass && hasBureau && !decisionDone
   const manualOverridesRaw = (app.financialInfo as Record<string, unknown> | null)?.manualOverrides
   const underwritingOverrides = Array.isArray(manualOverridesRaw)
     ? (manualOverridesRaw as Array<Record<string, unknown>>).filter(

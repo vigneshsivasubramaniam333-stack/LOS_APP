@@ -228,6 +228,13 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
       } else {
         setSuccessMsg('Program saved in LOS. PLP sync is in progress or pending.')
       }
+      if (result.approvalStatus === 'DRAFT' || result.approvalStatus == null) {
+        setSuccessMsg((prev) =>
+          prev
+            ? `${prev} Ready for L1 review in PLP (Refresh status if you just corrected a send-back).`
+            : 'Ready for L1 review in PLP.',
+        )
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not create PLP program.')
     } finally {
@@ -606,7 +613,7 @@ function ProgramSetupForm(props: {
         disabled={busy || !canCreate}
         onClick={onSave}
       >
-        {busy ? 'Saving…' : saved ? 'Update program setup' : 'Save program to PLP'}
+        {busy ? 'Saving…' : saved ? 'Update & resubmit to PLP' : 'Save program to PLP'}
       </button>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/auth/useAuth'
-import { isCamCheckerRole, isCamMakerRole } from '@/auth/types'
+import { isCamCheckerRole, isCamEditorRole, isCamMakerRole } from '@/auth/types'
 import {
   calculateCollateralLtv,
   listCollateralValuations,
@@ -120,12 +120,15 @@ export function CamSection({
   const [condSub, setCondSub] = useState('')
   const [officerRem, setOfficerRem] = useState('')
   const [managerRem, setManagerRem] = useState('')
+  const [sendBackReason, setSendBackReason] = useState('')
+  const [showSendBackReason, setShowSendBackReason] = useState(false)
   const [prefilledFromApplication, setPrefilledFromApplication] = useState(false)
   const [ltv, setLtv] = useState<CollateralLtvResult | null>(null)
   const [valuations, setValuations] = useState<CollateralValuation[]>([])
   const [ltvLoading, setLtvLoading] = useState(false)
   const { user } = useAuth()
   const isMaker = user ? isCamMakerRole(user.role) : false
+  const isEditor = user ? isCamEditorRole(user.role) : false
   const isChecker = user ? isCamCheckerRole(user.role) : false
 
   const loanAmountForLtv = useMemo(() => {
@@ -301,16 +304,33 @@ export function CamSection({
   }
 
   async function onSendBack() {
+    const reason = sendBackReason.trim()
+    if (!reason) {
+      setShowSendBackReason(true)
+      setError('Enter a reason before sending the CAM back.')
+      return
+    }
     setActionBusy(true)
     setError(null)
     try {
-      setCam(await sendBackCam(applicationId))
+      setCam(await sendBackCam(applicationId, reason))
+      setShowSendBackReason(false)
+      setSendBackReason('')
       await onRefetch()
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Send back failed')
     } finally {
       setActionBusy(false)
     }
+  }
+
+  function onSendBackClick() {
+    if (!sendBackReason.trim()) {
+      setShowSendBackReason(true)
+      setError(null)
+      return
+    }
+    void onSendBack()
   }
 
   async function onRejectMem() {
@@ -346,6 +366,7 @@ export function CamSection({
 
   const camStatus = cam?.camStatus ?? 'DRAFT'
   const isLocked = camStatus === 'APPROVED'
+  const fieldsEditable = isEditor && !isLocked
   const canSubmit = isMaker && !isLocked && (camStatus === 'DRAFT' || camStatus === 'SENT_BACK' || camStatus === 'REJECTED')
   const isSubmitted = camStatus === 'SUBMITTED'
   const camReady = app.status === 'CAM_READY' || app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED'
@@ -393,7 +414,7 @@ export function CamSection({
         <button
           type="button"
           onClick={() => void onSave()}
-          disabled={saving || isLocked || !isMaker}
+          disabled={saving || !fieldsEditable}
           className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save draft'}
@@ -422,7 +443,7 @@ export function CamSection({
           <>
             <button
               type="button"
-              onClick={() => void onSendBack()}
+              onClick={onSendBackClick}
               disabled={actionBusy}
               className="rounded-md border border-amber-500 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-950 disabled:opacity-50"
             >
@@ -450,9 +471,53 @@ export function CamSection({
         )}
       </div>
 
+      {camReady && isSubmitted && isChecker && showSendBackReason ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50/80 p-3">
+          <label className="block text-xs font-medium text-amber-950">
+            Reason for send back <span className="text-rose-700">(required)</span>
+            <textarea
+              className="mt-1.5 w-full rounded border border-amber-200 bg-white p-2 text-sm text-slate-800"
+              rows={3}
+              value={sendBackReason}
+              onChange={(e) => setSendBackReason(e.target.value)}
+              placeholder="Explain what the credit officer should revise…"
+              autoFocus
+            />
+          </label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void onSendBack()}
+              disabled={actionBusy || !sendBackReason.trim()}
+              className="rounded-md border border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-950 disabled:opacity-50"
+            >
+              {actionBusy ? '…' : 'Confirm send back'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSendBackReason(false)
+                setError(null)
+              }}
+              disabled={actionBusy}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{error}</div>
       )}
+
+      {cam?.creditManagerRemarks?.trim() ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+          <span className="font-medium text-slate-900">Credit manager remarks:</span>{' '}
+          {cam.creditManagerRemarks}
+        </div>
+      ) : null}
 
       {cam && (
         <div className="space-y-4">
@@ -471,7 +536,7 @@ export function CamSection({
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recAmt}
                   onChange={(e) => setRecAmt(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -480,7 +545,7 @@ export function CamSection({
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recTen}
                   onChange={(e) => setRecTen(e.target.value.replace(/\D/g, ''))}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -489,7 +554,7 @@ export function CamSection({
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recRate}
                   onChange={(e) => setRecRate(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -498,7 +563,7 @@ export function CamSection({
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={interestType}
                   onChange={(e) => setInterestType(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 >
                   <option value="">(select)</option>
                   <option value="UPFRONT">Upfront</option>
@@ -511,7 +576,7 @@ export function CamSection({
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recommendedDecision}
                   onChange={(e) => setRecommendedDecision(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 >
                   <option value="">(select)</option>
                   <option value="APPROVE">Approve</option>
@@ -528,7 +593,7 @@ export function CamSection({
                   rows={2}
                   value={condPre}
                   onChange={(e) => setCondPre(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -538,7 +603,7 @@ export function CamSection({
                   rows={2}
                   value={condSub}
                   onChange={(e) => setCondSub(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
             </div>
@@ -550,7 +615,7 @@ export function CamSection({
                   rows={2}
                   value={officerRem}
                   onChange={(e) => setOfficerRem(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -560,7 +625,7 @@ export function CamSection({
                   rows={2}
                   value={managerRem}
                   onChange={(e) => setManagerRem(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
             </div>
@@ -651,7 +716,7 @@ export function CamSection({
                   rows={3}
                   value={sectionDrafts[s.key] ?? ''}
                   onChange={(e) => setSectionDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
                 <div className="mt-1 text-xs text-slate-500">
                   <span className="font-medium">Source fields (read-only):</span>{' '}
@@ -681,7 +746,7 @@ export function CamSection({
                   rows={2}
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -691,7 +756,7 @@ export function CamSection({
                   rows={2}
                   value={riskAssessment}
                   onChange={(e) => setRiskAssessment(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
               <label className="block text-xs text-slate-600">
@@ -701,7 +766,7 @@ export function CamSection({
                   rows={2}
                   value={mitigants}
                   onChange={(e) => setMitigants(e.target.value)}
-                  disabled={isLocked}
+                  disabled={!fieldsEditable}
                 />
               </label>
             </div>

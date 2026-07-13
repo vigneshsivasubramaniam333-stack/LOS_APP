@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useAuth } from '@/auth/useAuth'
+import {
+  canRunKycFlow,
+  canRunUnderwriting,
+  isRelationshipManager,
+} from '@/auth/types'
 import { DocumentsSection } from '@/components/DocumentsSection'
 import { ErrorState } from '@/components/ErrorState'
 import { KycDetailsSection } from '@/components/KycDetailsSection'
@@ -73,6 +79,8 @@ function isAaApplicable(app: ApplicationResponse): boolean {
 
 export function ApplicationDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
+  const isRm = user ? isRelationshipManager(user.role) : false
   const [tab, setTab] = useState<ApplicationTabId>('summary')
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowConfigResponse | null>(null)
   const [vkycEligibility, setVkycEligibility] = useState<Record<string, unknown> | null>(null)
@@ -140,6 +148,13 @@ export function ApplicationDetailPage() {
         : new Set<string>()
     if (app && !requiresCollateral(app.loanProduct)) hidden.add('collateral')
     if (app && !isAaApplicable(app)) hidden.add('bankData')
+    // RM: no underwriting/CAM; keep sanction for PLP program setup; hide post-credit esign/disbursement
+    if (isRm) {
+      hidden.add('underwriting')
+      hidden.add('cam')
+      hidden.add('esign')
+      hidden.add('disbursement')
+    }
     const base: Array<{ id: ApplicationTabId; label: string }> = TABS.filter((t) => !hidden.has(t.id)).map((t) => {
       if (t.id === 'borrower') return { ...t, label: L.profileTab }
       if (t.id === 'underwriting') {
@@ -148,12 +163,19 @@ export function ApplicationDetailPage() {
       return t
     }) as Array<{ id: ApplicationTabId; label: string }>
     return insertVkycTab(base, vkycGate)
-  }, [app, vkycGate])
+  }, [app, vkycGate, isRm])
   useEffect(() => {
     if (app && idBorrowerSkipsDisbursement(app) && tab === 'disbursement') {
       setTab('esign')
     }
   }, [app, tab])
+
+  useEffect(() => {
+    if (!isRm) return
+    if (tab === 'underwriting' || tab === 'cam' || tab === 'esign' || tab === 'disbursement') {
+      setTab('summary')
+    }
+  }, [isRm, tab])
 
   useEffect(() => {
     if (!vkycGate.visible && tab === 'vkyc') setTab('summary')
@@ -287,6 +309,7 @@ export function ApplicationDetailPage() {
                   onApplicationRefetch={refetchApp}
                   onStepsRefetch={refetchSteps}
                   className="mb-0 border-0 p-0 shadow-none"
+                  allowRunKyc={user ? canRunKycFlow(user.role) : false}
                 />
               )}
               {tab === 'vkyc' && (
@@ -319,7 +342,12 @@ export function ApplicationDetailPage() {
                 (isInvoiceDiscountingAnchorApp(app) ? (
                   <AnchorDueDiligenceSection applicationId={id} app={app} onRefetch={refetchApp} />
                 ) : (
-                  <UnderwritingSection applicationId={id} app={app} onRefetch={refetchApp} />
+                  <UnderwritingSection
+                    applicationId={id}
+                    app={app}
+                    onRefetch={refetchApp}
+                    allowRunUnderwriting={user ? canRunUnderwriting(user.role) : false}
+                  />
                 ))}
               {tab === 'cam' && (
                 <div>

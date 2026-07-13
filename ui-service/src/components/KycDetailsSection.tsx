@@ -167,6 +167,7 @@ export function KycDetailsSection({
   onApplicationRefetch,
   onStepsRefetch,
   className = 'mb-8',
+  allowRunKyc = true,
 }: {
   applicationId: string
   app: ApplicationResponse
@@ -174,6 +175,8 @@ export function KycDetailsSection({
   onStepsRefetch: () => void
   /** Panel spacing when embedded (e.g. in tabs). */
   className?: string
+  /** When false (e.g. Relationship Manager), hide Run KYC but still allow save. */
+  allowRunKyc?: boolean
 }) {
   const [panNumber, setPanNumber] = useState('')
   const [name, setName] = useState('')
@@ -556,7 +559,7 @@ export function KycDetailsSection({
   }
 
   const canRunKyc = isKycInProgress && !kycChecksComplete
-  const canShowRunKyc = canRunKyc && !isFailed
+  const canShowRunKyc = canRunKyc && !isFailed && allowRunKyc
   const canSave =
     !kycChecksComplete && (isPreKyc || isKycInProgress || isFailed) && !kycActionBusy
   const partyLabels = applicationPartyLabels(app.intakeSegment)

@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAccessAdminConfigNav,
+  canAccessCamActions,
+  canAccessSanction,
   canCreateOrNotifyBorrowerIntake,
   canHandOffToCo,
+  canRunKycFlow,
+  canRunUnderwriting,
   canSendBackToBorrower,
   canSendBackToRm,
   isBorrowerRole,
+  isCamCheckerRole,
+  isCamEditorRole,
+  isCamMakerRole,
+  isL2SanctionRole,
+  isRelationshipManager,
 } from './types'
 
 describe('canAccessAdminConfigNav', () => {
@@ -48,5 +57,30 @@ describe('isBorrowerRole', () => {
   it('matches borrower', () => {
     expect(isBorrowerRole('BORROWER')).toBe(true)
     expect(isBorrowerRole('CREDIT_OFFICER')).toBe(false)
+  })
+})
+
+describe('CAM / RM role gates', () => {
+  it('CM is editor and checker but not maker', () => {
+    expect(isCamMakerRole('CREDIT_MANAGER')).toBe(false)
+    expect(isCamEditorRole('CREDIT_MANAGER')).toBe(true)
+    expect(isCamCheckerRole('CREDIT_MANAGER')).toBe(true)
+  })
+  it('CO is maker and editor but not L2 sanction', () => {
+    expect(isCamMakerRole('CREDIT_OFFICER')).toBe(true)
+    expect(isCamEditorRole('CREDIT_OFFICER')).toBe(true)
+    expect(isL2SanctionRole('CREDIT_OFFICER')).toBe(false)
+    expect(canAccessSanction('CREDIT_OFFICER')).toBe(false)
+  })
+  it('RM cannot run KYC/UW/CAM/sanction', () => {
+    expect(isRelationshipManager('RELATIONSHIP_MANAGER')).toBe(true)
+    expect(canRunKycFlow('RELATIONSHIP_MANAGER')).toBe(false)
+    expect(canRunUnderwriting('RELATIONSHIP_MANAGER')).toBe(false)
+    expect(canAccessCamActions('RELATIONSHIP_MANAGER')).toBe(false)
+    expect(canAccessSanction('RELATIONSHIP_MANAGER')).toBe(false)
+  })
+  it('CM can sanction; CO cannot', () => {
+    expect(canAccessSanction('CREDIT_MANAGER')).toBe(true)
+    expect(canAccessSanction('ADMIN')).toBe(true)
   })
 })
