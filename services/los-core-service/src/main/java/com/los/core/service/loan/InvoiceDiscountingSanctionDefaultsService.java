@@ -51,7 +51,7 @@ public class InvoiceDiscountingSanctionDefaultsService {
                 .orElse(12);
     }
 
-    Optional<ProgramMaster> resolveAnchorProgram(LoanApplication app) {
+    public Optional<ProgramMaster> resolveAnchorProgram(LoanApplication app) {
         return anchorMasterRepository.findBySourceAnchorApplicationId(app.getId())
                 .flatMap(anchor -> subProgramMasterRepository.findByAnchorId(anchor.getId()).stream()
                         .sorted(Comparator.comparing(

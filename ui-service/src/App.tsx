@@ -57,6 +57,7 @@ import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
 import { PlpProgramsPage } from '@/pages/plp/PlpProgramsPage'
 import { PlpProgramDetailPage } from '@/pages/plp/PlpProgramDetailPage'
 import { ApplicationDeletionsPage } from '@/pages/ApplicationDeletionsPage'
+import { ReportsPage } from '@/pages/ReportsPage'
 
 export default function App() {
   useEffect(() => installBorrowerDraftDemoClearListener(), [])
@@ -147,6 +148,7 @@ export default function App() {
         <Route path="plp/programs/:id" element={<PlpProgramDetailPage />} />
         <Route path="kyc" element={<KycQueuePage />} />
         <Route path="underwriting" element={<UnderwritingQueuePage />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route
           path="workflows"
           element={

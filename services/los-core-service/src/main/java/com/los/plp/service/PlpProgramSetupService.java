@@ -1,5 +1,8 @@
 package com.los.plp.service;
 
+import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.enums.ApplicationStatus;
+import com.los.core.repository.LoanApplicationRepository;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.model.dto.CreatePlpProgramRequest;
 import com.los.plp.model.dto.PlpProgramSetupResponse;
@@ -31,11 +34,14 @@ public class PlpProgramSetupService {
     private final PlpSubProgramSyncService plpSubProgramSyncService;
     private final PlpProperties plpProperties;
     private final ProgramApprovalService programApprovalService;
+    private final LoanApplicationRepository loanApplicationRepository;
 
     @Transactional
     public PlpProgramSetupResponse createProgramForAnchor(CreatePlpProgramRequest request) {
         AnchorMaster anchor = anchorMasterRepository.findById(request.getAnchorId())
                 .orElseThrow(() -> new IllegalArgumentException("Anchor not found: " + request.getAnchorId()));
+
+        requireSourceAppSanctionPending(anchor);
 
         // Idempotency: same anchor + program name implies retry of an earlier submission. Reuse the existing
         // program/sub-program records (and retry only the sync legs that haven't succeeded yet) so a duplicate
@@ -335,6 +341,25 @@ public class PlpProgramSetupService {
                 throw new IllegalArgumentException(
                         "Unsupported programType for PLP sub-program setup: " + programType
                                 + ". Supported values: INVOICE_DISCOUNTING, PAY_DAY_LOAN");
+        }
+    }
+
+    /**
+     * Program create/resubmit is allowed only after anchor due diligence has moved the source application
+     * to {@link ApplicationStatus#SANCTION_PENDING}, and only for anchors linked to that LOS application.
+     */
+    private void requireSourceAppSanctionPending(AnchorMaster anchor) {
+        if (anchor.getSourceAnchorApplicationId() == null) {
+            throw new IllegalStateException(
+                    "Program setup requires a linked LOS anchor application (no sourceAnchorApplicationId on anchor)");
+        }
+        LoanApplication sourceApp = loanApplicationRepository.findById(anchor.getSourceAnchorApplicationId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Source anchor application not found: " + anchor.getSourceAnchorApplicationId()));
+        if (sourceApp.getStatus() != ApplicationStatus.SANCTION_PENDING) {
+            throw new IllegalStateException(
+                    "Program can only be created when the anchor application is SANCTION_PENDING "
+                            + "(rating / due diligence complete). Current: " + sourceApp.getStatus());
         }
     }
 

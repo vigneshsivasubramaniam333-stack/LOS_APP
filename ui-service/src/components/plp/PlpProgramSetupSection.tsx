@@ -55,7 +55,9 @@ function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpPr
 
 export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   const { user } = useAuth()
-  const canCreateProgram = canCreateOrNotifyBorrowerIntake(user?.role ?? '')
+  const ratingComplete = app.status === 'SANCTION_PENDING'
+  const canCreateProgram =
+    canCreateOrNotifyBorrowerIntake(user?.role ?? '') && ratingComplete
   const [open, setOpen] = useState(true)
   const [anchors, setAnchors] = useState<
     { id: string; name: string; code: string; sourceAnchorApplicationId?: string | null }[]
@@ -161,6 +163,10 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   }, [loadAnchors])
 
   async function handleSave() {
+    if (!ratingComplete) {
+      setError('Program can only be created when the application is SANCTION_PENDING (rating complete).')
+      return
+    }
     if (!canCreateProgram) {
       setError('Only Relationship Manager or Admin can create or update PLP programs.')
       return
@@ -253,79 +259,91 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
         <span className="text-slate-500">{open ? '−' : '+'}</span>
       </button>
       {open ? (
-        <ProgramSetupForm
-          anchors={anchors}
-          anchorId={anchorId}
-          setAnchorId={setAnchorId}
-          programName={programName}
-          setProgramName={setProgramName}
-          programType={programType}
-          setProgramType={setProgramType}
-          flowType={flowType}
-          setFlowType={setFlowType}
-          lmsEntryIn={lmsEntryIn}
-          setLmsEntryIn={setLmsEntryIn}
-          encoreProductCode={encoreProductCode}
-          setEncoreProductCode={setEncoreProductCode}
-          creditLimit={creditLimit}
-          setCreditLimit={setCreditLimit}
-          interestRate={interestRate}
-          setInterestRate={setInterestRate}
-          tenureDays={tenureDays}
-          setTenureDays={setTenureDays}
-          validityStart={validityStart}
-          setValidityStart={setValidityStart}
-          validityEnd={validityEnd}
-          setValidityEnd={setValidityEnd}
-          dependencyVintagePercent={dependencyVintagePercent}
-          setDependencyVintagePercent={setDependencyVintagePercent}
-          anchorRelationshipVintageMonths={anchorRelationshipVintageMonths}
-          setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
-          error={error}
-          busy={busy}
-          canCreate={canCreateProgram}
-          saved={saved}
-          onSave={() => void handleSave()}
-          successMsg={successMsg}
-          onRetryProgram={async () => {
-            if (!saved?.programId) return
-            const r = await retryPlpProgram(saved.programId)
-            setSaved((s) =>
-              s
-                ? {
-                    ...s,
-                    programSyncStatus: r.syncStatus,
-                    programSyncError: r.syncError ?? null,
-                  }
-                : s,
-            )
-            if (r.syncStatus === 'SYNC_SUCCESS') {
-              setSuccessMsg('Program synced to PLP successfully.')
-              setError(null)
-            } else if (r.syncError) {
-              setError(r.syncError)
-            }
-          }}
-          onRetrySubProgram={async () => {
-            if (!saved?.subProgramId) return
-            const r = await retryPlpSubProgram(saved.subProgramId)
-            setSaved((s) =>
-              s
-                ? {
-                    ...s,
-                    subProgramSyncStatus: r.syncStatus,
-                    subProgramSyncError: r.syncError ?? null,
-                  }
-                : s,
-            )
-            if (r.syncStatus === 'SYNC_SUCCESS') {
-              setSuccessMsg('Sub-program synced to PLP successfully.')
-              setError(null)
-            } else if (r.syncError) {
-              setError(r.syncError)
-            }
-          }}
-        />
+        !ratingComplete && !saved ? (
+          <div className="border-t border-slate-200 px-4 pb-4 pt-2">
+            <p className="text-sm text-slate-600">
+              Program create unlocks after due diligence rating is complete ({' '}
+              <span className="font-medium">SANCTION_PENDING</span>
+              ). Current status: {app.status}.
+            </p>
+            {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+          </div>
+        ) : (
+          <ProgramSetupForm
+            anchors={anchors}
+            anchorId={anchorId}
+            setAnchorId={setAnchorId}
+            programName={programName}
+            setProgramName={setProgramName}
+            programType={programType}
+            setProgramType={setProgramType}
+            flowType={flowType}
+            setFlowType={setFlowType}
+            lmsEntryIn={lmsEntryIn}
+            setLmsEntryIn={setLmsEntryIn}
+            encoreProductCode={encoreProductCode}
+            setEncoreProductCode={setEncoreProductCode}
+            creditLimit={creditLimit}
+            setCreditLimit={setCreditLimit}
+            interestRate={interestRate}
+            setInterestRate={setInterestRate}
+            tenureDays={tenureDays}
+            setTenureDays={setTenureDays}
+            validityStart={validityStart}
+            setValidityStart={setValidityStart}
+            validityEnd={validityEnd}
+            setValidityEnd={setValidityEnd}
+            dependencyVintagePercent={dependencyVintagePercent}
+            setDependencyVintagePercent={setDependencyVintagePercent}
+            anchorRelationshipVintageMonths={anchorRelationshipVintageMonths}
+            setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
+            error={error}
+            busy={busy}
+            canCreate={canCreateProgram}
+            ratingComplete={ratingComplete}
+            saved={saved}
+            onSave={() => void handleSave()}
+            successMsg={successMsg}
+            onRetryProgram={async () => {
+              if (!saved?.programId) return
+              const r = await retryPlpProgram(saved.programId)
+              setSaved((s) =>
+                s
+                  ? {
+                      ...s,
+                      programSyncStatus: r.syncStatus,
+                      programSyncError: r.syncError ?? null,
+                    }
+                  : s,
+              )
+              if (r.syncStatus === 'SYNC_SUCCESS') {
+                setSuccessMsg('Program synced to PLP successfully.')
+                setError(null)
+              } else if (r.syncError) {
+                setError(r.syncError)
+              }
+            }}
+            onRetrySubProgram={async () => {
+              if (!saved?.subProgramId) return
+              const r = await retryPlpSubProgram(saved.subProgramId)
+              setSaved((s) =>
+                s
+                  ? {
+                      ...s,
+                      subProgramSyncStatus: r.syncStatus,
+                      subProgramSyncError: r.syncError ?? null,
+                    }
+                  : s,
+              )
+              if (r.syncStatus === 'SYNC_SUCCESS') {
+                setSuccessMsg('Sub-program synced to PLP successfully.')
+                setError(null)
+              } else if (r.syncError) {
+                setError(r.syncError)
+              }
+            }}
+          />
+        )
       ) : null}
       {saved?.programId ? <PlpProgramStatusPanel programId={saved.programId} /> : null}
     </div>
@@ -364,6 +382,7 @@ function ProgramSetupForm(props: {
   successMsg: string | null
   busy: boolean
   canCreate: boolean
+  ratingComplete: boolean
   saved: PlpProgramSetupResponse | null
   onSave: () => void
   onRetryProgram: () => Promise<void>
@@ -401,6 +420,7 @@ function ProgramSetupForm(props: {
     successMsg,
     busy,
     canCreate,
+    ratingComplete,
     saved,
     onSave,
     onRetryProgram,
@@ -602,7 +622,11 @@ function ProgramSetupForm(props: {
         </div>
       ) : null}
 
-      {!canCreate ? (
+      {!ratingComplete ? (
+        <p className="mt-3 text-sm text-slate-600">
+          Creating or updating a program requires status SANCTION_PENDING (rating complete).
+        </p>
+      ) : !canCreate ? (
         <p className="mt-3 text-sm text-slate-600">
           Only Relationship Manager or Admin can create or update PLP programs.
         </p>

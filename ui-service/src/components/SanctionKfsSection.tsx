@@ -67,8 +67,9 @@ export function SanctionKfsSection({
   const isIdBorrower = isInvoiceDiscountingBorrowerApp(app)
   const skipKfsDoc = idFlowSkipsKfsAtSanction(app)
 
+  // Anchor sanction / eSign start requires L2 (CM/Admin); RM still sees program setup below.
   const canAct = isAnchor
-    ? app.status === 'SANCTION_PENDING'
+    ? app.status === 'SANCTION_PENDING' && canSanctionL2
     : (app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED') &&
       canSanctionL2
 

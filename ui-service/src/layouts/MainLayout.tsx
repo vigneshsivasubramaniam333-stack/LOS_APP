@@ -61,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Configuration',
     adminOnly: true,
     items: [
+      { to: '/reports', label: 'Reports', icon: DashboardIcon },
       { to: '/workflows', label: 'Workflows', icon: WorkflowsIcon },
       { to: '/integrations/provider-matrix', label: 'Integrations', icon: IntegrationsIcon },
       { to: '/underwriting-rules', label: 'Underwriting rules', icon: RulesIcon },

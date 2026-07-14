@@ -84,7 +84,8 @@ public class RabbitMQConfig {
                 "com.los.plp.service.notification.ProgramApprovalNotifier$RoutingEmailEvent", NotificationEvent.class,
                 "com.los.core.service.borrower.BorrowerIntakeDelegationService$RoutingEmailEvent", NotificationEvent.class,
                 "com.los.core.service.loan.ApplicationReviewService$RoutingEmailEvent", NotificationEvent.class,
-                "com.los.core.service.notification.AnchorKfsSignedNotifier$RoutingEmailEvent", NotificationEvent.class));
+                "com.los.core.service.notification.AnchorKfsSignedNotifier$RoutingEmailEvent", NotificationEvent.class,
+                "com.los.core.service.notification.WelcomeOnboardingNotifier$RoutingEmailEvent", NotificationEvent.class));
         converter.setJavaTypeMapper(typeMapper);
         return converter;
     }

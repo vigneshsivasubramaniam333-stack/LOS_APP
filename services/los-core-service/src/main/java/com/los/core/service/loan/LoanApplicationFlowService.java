@@ -40,6 +40,7 @@ import com.los.plp.model.entity.ProgramMaster;
 import com.los.plp.model.enums.ProgramApprovalStatus;
 import com.los.core.service.sanction.SanctionApprovedNotifier;
 import com.los.core.service.notification.AnchorKfsSignedNotifier;
+import com.los.core.service.notification.WelcomeOnboardingNotifier;
 import com.los.core.service.esign.EsignSignedApplicationDocumentService;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.vkyc.VkycWorkflowService;
@@ -99,6 +100,7 @@ public class LoanApplicationFlowService {
     private final SanctionApprovedNotifier sanctionApprovedNotifier;
     private final WorkflowRoleGuard workflowRoleGuard;
     private final AnchorKfsSignedNotifier anchorKfsSignedNotifier;
+    private final WelcomeOnboardingNotifier welcomeOnboardingNotifier;
     private final EsignSignedApplicationDocumentService esignSignedApplicationDocumentService;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
@@ -827,9 +829,7 @@ public class LoanApplicationFlowService {
         boolean skipLms = idBorrowerFlow || InvoiceDiscountingApplicationRules.isAnchorFlow(app);
         boolean skipKfs = InvoiceDiscountingApplicationRules.skipsKfsAtSanction(app);
 
-        if (!anchorFlow) {
-            workflowRoleGuard.requireL2Sanction(actorUserId);
-        }
+        workflowRoleGuard.requireL2Sanction(actorUserId);
 
         if (anchorFlow) {
             ProgramMaster program = invoiceDiscountingSanctionDefaultsService.resolveAnchorProgram(app)
@@ -1148,19 +1148,28 @@ public class LoanApplicationFlowService {
                 log.error("[PLP-ANCHOR-SANCTION] after eSign failed for {}: {}",
                         app.getApplicationNumber(), e.getMessage(), e);
             }
-            SanctionRecord rec = sanctionRecordRepository
-                    .findTopByApplicationIdOrderByCreatedAtDesc(applicationId)
-                    .orElse(null);
+            // Welcome replaces the overlapping post-esign sanction email for anchors.
             try {
-                sanctionApprovedNotifier.publishSanctionApprovedEmail(app, rec, true, false, null);
+                welcomeOnboardingNotifier.sendWelcomeAfterEsignComplete(app, true, false);
             } catch (Exception e) {
-                log.error("[SANCTION_EMAIL] anchor post-esign failed: {}", e.getMessage());
+                log.error("[WELCOME_EMAIL] anchor failed: {}", e.getMessage());
             }
         } else if (idBorrowerFlow) {
             try {
                 anchorKfsSignedNotifier.notifyAnchorAfterBorrowerKfsSigned(applicationId);
             } catch (Exception e) {
                 log.error("[ANCHOR_KFS_EMAIL] failed for {}: {}", app.getApplicationNumber(), e.getMessage());
+            }
+            try {
+                welcomeOnboardingNotifier.sendWelcomeAfterEsignComplete(app, false, true);
+            } catch (Exception e) {
+                log.error("[WELCOME_EMAIL] ID borrower failed: {}", e.getMessage());
+            }
+        } else {
+            try {
+                welcomeOnboardingNotifier.sendWelcomeAfterEsignComplete(app, false, false);
+            } catch (Exception e) {
+                log.error("[WELCOME_EMAIL] term borrower failed: {}", e.getMessage());
             }
         }
 

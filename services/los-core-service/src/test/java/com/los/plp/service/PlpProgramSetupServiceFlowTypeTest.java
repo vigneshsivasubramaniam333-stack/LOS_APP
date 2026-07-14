@@ -1,5 +1,8 @@
 package com.los.plp.service;
 
+import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.enums.ApplicationStatus;
+import com.los.core.repository.LoanApplicationRepository;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.model.dto.CreatePlpProgramRequest;
 import com.los.plp.model.entity.AnchorMaster;
@@ -38,6 +41,8 @@ class PlpProgramSetupServiceFlowTypeTest {
     PlpProperties plpProperties;
     @Mock
     ProgramApprovalService programApprovalService;
+    @Mock
+    LoanApplicationRepository loanApplicationRepository;
 
     PlpProgramSetupService service;
 
@@ -50,7 +55,8 @@ class PlpProgramSetupServiceFlowTypeTest {
                 plpProgramSyncService,
                 plpSubProgramSyncService,
                 plpProperties,
-                programApprovalService);
+                programApprovalService,
+                loanApplicationRepository);
         when(plpProperties.isEnabled()).thenReturn(false);
         when(plpProperties.getLenderId()).thenReturn(UUID.randomUUID().toString());
     }
@@ -58,8 +64,18 @@ class PlpProgramSetupServiceFlowTypeTest {
     @Test
     void createProgram_salesFlowType_setsBuyerSellerRoles() {
         UUID anchorId = UUID.randomUUID();
-        AnchorMaster anchor = AnchorMaster.builder().id(anchorId).name("Anchor").code("ANC").build();
+        UUID sourceAppId = UUID.randomUUID();
+        AnchorMaster anchor = AnchorMaster.builder()
+                .id(anchorId)
+                .name("Anchor")
+                .code("ANC")
+                .sourceAnchorApplicationId(sourceAppId)
+                .build();
+        LoanApplication sourceApp = new LoanApplication();
+        sourceApp.setId(sourceAppId);
+        sourceApp.setStatus(ApplicationStatus.SANCTION_PENDING);
         when(anchorMasterRepository.findById(anchorId)).thenReturn(Optional.of(anchor));
+        when(loanApplicationRepository.findById(sourceAppId)).thenReturn(Optional.of(sourceApp));
         when(subProgramMasterRepository.findByAnchorIdAndProgramName(any(), any())).thenReturn(java.util.List.of());
         when(programMasterRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(subProgramMasterRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

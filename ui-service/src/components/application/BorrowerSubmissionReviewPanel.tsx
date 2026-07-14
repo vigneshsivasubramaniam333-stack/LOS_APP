@@ -17,6 +17,18 @@ import { isInvoiceDiscountingBorrowerApp } from '@/lib/invoiceDiscountingFlow'
 import { InvoiceDiscountingVintagePanel } from '@/components/plp/InvoiceDiscountingVintagePanel'
 import type { ApplicationResponse } from '@/types/application'
 
+/** Post-accept processing statuses until sanction / eSign path begins. */
+const PRE_SANCTION_SEND_BACK_STATUSES = new Set([
+  'KYC_IN_PROGRESS',
+  'KYC_FAILED',
+  'UNDERWRITING',
+  'UNDERWRITING_COMPLETED',
+  'CAM_READY',
+  'CAM_REVIEWED',
+  'SANCTION_PENDING',
+  'APPROVED',
+])
+
 function reviewNotesFromApp(app: ApplicationResponse): string | null {
   const fi = app.financialInfo as Record<string, unknown> | null
   const rn = fi?.reviewNotes
@@ -39,15 +51,31 @@ export function BorrowerSubmissionReviewPanel({
   const [error, setError] = useState<string | null>(null)
 
   const status = app.status
-  const showForRm =
+  const inPreSanctionWindow = PRE_SANCTION_SEND_BACK_STATUSES.has(status)
+
+  const showHandoffRm =
     (status === 'BORROWER_SUBMITTED' || status === 'SENT_BACK_TO_RM') && canHandOffToCo(role)
-  const showForCo = status === 'PENDING_CREDIT_OFFICER' && (canAcceptBorrowerSubmission(role) || canSendBackToRm(role))
+  const showSendBackToBorrower =
+    canSendBackToBorrower(role) &&
+    (status === 'BORROWER_SUBMITTED' ||
+      status === 'PENDING_CREDIT_OFFICER' ||
+      status === 'SENT_BACK_TO_RM' ||
+      inPreSanctionWindow)
+  const showAcceptCo = status === 'PENDING_CREDIT_OFFICER' && canAcceptBorrowerSubmission(role)
+  const showSendBackToRm =
+    canSendBackToRm(role) && (status === 'PENDING_CREDIT_OFFICER' || inPreSanctionWindow)
   const showAdminAcceptFromSubmitted =
     status === 'BORROWER_SUBMITTED' &&
     (role === 'ADMIN' || role === 'ADMINISTRATOR') &&
     canAcceptBorrowerSubmission(role)
 
-  if (!showForRm && !showForCo && !showAdminAcceptFromSubmitted) {
+  if (
+    !showHandoffRm &&
+    !showSendBackToBorrower &&
+    !showAcceptCo &&
+    !showSendBackToRm &&
+    !showAdminAcceptFromSubmitted
+  ) {
     return null
   }
 
@@ -71,84 +99,89 @@ export function BorrowerSubmissionReviewPanel({
       ? 'Pending Credit Officer review'
       : status === 'SENT_BACK_TO_RM'
         ? 'Sent back to Relationship Manager'
-        : 'Borrower submitted — review required'
+        : inPreSanctionWindow
+          ? 'Application in processing — send-back available'
+          : 'Borrower submitted — review required'
 
   const blurb =
     status === 'PENDING_CREDIT_OFFICER'
       ? 'Accept to start KYC, or send back to the Relationship Manager with optional notes.'
       : status === 'SENT_BACK_TO_RM'
-        ? 'Credit Officer returned this file. Hand off again to Credit Officer when ready.'
-        : 'The borrower completed the delegated intake. Hand off to Credit Officer, or send back to the borrower.'
+        ? 'Credit Officer returned this file. Hand off again to Credit Officer when ready, or send back to the borrower.'
+        : inPreSanctionWindow
+          ? 'Optional send-back remains available until sanction or eSign. RM can return the case to the borrower; CO can return it to the RM.'
+          : 'The borrower completed the delegated intake. Hand off to Credit Officer, or send back to the borrower.'
 
   return (
-    <div className="bt-section-card mb-4 border-amber-200 bg-amber-50">
-      <h3 className="bt-card-title mb-2">{headline}</h3>
-      <p className="text-sm text-slate-700 mb-3">{blurb}</p>
+    <div className="bt-section-card bt-section-card--warning mb-4 space-y-4 p-4 text-sm text-amber-950">
+      <div>
+        <h3 className="bt-section-card__title">{headline}</h3>
+        <p className="mt-1 text-sm text-amber-950/90">{blurb}</p>
+      </div>
       {priorNotes ? (
-        <p className="text-sm text-amber-900 bg-amber-100/80 rounded p-2 mb-3 whitespace-pre-wrap">
+        <div className="rounded-lg border border-amber-200/80 bg-amber-100/60 px-3 py-2 whitespace-pre-wrap">
           <span className="font-medium">Previous notes: </span>
           {priorNotes}
-        </p>
+        </div>
       ) : null}
       {isInvoiceDiscountingBorrowerApp(app) ? (
-        <div className="mb-4">
+        <div className="rounded-lg border border-amber-200/60 bg-white/70 p-3">
           <InvoiceDiscountingVintagePanel applicationId={app.id} />
         </div>
       ) : null}
-      {error ? <p className="text-sm text-red-600 mb-2">{error}</p> : null}
-      <textarea
-        className="bt-input w-full mb-2"
-        rows={3}
-        placeholder="Optional notes"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-      />
+      {error ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      ) : null}
+      <label className="block text-xs font-medium text-amber-950/80">
+        Optional notes
+        <textarea
+          className="bt-input mt-1 w-full text-sm"
+          rows={3}
+          placeholder="Notes for send-back or handoff"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </label>
       <div className="flex flex-wrap gap-2">
-        {showForRm ? (
-          <>
-            <button
-              type="button"
-              className="bt-btn bt-btn--primary"
-              disabled={busy}
-              onClick={() => void run(() => handOffToCreditOfficer(app.id, notes))}
-            >
-              Hand off to Credit Officer
-            </button>
-            {status === 'BORROWER_SUBMITTED' && canSendBackToBorrower(role) ? (
-              <button
-                type="button"
-                className="bt-btn bt-btn--secondary"
-                disabled={busy}
-                onClick={() => void run(() => sendBackBorrowerSubmission(app.id, notes))}
-              >
-                Send back to borrower
-              </button>
-            ) : null}
-          </>
+        {showHandoffRm ? (
+          <button
+            type="button"
+            className="bt-btn bt-btn--primary"
+            disabled={busy}
+            onClick={() => void run(() => handOffToCreditOfficer(app.id, notes))}
+          >
+            Hand off to Credit Officer
+          </button>
         ) : null}
-        {showForCo ? (
-          <>
-            {canAcceptBorrowerSubmission(role) ? (
-              <button
-                type="button"
-                className="bt-btn bt-btn--primary"
-                disabled={busy}
-                onClick={() => void run(() => acceptBorrowerSubmission(app.id))}
-              >
-                Accept for processing
-              </button>
-            ) : null}
-            {canSendBackToRm(role) ? (
-              <button
-                type="button"
-                className="bt-btn bt-btn--secondary"
-                disabled={busy}
-                onClick={() => void run(() => sendBackToRelationshipManager(app.id, notes))}
-              >
-                Send back to RM
-              </button>
-            ) : null}
-          </>
+        {showSendBackToBorrower ? (
+          <button
+            type="button"
+            className="bt-btn bt-btn--secondary"
+            disabled={busy}
+            onClick={() => void run(() => sendBackBorrowerSubmission(app.id, notes))}
+          >
+            Send back to borrower
+          </button>
+        ) : null}
+        {showAcceptCo ? (
+          <button
+            type="button"
+            className="bt-btn bt-btn--primary"
+            disabled={busy}
+            onClick={() => void run(() => acceptBorrowerSubmission(app.id))}
+          >
+            Accept for processing
+          </button>
+        ) : null}
+        {showSendBackToRm ? (
+          <button
+            type="button"
+            className="bt-btn bt-btn--secondary"
+            disabled={busy}
+            onClick={() => void run(() => sendBackToRelationshipManager(app.id, notes))}
+          >
+            Send back to RM
+          </button>
         ) : null}
         {showAdminAcceptFromSubmitted ? (
           <button

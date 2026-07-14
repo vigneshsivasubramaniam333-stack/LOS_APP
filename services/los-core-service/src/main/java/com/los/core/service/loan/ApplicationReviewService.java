@@ -18,9 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -36,6 +38,20 @@ public class ApplicationReviewService {
 
     @Value("${los.borrower-ui-url:http://localhost:5173/borrower}")
     private String borrowerUiUrl;
+
+    /**
+     * Statuses after accept / during processing where optional send-back remains available,
+     * until sanction or eSign onboarding begins ({@code SANCTIONED} / {@code ESIGN_PENDING}+).
+     */
+    private static final Set<ApplicationStatus> PRE_SANCTION_SEND_BACK = EnumSet.of(
+            ApplicationStatus.KYC_IN_PROGRESS,
+            ApplicationStatus.KYC_FAILED,
+            ApplicationStatus.UNDERWRITING,
+            ApplicationStatus.UNDERWRITING_COMPLETED,
+            ApplicationStatus.CAM_READY,
+            ApplicationStatus.CAM_REVIEWED,
+            ApplicationStatus.SANCTION_PENDING,
+            ApplicationStatus.APPROVED);
 
     @Transactional
     public ApplicationResponse acceptForProcessing(UUID applicationId, String userRole) {
@@ -75,10 +91,12 @@ public class ApplicationReviewService {
     public ApplicationResponse sendBackToBorrower(UUID applicationId, String notes, String userRole) {
         workflowRoleGuard.requireRelationshipManagerOrAdmin(userRole);
         LoanApplication app = requireApp(applicationId);
-        if (app.getStatus() != ApplicationStatus.BORROWER_SUBMITTED) {
+        ApplicationStatus from = app.getStatus();
+        if (!allowsSendBackToBorrower(from)) {
             throw new BusinessRuleException(
-                    "Send back to borrower is only for BORROWER_SUBMITTED applications. Current: "
-                            + app.getStatus());
+                    "Send back to borrower is only from BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, "
+                            + "SENT_BACK_TO_RM, or processing statuses before sanction/eSign. Current: "
+                            + from);
         }
         String trimmed = trimToNull(notes);
         app.setStatus(ApplicationStatus.BORROWER_SENT_BACK);
@@ -88,7 +106,7 @@ public class ApplicationReviewService {
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
         auditService.logEvent(applicationId, "FLOW", "BORROWER_SENT_BACK", null,
-                Map.of("status", ApplicationStatus.BORROWER_SUBMITTED.name()),
+                Map.of("status", from.name()),
                 Map.of("status", ApplicationStatus.BORROWER_SENT_BACK.name(),
                         "notes", trimmed != null ? trimmed : ""),
                 "Sent application back to borrower for more details");
@@ -127,10 +145,11 @@ public class ApplicationReviewService {
             UUID applicationId, String notes, String userRole) {
         workflowRoleGuard.requireCreditOfficerOrAdmin(userRole);
         LoanApplication app = requireApp(applicationId);
-        if (app.getStatus() != ApplicationStatus.PENDING_CREDIT_OFFICER) {
+        ApplicationStatus from = app.getStatus();
+        if (!allowsSendBackToRm(from)) {
             throw new BusinessRuleException(
-                    "Send back to RM is only for PENDING_CREDIT_OFFICER applications. Current: "
-                            + app.getStatus());
+                    "Send back to RM is only from PENDING_CREDIT_OFFICER or processing statuses "
+                            + "before sanction/eSign. Current: " + from);
         }
         String trimmed = trimToNull(notes);
         app.setStatus(ApplicationStatus.SENT_BACK_TO_RM);
@@ -139,11 +158,23 @@ public class ApplicationReviewService {
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
         auditService.logEvent(applicationId, "FLOW", "SENT_BACK_TO_RM", null,
-                Map.of("status", ApplicationStatus.PENDING_CREDIT_OFFICER.name()),
+                Map.of("status", from.name()),
                 Map.of("status", ApplicationStatus.SENT_BACK_TO_RM.name(),
                         "notes", trimmed != null ? trimmed : ""),
                 "Credit Officer sent application back to Relationship Manager");
         return loanApplicationService.getApplication(applicationId);
+    }
+
+    private static boolean allowsSendBackToBorrower(ApplicationStatus status) {
+        return status == ApplicationStatus.BORROWER_SUBMITTED
+                || status == ApplicationStatus.PENDING_CREDIT_OFFICER
+                || status == ApplicationStatus.SENT_BACK_TO_RM
+                || PRE_SANCTION_SEND_BACK.contains(status);
+    }
+
+    private static boolean allowsSendBackToRm(ApplicationStatus status) {
+        return status == ApplicationStatus.PENDING_CREDIT_OFFICER
+                || PRE_SANCTION_SEND_BACK.contains(status);
     }
 
     private LoanApplication requireApp(UUID applicationId) {
