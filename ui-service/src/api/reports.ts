@@ -35,20 +35,86 @@ export type OperationsReport = {
   sanctionAndEsign: { status: string; count: number }[]
 }
 
+export type MisReport = {
+  reportType: string
+  period: string
+  generatedAt: string
+  summary: {
+    totalApplications: number
+    approved: number
+    rejected: number
+    disbursed: number
+    pending: number
+    totalDisbursedAmount: number
+    totalRequestedAmount: number
+    approvalRate: number
+    avgProcessingDays: number
+  }
+  rows: {
+    applicationNumber: string
+    borrowerName: string
+    borrowerType: string
+    loanProduct: string
+    requestedAmount: number
+    approvedAmount: number
+    status: string
+    kycStatus: string
+    createdAt: string
+    submittedAt: string
+    processingDays: number
+  }[]
+}
+
+export type RegulatoryReport = {
+  reportType: string
+  period: string
+  generatedAt: string
+  digitalLending: {
+    totalDigitalLoans: number
+    kfsIssued: number
+    kfsSigned: number
+    coolingOffComplied: number
+    esignCompleted: number
+    digitalComplianceRate: number
+    rbiCircularRef: string
+  }
+  kyc: {
+    totalKycInitiated: number
+    kycCompleted: number
+    kycFailed: number
+    aadhaarVerified: number
+    panVerified: number
+    cKycVerified: number
+    faceMatchCompleted: number
+    kycCompletionRate: number
+  }
+  dpdAnalysis: {
+    totalActiveLoans: number
+    dpd0: number
+    dpd1to30: number
+    dpd31to60: number
+    dpd61to90: number
+    dpd90plus: number
+    npaCount: number
+    totalNpaAmount: number
+    npaPercentage: number
+  }
+}
+
 export async function fetchDashboardAnalytics() {
   const { data } = await http.get<DashboardAnalytics>('/reports/dashboard')
   return data
 }
 
 export async function fetchMisReport(period?: string) {
-  const { data } = await http.get<Record<string, unknown>>('/reports/mis', {
+  const { data } = await http.get<MisReport>('/reports/mis', {
     params: period ? { period } : undefined,
   })
   return data
 }
 
 export async function fetchRegulatoryReport(period?: string) {
-  const { data } = await http.get<Record<string, unknown>>('/reports/regulatory', {
+  const { data } = await http.get<RegulatoryReport>('/reports/regulatory', {
     params: period ? { period } : undefined,
   })
   return data

@@ -150,6 +150,10 @@ public class LoanApplicationFlowService {
         }
         validateSubmitEmail(app);
 
+        // Enforce the program's Max. dealer limit up-front (before sanction / PLP borrower link) so a
+        // requested amount above the program cap is rejected here rather than after LOS sanction.
+        invoiceDiscountingSanctionDefaultsService.validateRequestedAmountWithinProgramLimit(app);
+
         WorkflowConfig workflow = activeWorkflowConfigService.findActiveForApplication(app).orElse(null);
         workflowIntakeValidator.validateAtSubmit(app, workflow);
 

@@ -288,10 +288,11 @@ public class ReportingService {
      * Operations report for admin UI: funnel, products, intake segments, handoff & pipeline queues.
      */
     public Map<String, Object> getOperationsReport(String period) {
-        List<LoanApplication> allApps = applicationRepository.findAll();
-        if (period != null && !period.isBlank() && !"ALL".equalsIgnoreCase(period)) {
-            allApps = filterByPeriod(allApps, period);
-        }
+        List<LoanApplication> fetched = applicationRepository.findAll();
+        final List<LoanApplication> allApps =
+                (period != null && !period.isBlank() && !"ALL".equalsIgnoreCase(period))
+                        ? filterByPeriod(fetched, period)
+                        : fetched;
 
         List<Map<String, Object>> statusCounts = Arrays.stream(ApplicationStatus.values())
                 .map(s -> {

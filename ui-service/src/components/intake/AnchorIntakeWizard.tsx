@@ -42,7 +42,7 @@ import { workflowLoanProductDisplayName, productsForIntakeSegment } from '@/util
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import type { BorrowerType } from '@/types/createApplication'
 
-const STEP_LABELS = ['Product & request', 'Corporate', 'Identity', 'Documents', 'Consent', 'Review'] as const
+const STEP_LABELS = ['Product & request', 'Corporate', 'Documents', 'Identity', 'Consent', 'Review'] as const
 
 const IDENTITY_KEYS = new Set([
   'entityPan',
@@ -238,7 +238,8 @@ export function AnchorIntakeWizard({
   }, [])
 
   useEffect(() => {
-    if (applicationId && step >= 3) void syncDocumentsFromServer(applicationId)
+    // Documents is now step 2 (before Identity); sync uploads once the application exists.
+    if (applicationId && step >= 2) void syncDocumentsFromServer(applicationId)
   }, [applicationId, step, syncDocumentsFromServer])
 
   function validateStep0(): string | null {
@@ -349,6 +350,14 @@ export function AnchorIntakeWizard({
       return
     }
     if (step === 2) {
+      const miss = missingAnchorDocumentTypes(form.borrowerType, form.documentUploaded)
+      if (miss.length) {
+        setDocWarning(`Recommended uploads still missing: ${miss.join(', ')}. You can continue or go back to upload.`)
+      }
+      setStep(3)
+      return
+    }
+    if (step === 3) {
       const v = validateStep2()
       if (v) {
         setError(v)
@@ -358,20 +367,12 @@ export function AnchorIntakeWizard({
       setBusy(true)
       try {
         await updateApplication(applicationId, buildAnchorIdentityUpdate(form))
-        setStep(3)
+        setStep(4)
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not save identity details.')
       } finally {
         setBusy(false)
       }
-      return
-    }
-    if (step === 3) {
-      const miss = missingAnchorDocumentTypes(form.borrowerType, form.documentUploaded)
-      if (miss.length) {
-        setDocWarning(`Recommended uploads still missing: ${miss.join(', ')}. You can continue or go back to upload.`)
-      }
-      setStep(4)
       return
     }
     if (step === 4) {
@@ -587,33 +588,7 @@ export function AnchorIntakeWizard({
         </section>
       ) : null}
 
-      {step === 2 ? (
-        <section className={intakeStepSectionClass}>
-          <h2 className="bt-card-title">Identity &amp; bank</h2>
-          <p className="text-xs text-slate-600">
-            Fields follow the active anchor workflow
-            {selectedWorkflow?.intakeIdentitySchema?.length ? ' configuration' : ' defaults'}.
-          </p>
-          <div className={intakeStepFieldGridClass}>
-            {identityFields.map((fld) => (
-              <label key={fld.key} className={`${intakeFieldLabelClass} sm:col-span-2`}>
-                <span className={intakeFieldCaptionClass}>
-                  {fld.label}
-                  {fld.required ? ' *' : ''}
-                </span>
-                <input
-                  className={intakeFieldInputClass}
-                  value={String(form[fld.key] ?? '')}
-                  maxLength={fld.maxLength}
-                  onChange={(e) => setForm((f) => ({ ...f, [fld.key]: e.target.value }))}
-                />
-              </label>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {step === 3 && applicationId ? (
+      {step === 2 && applicationId ? (
         <section className={intakeStepSectionClass}>
           <h2 className="bt-card-title">Documents</h2>
           {docWarning ? <p className="bt-alert bt-alert-warning">{docWarning}</p> : null}
@@ -643,6 +618,32 @@ export function AnchorIntakeWizard({
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {step === 3 ? (
+        <section className={intakeStepSectionClass}>
+          <h2 className="bt-card-title">Identity &amp; bank</h2>
+          <p className="text-xs text-slate-600">
+            Fields follow the active anchor workflow
+            {selectedWorkflow?.intakeIdentitySchema?.length ? ' configuration' : ' defaults'}.
+          </p>
+          <div className={intakeStepFieldGridClass}>
+            {identityFields.map((fld) => (
+              <label key={fld.key} className={`${intakeFieldLabelClass} sm:col-span-2`}>
+                <span className={intakeFieldCaptionClass}>
+                  {fld.label}
+                  {fld.required ? ' *' : ''}
+                </span>
+                <input
+                  className={intakeFieldInputClass}
+                  value={String(form[fld.key] ?? '')}
+                  maxLength={fld.maxLength}
+                  onChange={(e) => setForm((f) => ({ ...f, [fld.key]: e.target.value }))}
+                />
+              </label>
+            ))}
+          </div>
         </section>
       ) : null}
 
@@ -729,7 +730,7 @@ export function AnchorIntakeWizard({
             type="button"
             className={intakePrimaryButtonClass}
             onClick={() => void handleNext()}
-            disabled={busy || (step === 3 && !applicationId)}
+            disabled={busy || (step === 2 && !applicationId)}
           >
             {busy ? 'Saving…' : 'Continue'}
           </button>
