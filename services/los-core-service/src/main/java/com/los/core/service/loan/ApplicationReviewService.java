@@ -6,6 +6,7 @@ import com.los.core.model.dto.response.ApplicationResponse;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.IntakeOwner;
+import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import lombok.Builder;
@@ -91,6 +92,14 @@ public class ApplicationReviewService {
     public ApplicationResponse sendBackToBorrower(UUID applicationId, String notes, String userRole) {
         workflowRoleGuard.requireRelationshipManagerOrAdmin(userRole);
         LoanApplication app = requireApp(applicationId);
+        if (app.getIntakeSegment() == IntakeSegment.ANCHOR) {
+            throw new BusinessRuleException(
+                    "Send back to borrower is not available for anchor applications. "
+                            + "Credit Officer may still send the case back to the Relationship Manager.",
+                    "ANCHOR_NO_BORROWER_SEND_BACK",
+                    "SEND_BACK_TO_BORROWER",
+                    Map.of("intakeSegment", "ANCHOR"));
+        }
         ApplicationStatus from = app.getStatus();
         if (!allowsSendBackToBorrower(from)) {
             throw new BusinessRuleException(

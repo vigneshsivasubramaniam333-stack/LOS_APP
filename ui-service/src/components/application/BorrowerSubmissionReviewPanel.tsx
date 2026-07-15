@@ -13,7 +13,10 @@ import {
   canSendBackToBorrower,
   canSendBackToRm,
 } from '@/auth/types'
-import { isInvoiceDiscountingBorrowerApp } from '@/lib/invoiceDiscountingFlow'
+import {
+  isInvoiceDiscountingAnchorApp,
+  isInvoiceDiscountingBorrowerApp,
+} from '@/lib/invoiceDiscountingFlow'
 import { InvoiceDiscountingVintagePanel } from '@/components/plp/InvoiceDiscountingVintagePanel'
 import type { ApplicationResponse } from '@/types/application'
 
@@ -52,10 +55,13 @@ export function BorrowerSubmissionReviewPanel({
 
   const status = app.status
   const inPreSanctionWindow = PRE_SANCTION_SEND_BACK_STATUSES.has(status)
+  /** Anchor apps are staff-owned; there is no RM → borrower portal send-back. CO → RM still applies. */
+  const isAnchorApp = isInvoiceDiscountingAnchorApp(app)
 
   const showHandoffRm =
     (status === 'BORROWER_SUBMITTED' || status === 'SENT_BACK_TO_RM') && canHandOffToCo(role)
   const showSendBackToBorrower =
+    !isAnchorApp &&
     canSendBackToBorrower(role) &&
     (status === 'BORROWER_SUBMITTED' ||
       status === 'PENDING_CREDIT_OFFICER' ||
@@ -100,16 +106,22 @@ export function BorrowerSubmissionReviewPanel({
       : status === 'SENT_BACK_TO_RM'
         ? 'Sent back to Relationship Manager'
         : inPreSanctionWindow
-          ? 'Application in processing — send-back available'
+          ? isAnchorApp
+            ? 'Application in processing — CO can send back to RM'
+            : 'Application in processing — send-back available'
           : 'Borrower submitted — review required'
 
   const blurb =
     status === 'PENDING_CREDIT_OFFICER'
       ? 'Accept to start KYC, or send back to the Relationship Manager with optional notes.'
       : status === 'SENT_BACK_TO_RM'
-        ? 'Credit Officer returned this file. Hand off again to Credit Officer when ready, or send back to the borrower.'
+        ? isAnchorApp
+          ? 'Credit Officer returned this file. Hand off again to Credit Officer when ready.'
+          : 'Credit Officer returned this file. Hand off again to Credit Officer when ready, or send back to the borrower.'
         : inPreSanctionWindow
-          ? 'Optional send-back remains available until sanction or eSign. RM can return the case to the borrower; CO can return it to the RM.'
+          ? isAnchorApp
+            ? 'Optional send-back to the Relationship Manager remains available until sanction or eSign. Anchor applications are not sent back to a borrower portal.'
+            : 'Optional send-back remains available until sanction or eSign. RM can return the case to the borrower; CO can return it to the RM.'
           : 'The borrower completed the delegated intake. Hand off to Credit Officer, or send back to the borrower.'
 
   return (
