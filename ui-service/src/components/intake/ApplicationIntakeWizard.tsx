@@ -661,7 +661,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       if (editApplicationId && isStaffPostSubmitEditStatus(resumedAppStatus)) {
         await updateApplication(applicationId, buildIntakeBorrowerUpdate(form, mode, user))
         if (needColl) {
-          await persistBorrowerIntakeCollateral(applicationId, form)
+          await persistBorrowerIntakeCollateral(applicationId, form, mode)
         }
         notifySuccess('Application details updated.')
         void navigate(`/applications/${applicationId}`, { replace: true })
