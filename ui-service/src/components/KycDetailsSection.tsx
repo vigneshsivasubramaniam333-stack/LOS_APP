@@ -148,17 +148,33 @@ function summaryPairs(stepType: string, parsedData: Record<string, unknown> | nu
   return out
 }
 
-/** KYC flow finished successfully (outcome API) or application has moved past the KYC stage. */
+/**
+ * KYC is complete only after an explicit PASS outcome, or once the application has genuinely moved
+ * past the review/KYC stages. Queue statuses like BORROWER_SUBMITTED and PENDING_CREDIT_OFFICER
+ * must not show a false "success" banner before any verification has actually run.
+ */
 function isKycChecksComplete(app: ApplicationResponse, kycOutcome: Record<string, unknown> | null): boolean {
   const st = app.status
-  if (st !== 'DRAFT' && st !== 'CONSENT_PENDING' && st !== 'KYC_IN_PROGRESS' && st !== 'KYC_FAILED') {
-    return true
-  }
-  if (st === 'KYC_IN_PROGRESS' && kycOutcome) {
+  if (kycOutcome) {
     const o = String((kycOutcome as { outcome?: unknown }).outcome ?? '').toUpperCase()
-    return o === 'PASS'
+    if (o === 'PASS') return true
   }
-  return false
+  return (
+    st === 'UNDERWRITING' ||
+    st === 'UNDERWRITING_COMPLETED' ||
+    st === 'CAM_READY' ||
+    st === 'CAM_REVIEWED' ||
+    st === 'SANCTION_PENDING' ||
+    st === 'APPROVED' ||
+    st === 'SANCTIONED' ||
+    st === 'KFS_GENERATED' ||
+    st === 'SANCTION_ISSUED' ||
+    st === 'ESIGN_PENDING' ||
+    st === 'ESIGN_COMPLETED' ||
+    st === 'READY_FOR_DISBURSEMENT' ||
+    st === 'DISBURSEMENT_PENDING' ||
+    st === 'DISBURSED'
+  )
 }
 
 export function KycDetailsSection({
@@ -560,8 +576,12 @@ export function KycDetailsSection({
 
   const canRunKyc = isKycInProgress && !kycChecksComplete
   const canShowRunKyc = canRunKyc && !isFailed && allowRunKyc
+  const rmEditableStatus =
+    app.status === 'BORROWER_SUBMITTED' ||
+    app.status === 'SENT_BACK_TO_RM' ||
+    (isAnchorApp && (app.status === 'KYC_IN_PROGRESS' || app.status === 'KYC_FAILED'))
   const canSave =
-    !kycChecksComplete && (isPreKyc || isKycInProgress || isFailed) && !kycActionBusy
+    !kycChecksComplete && (isPreKyc || isKycInProgress || isFailed || rmEditableStatus) && !kycActionBusy
   const partyLabels = applicationPartyLabels(app.intakeSegment)
 
   return (

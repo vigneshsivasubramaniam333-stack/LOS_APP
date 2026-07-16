@@ -121,7 +121,6 @@ export function CamSection({
   const [officerRem, setOfficerRem] = useState('')
   const [managerRem, setManagerRem] = useState('')
   const [sendBackReason, setSendBackReason] = useState('')
-  const [showSendBackReason, setShowSendBackReason] = useState(false)
   const [prefilledFromApplication, setPrefilledFromApplication] = useState(false)
   const [ltv, setLtv] = useState<CollateralLtvResult | null>(null)
   const [valuations, setValuations] = useState<CollateralValuation[]>([])
@@ -304,17 +303,10 @@ export function CamSection({
   }
 
   async function onSendBack() {
-    const reason = sendBackReason.trim()
-    if (!reason) {
-      setShowSendBackReason(true)
-      setError('Enter a reason before sending the CAM back.')
-      return
-    }
     setActionBusy(true)
     setError(null)
     try {
-      setCam(await sendBackCam(applicationId, reason))
-      setShowSendBackReason(false)
+      setCam(await sendBackCam(applicationId, sendBackReason.trim() || undefined))
       setSendBackReason('')
       await onRefetch()
     } catch (e) {
@@ -322,15 +314,6 @@ export function CamSection({
     } finally {
       setActionBusy(false)
     }
-  }
-
-  function onSendBackClick() {
-    if (!sendBackReason.trim()) {
-      setShowSendBackReason(true)
-      setError(null)
-      return
-    }
-    void onSendBack()
   }
 
   async function onRejectMem() {
@@ -369,12 +352,21 @@ export function CamSection({
   const fieldsEditable = isEditor && !isLocked
   const canSubmit = isMaker && !isLocked && (camStatus === 'DRAFT' || camStatus === 'SENT_BACK' || camStatus === 'REJECTED')
   const isSubmitted = camStatus === 'SUBMITTED'
-  const camReady = app.status === 'CAM_READY' || app.status === 'CAM_REVIEWED' || app.status === 'SANCTION_PENDING' || app.status === 'APPROVED'
+  const camWorkflowOpen =
+    !!cam &&
+    (app.status === 'CAM_READY' ||
+      app.status === 'CAM_REVIEWED' ||
+      app.status === 'SANCTION_PENDING' ||
+      app.status === 'APPROVED' ||
+      camStatus === 'SENT_BACK' ||
+      camStatus === 'SUBMITTED' ||
+      camStatus === 'REJECTED' ||
+      camStatus === 'APPROVED')
   const canManagerApproveToReviewed =
     isChecker &&
-    (app.status === 'CAM_READY' || app.status === 'APPROVED') &&
     !isLocked &&
-    (camStatus === 'SUBMITTED' || (camStatus === 'DRAFT' && app.status === 'CAM_READY'))
+    (camStatus === 'SUBMITTED' ||
+      (camStatus === 'DRAFT' && (app.status === 'CAM_READY' || app.status === 'APPROVED')))
 
   if (loading && !cam) {
     return <p className="text-sm text-slate-600">Loading CAM…</p>
@@ -419,7 +411,7 @@ export function CamSection({
         >
           {saving ? 'Saving…' : 'Save draft'}
         </button>
-        {camReady && (
+        {camWorkflowOpen && (
           <button
             type="button"
             onClick={() => void onDownloadPdf()}
@@ -429,7 +421,7 @@ export function CamSection({
             {pdfLoading ? 'Preparing…' : 'Download CAM PDF'}
           </button>
         )}
-        {camReady && canSubmit && (
+        {camWorkflowOpen && canSubmit && (
           <button
             type="button"
             onClick={() => void onSubmit()}
@@ -439,11 +431,11 @@ export function CamSection({
             {actionBusy ? '…' : 'Submit for manager'}
           </button>
         )}
-        {camReady && isSubmitted && isChecker && (
+        {camWorkflowOpen && isSubmitted && isChecker && (
           <>
             <button
               type="button"
-              onClick={onSendBackClick}
+              onClick={() => void onSendBack()}
               disabled={actionBusy}
               className="rounded-md border border-amber-500 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-950 disabled:opacity-50"
             >
@@ -459,7 +451,7 @@ export function CamSection({
             </button>
           </>
         )}
-        {camReady && canManagerApproveToReviewed && (
+        {camWorkflowOpen && canManagerApproveToReviewed && (
           <button
             type="button"
             onClick={() => void onMarkReviewed()}
@@ -471,40 +463,21 @@ export function CamSection({
         )}
       </div>
 
-      {camReady && isSubmitted && isChecker && showSendBackReason ? (
+      {camWorkflowOpen && isSubmitted && isChecker ? (
         <div className="rounded-md border border-amber-300 bg-amber-50/80 p-3">
           <label className="block text-xs font-medium text-amber-950">
-            Reason for send back <span className="text-rose-700">(required)</span>
+            Send-back message <span className="font-normal text-amber-900/80">(optional)</span>
             <textarea
               className="mt-1.5 w-full rounded border border-amber-200 bg-white p-2 text-sm text-slate-800"
               rows={3}
               value={sendBackReason}
               onChange={(e) => setSendBackReason(e.target.value)}
               placeholder="Explain what the credit officer should revise…"
-              autoFocus
             />
           </label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void onSendBack()}
-              disabled={actionBusy || !sendBackReason.trim()}
-              className="rounded-md border border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-950 disabled:opacity-50"
-            >
-              {actionBusy ? '…' : 'Confirm send back'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowSendBackReason(false)
-                setError(null)
-              }}
-              disabled={actionBusy}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
-            >
-              Cancel
-            </button>
-          </div>
+          <p className="mt-2 text-xs text-amber-900/80">
+            This note is optional. If provided, it is stored with the CAM send-back for the credit officer.
+          </p>
         </div>
       ) : null}
 

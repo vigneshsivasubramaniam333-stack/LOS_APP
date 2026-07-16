@@ -7,6 +7,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.IntakeOwner;
 import com.los.core.model.enums.IntakeSegment;
+import com.los.core.repository.CreditAppraisalMemoRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import lombok.Builder;
@@ -32,6 +33,7 @@ import java.util.UUID;
 public class ApplicationReviewService {
 
     private final LoanApplicationRepository applicationRepository;
+    private final CreditAppraisalMemoRepository creditAppraisalMemoRepository;
     private final ILoanApplicationService loanApplicationService;
     private final AuditService auditService;
     private final RabbitTemplate rabbitTemplate;
@@ -103,8 +105,7 @@ public class ApplicationReviewService {
         ApplicationStatus from = app.getStatus();
         if (!allowsSendBackToBorrower(from)) {
             throw new BusinessRuleException(
-                    "Send back to borrower is only from BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, "
-                            + "SENT_BACK_TO_RM, or processing statuses before sanction/eSign. Current: "
+                    "Send back to borrower is only from BORROWER_SUBMITTED or SENT_BACK_TO_RM. Current: "
                             + from);
         }
         String trimmed = trimToNull(notes);
@@ -160,6 +161,14 @@ public class ApplicationReviewService {
                     "Send back to RM is only from PENDING_CREDIT_OFFICER or processing statuses "
                             + "before sanction/eSign. Current: " + from);
         }
+        if (from == ApplicationStatus.CAM_READY && isCamSubmittedToManager(applicationId)) {
+            throw new BusinessRuleException(
+                    "Send back to RM is hidden once the CAM is submitted to Credit Manager. "
+                            + "Use the Credit Manager send-back flow to return the case first.",
+                    "CAM_ALREADY_SUBMITTED_TO_MANAGER",
+                    "SEND_BACK_TO_RM",
+                    Map.of("status", from.name()));
+        }
         String trimmed = trimToNull(notes);
         app.setStatus(ApplicationStatus.SENT_BACK_TO_RM);
         app.setIntakeOwner(IntakeOwner.STAFF);
@@ -176,14 +185,18 @@ public class ApplicationReviewService {
 
     private static boolean allowsSendBackToBorrower(ApplicationStatus status) {
         return status == ApplicationStatus.BORROWER_SUBMITTED
-                || status == ApplicationStatus.PENDING_CREDIT_OFFICER
-                || status == ApplicationStatus.SENT_BACK_TO_RM
-                || PRE_SANCTION_SEND_BACK.contains(status);
+                || status == ApplicationStatus.SENT_BACK_TO_RM;
     }
 
     private static boolean allowsSendBackToRm(ApplicationStatus status) {
         return status == ApplicationStatus.PENDING_CREDIT_OFFICER
                 || PRE_SANCTION_SEND_BACK.contains(status);
+    }
+
+    private boolean isCamSubmittedToManager(UUID applicationId) {
+        return creditAppraisalMemoRepository.findByApplicationId(applicationId)
+                .map(cam -> "SUBMITTED".equalsIgnoreCase(cam.getCamStatus()))
+                .orElse(false);
     }
 
     private LoanApplication requireApp(UUID applicationId) {

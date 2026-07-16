@@ -714,9 +714,12 @@ public class LoanApplicationFlowService {
         workflowRoleGuard.requireChecker(approver);
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.MARK_CAM_REVIEWED);
         LoanApplication app = findOrThrow(applicationId);
-        if (app.getStatus() != ApplicationStatus.CAM_READY && app.getStatus() != ApplicationStatus.APPROVED) {
+        boolean appCamReady =
+                app.getStatus() == ApplicationStatus.CAM_READY || app.getStatus() == ApplicationStatus.APPROVED;
+        if (!appCamReady && !creditAppraisalService.isCamAwaitingManagerReview(applicationId)) {
             throw new BusinessRuleException(
-                    "CAM review is only allowed from CAM_READY (or legacy APPROVED). Current: " + app.getStatus(),
+                    "CAM review is only allowed from CAM_READY (or legacy APPROVED), or when CAM is SUBMITTED. Current: "
+                            + app.getStatus(),
                     "CAM_REVIEW_INVALID_STATUS",
                     "OPEN_CAM",
                     Map.of("status", app.getStatus().name()));

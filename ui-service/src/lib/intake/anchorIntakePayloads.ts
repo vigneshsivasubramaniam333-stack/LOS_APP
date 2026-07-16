@@ -82,3 +82,36 @@ export function buildAnchorConsentUpdate(s: AnchorFormState, staff: SessionUser 
   }
   return { financialInfo: financial as unknown as Record<string, unknown> }
 }
+
+/** Full field merge used when RM saves an existing anchor application via Continue intake. */
+export function buildAnchorFullUpdate(
+  s: AnchorFormState,
+  staff: SessionUser | null,
+): UpdateApplicationRequest {
+  const amount = Number.parseFloat(s.requestedAmount)
+  const tenure = parseTenure(s.tenureMonths)
+  const identity = buildAnchorIdentityUpdate(s)
+  const consent = buildAnchorConsentUpdate(s, staff)
+  return {
+    requestedAmount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
+    tenureMonths: tenure ?? undefined,
+    personalInfo: {
+      phone: s.mobile.trim(),
+      mobile: s.mobile.trim(),
+      ...(s.purpose.trim() ? { purpose: s.purpose.trim() } : {}),
+    },
+    businessInfo: {
+      corporateName: s.corporateName.trim(),
+      email: s.email.trim(),
+      mobile: s.mobile.trim(),
+      dateOfIncorporation: s.dateOfIncorporation.trim(),
+      addressLine: s.addressLine.trim(),
+      city: s.city.trim(),
+      state: s.state.trim(),
+      country: s.country.trim(),
+      pincode: s.pincode.replace(/\D/g, '').slice(0, 6),
+      ...(identity.businessInfo ?? {}),
+    },
+    financialInfo: consent.financialInfo,
+  }
+}

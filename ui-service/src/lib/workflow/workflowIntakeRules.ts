@@ -8,6 +8,7 @@ import type {
 } from '@/types/workflow'
 import {
   configuredKycStepNames,
+  INTAKE_DOCUMENT_TYPE_LABELS,
   metaForKycStep,
   stepNameFromWorkflowStep,
 } from './kycStepIntakeCatalog'
@@ -379,6 +380,10 @@ export function resolveDocumentSlots(
   }
 
   const byType = new Map<string, ResolvedIntakeDocumentSlot>()
+  const labelFor = (documentType: string, fallback?: string) =>
+    INTAKE_DOCUMENT_TYPE_LABELS[documentType.toUpperCase()] ??
+    fallback ??
+    documentType.replaceAll('_', ' ')
   const add = (documentType: string, label: string, required: boolean) => {
     const key = documentType.toUpperCase()
     const existing = byType.get(key)
@@ -406,22 +411,30 @@ export function resolveDocumentSlots(
     if (Array.isArray(docs) && docs.length > 0) {
       for (const d of docs) {
         if (d.documentType) {
-          add(d.documentType, d.documentType.replaceAll('_', ' '), d.required !== false)
+          add(
+            d.documentType,
+            labelFor(d.documentType, d.documentType.replaceAll('_', ' ')),
+            d.required !== false,
+          )
         }
       }
     } else if (step.documentRequired === true && meta) {
       for (const dt of meta.defaultDocumentTypes) {
-        add(dt, dt.replaceAll('_', ' '), true)
+        add(dt, labelFor(dt, meta.label), true)
       }
     } else if (meta) {
       for (const dt of meta.defaultDocumentTypes) {
-        add(dt, dt.replaceAll('_', ' '), false)
+        add(dt, labelFor(dt, meta.label), false)
       }
     }
   }
 
   for (const doc of workflow?.intakeConfig?.standaloneDocuments ?? []) {
-    add(doc.documentType, doc.label ?? doc.documentType.replaceAll('_', ' '), doc.required === true)
+    add(
+      doc.documentType,
+      doc.label ?? labelFor(doc.documentType, doc.documentType.replaceAll('_', ' ')),
+      doc.required === true,
+    )
   }
 
   return [...byType.values()]

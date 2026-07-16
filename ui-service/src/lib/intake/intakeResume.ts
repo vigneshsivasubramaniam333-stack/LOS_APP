@@ -97,10 +97,27 @@ export function resolveIntakeResumeStep(
   return steps.product
 }
 
-/** Staff may continue filling intake on this application (not delegated to borrower). */
+/**
+ * Staff may open Continue intake for:
+ * - staff-owned DRAFT (in-progress staff intake),
+ * - borrower apps still with RM ({@code BORROWER_SUBMITTED} / {@code SENT_BACK_TO_RM}),
+ * - anchor apps still with RM ({@code DRAFT}, pre-CO {@code KYC_*} / {@code SENT_BACK_TO_RM}).
+ */
 export function staffCanContinueIntake(app: ApplicationResponse): boolean {
-  if (app.intakeSegment === 'ANCHOR') return false
-  return app.status === 'DRAFT' && app.intakeOwner !== 'BORROWER'
+  if (app.intakeSegment === 'ANCHOR') {
+    return (
+      app.status === 'DRAFT' ||
+      app.status === 'KYC_IN_PROGRESS' ||
+      app.status === 'KYC_FAILED' ||
+      app.status === 'BORROWER_SUBMITTED' ||
+      app.status === 'SENT_BACK_TO_RM'
+    )
+  }
+  return (
+    (app.status === 'DRAFT' && app.intakeOwner !== 'BORROWER') ||
+    app.status === 'BORROWER_SUBMITTED' ||
+    app.status === 'SENT_BACK_TO_RM'
+  )
 }
 
 export function borrowerCanContinueIntake(app: ApplicationResponse): boolean {

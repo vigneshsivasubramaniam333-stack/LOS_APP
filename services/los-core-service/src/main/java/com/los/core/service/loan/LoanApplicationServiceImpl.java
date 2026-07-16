@@ -12,6 +12,7 @@ import com.los.core.model.catalog.StandardLoanProduct;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.BorrowerType;
 import com.los.core.model.enums.IntakeSegment;
+import com.los.core.repository.CreditAppraisalMemoRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.service.credit.CreditControlService;
@@ -43,6 +44,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
     private final AuditService auditService;
     private final CreditControlService creditControlService;
     private final UnderwritingEvaluationService underwritingEvaluationService;
+    private final CreditAppraisalMemoRepository creditAppraisalMemoRepository;
     private final ApplicationCustomerIdResolver applicationCustomerIdResolver;
     private final IntakeMetadataEnricher intakeMetadataEnricher;
     private final ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
@@ -443,6 +445,8 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
         r.setCreditControlView(creditControlService.buildReadView(app));
         underwritingEvaluationService.findLatest(app).ifPresent(ev ->
                 r.setLatestUnderwritingEvaluation(underwritingEvaluationService.toApiMap(ev)));
+        creditAppraisalMemoRepository.findByApplicationId(app.getId())
+                .ifPresent(cam -> r.setCamStatus(cam.getCamStatus()));
         return r;
     }
 

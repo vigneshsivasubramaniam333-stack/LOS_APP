@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 
-/** Mirrors PLP operational program status onto LOS {@link ProgramMaster} fields. */
+/** Mirrors PLP operational program status (and commercial fields) onto LOS {@link ProgramMaster}. */
 @Slf4j
 @Service
 public class PlpProgramStatusMirrorService {
@@ -22,6 +22,7 @@ public class PlpProgramStatusMirrorService {
             return;
         }
         mirror(program, data.getStatus(), resolveRemarks(data));
+        applyCommercialFields(program, data);
     }
 
     public void mirror(ProgramMaster program, String plpStatus, String remarks) {
@@ -47,6 +48,34 @@ public class PlpProgramStatusMirrorService {
             }
             case "PAUSED", "CLOSED" -> program.setApprovalStatus(ProgramApprovalStatus.REJECTED);
             default -> log.debug("Unmapped PLP program status {} for LOS program {}", normalized, program.getId());
+        }
+    }
+
+    private static void applyCommercialFields(ProgramMaster program, PlpProgramStatusData data) {
+        if (data.getDefaultInterestRate() != null) {
+            program.setInterestRate(data.getDefaultInterestRate());
+        }
+        if (data.getProgramLimit() != null) {
+            program.setProgramLimit(data.getProgramLimit());
+        }
+        if (data.getMaxBorrowerLimit() != null) {
+            program.setMaxBorrowerLimit(data.getMaxBorrowerLimit());
+        }
+        if (data.getMaxTenureDays() != null) {
+            program.setTenureDays(data.getMaxTenureDays());
+        }
+        if (data.getDependencyVintagePercent() != null) {
+            program.setDependencyVintagePercent(data.getDependencyVintagePercent());
+        }
+        if (data.getAnchorRelationshipVintageMonths() != null) {
+            program.setAnchorRelationshipVintageMonths(data.getAnchorRelationshipVintageMonths());
+        }
+        if (data.getLmsEntryIn() != null && !data.getLmsEntryIn().isBlank()) {
+            program.setLmsEntryIn(data.getLmsEntryIn().trim().toUpperCase());
+        }
+        if (data.getEncoreProductCode() != null) {
+            String code = data.getEncoreProductCode().trim();
+            program.setEncoreProductCode(code.isEmpty() ? null : code);
         }
     }
 

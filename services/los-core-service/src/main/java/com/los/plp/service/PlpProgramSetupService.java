@@ -146,6 +146,12 @@ public class PlpProgramSetupService {
             throw new IllegalStateException(
                     "Program is already approved in PLP; create a new program or edit limits in PLP.");
         }
+        // After a successful submit to PLP, RM may only correct fields when L1/L2 sends the program back.
+        if (!rmMayEditProgram(program)) {
+            throw new IllegalStateException(
+                    "Program is under PLP review. Wait for a send-back before editing interest rate, "
+                            + "dependency, or other commercial details.");
+        }
 
         String lmsEntry = normalizeLmsEntry(request.getLmsEntryIn() != null
                 ? request.getLmsEntryIn()
@@ -361,6 +367,27 @@ public class PlpProgramSetupService {
                     "Program can only be created when the anchor application is SANCTION_PENDING "
                             + "(rating / due diligence complete). Current: " + sourceApp.getStatus());
         }
+    }
+
+    /**
+     * RM may edit commercial fields when PLP has sent the program back, or when sync has not succeeded yet
+     * (first create / retry). Once synced and pending L1/L2 (or approved), edits are blocked until SENT_BACK.
+     */
+    static boolean rmMayEditProgram(ProgramMaster program) {
+        if (program == null) {
+            return false;
+        }
+        ProgramApprovalStatus status = program.getApprovalStatus();
+        if (status == ProgramApprovalStatus.SENT_BACK) {
+            return true;
+        }
+        if (status == ProgramApprovalStatus.APPROVED
+                || status == ProgramApprovalStatus.PENDING_L2
+                || status == ProgramApprovalStatus.REJECTED) {
+            return false;
+        }
+        // DRAFT (or unset): editable only until a successful PLP sync has handed it to L1.
+        return program.getPlpProgramSyncStatus() != PlpSyncStatus.SYNC_SUCCESS;
     }
 
     private static String normalizeLmsEntry(String raw) {

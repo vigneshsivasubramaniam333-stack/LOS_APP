@@ -1,5 +1,12 @@
 export type PlpSyncStatus = 'NOT_SYNCED' | 'SYNC_SUCCESS' | 'SYNC_FAILED'
 
+export type ProgramApprovalStatus =
+  | 'DRAFT'
+  | 'PENDING_L2'
+  | 'SENT_BACK'
+  | 'APPROVED'
+  | 'REJECTED'
+
 export interface PlpProgramSummary {
   programId: string
   subProgramId: string | null
@@ -21,6 +28,8 @@ export interface PlpProgramSummary {
   flowType?: string | null
   lmsEntryIn?: string | null
   encoreProductCode?: string | null
+  approvalStatus?: ProgramApprovalStatus | null
+  approvalNotes?: string | null
   dependencyVintagePercent?: number | null
   anchorRelationshipVintageMonths?: number | null
 }
@@ -52,13 +61,6 @@ export interface PlpProgramSetupResponse {
   dependencyVintagePercent?: number | null
   anchorRelationshipVintageMonths?: number | null
 }
-
-export type ProgramApprovalStatus =
-  | 'DRAFT'
-  | 'PENDING_L2'
-  | 'SENT_BACK'
-  | 'APPROVED'
-  | 'REJECTED'
 
 export interface CreatePlpProgramRequest {
   anchorId: string

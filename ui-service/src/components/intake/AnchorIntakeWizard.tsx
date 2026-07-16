@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import { createApplication, updateApplication } from '@/api/applications'
+import { createApplication, getApplication, updateApplication } from '@/api/applications'
 import { listDocuments, uploadDocument } from '@/api/documents'
 import { listWorkflows } from '@/api/workflows'
 import { submitApplicationForKyc } from '@/api/flow'
@@ -18,9 +18,12 @@ import { allConsentsChecked, validateConsentStep } from '@/lib/intake/intakeVali
 import {
   buildAnchorConsentUpdate,
   buildAnchorCreateRequest,
+  buildAnchorFullUpdate,
   buildAnchorIdentityUpdate,
 } from '@/lib/intake/anchorIntakePayloads'
 import { createEmptyAnchorFormState, type AnchorFormState } from '@/lib/intake/anchorIntakeTypes'
+import { hydrateAnchorFormFromApplication } from '@/lib/intake/hydrateAnchorFormFromApplication'
+import { staffCanContinueIntake } from '@/lib/intake/intakeResume'
 import { clearAnchorDraft, loadAnchorDraft, saveAnchorDraft } from '@/lib/anchorWizardDraft'
 import {
   intakeFieldCaptionClass,
@@ -41,6 +44,7 @@ import { validateIntakeLocation } from '@/lib/intake/intakeValidation'
 import { workflowLoanProductDisplayName, productsForIntakeSegment } from '@/utils/workflowProducts'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import type { BorrowerType } from '@/types/createApplication'
+import type { ApplicationStatus } from '@/types/application'
 
 const STEP_LABELS = ['Product & request', 'Corporate', 'Documents', 'Identity', 'Consent', 'Review'] as const
 
@@ -139,6 +143,17 @@ export type AnchorIntakeWizardProps = {
   initialRequest?: { requestedAmount: string; tenureMonths: string }
   /** Embedded only: return to product + onboarding-type step. */
   onExitEmbedded?: () => void
+  /** Staff continue/edit an existing anchor application (`/applications/:id/intake`). */
+  editApplicationId?: string
+}
+
+function isAnchorPostSubmitEditStatus(status: ApplicationStatus | null): boolean {
+  return (
+    status === 'KYC_IN_PROGRESS' ||
+    status === 'KYC_FAILED' ||
+    status === 'BORROWER_SUBMITTED' ||
+    status === 'SENT_BACK_TO_RM'
+  )
 }
 
 export function AnchorIntakeWizard({
@@ -146,18 +161,23 @@ export function AnchorIntakeWizard({
   staffIntakeMode = 'ADMIN_INTERNAL',
   initialRequest,
   onExitEmbedded,
+  editApplicationId,
 }: AnchorIntakeWizardProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [step, setStep] = useState(0)
   const [form, setForm] = useState<AnchorFormState>(createEmptyAnchorFormState)
-  const [applicationId, setApplicationId] = useState<string | null>(null)
+  const [applicationId, setApplicationId] = useState<string | null>(editApplicationId ?? null)
   const [activeWorkflows, setActiveWorkflows] = useState<WorkflowConfigResponse[]>([])
   const [workflowsState, setWorkflowsState] = useState<'loading' | 'ok' | 'err'>('loading')
   const [workflowsError, setWorkflowsError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [docWarning, setDocWarning] = useState<string | null>(null)
+  const [hydrating, setHydrating] = useState(Boolean(editApplicationId))
+  const [resumeError, setResumeError] = useState<string | null>(null)
+  const [resumeLoaded, setResumeLoaded] = useState(false)
+  const [resumedAppStatus, setResumedAppStatus] = useState<ApplicationStatus | null>(null)
 
   const anchorProducts = useMemo(
     () => productsForIntakeSegment(activeWorkflows, 'ANCHOR', ANCHOR_BORROWER_TYPE),
@@ -199,6 +219,62 @@ export function AnchorIntakeWizard({
   }, [loadWorkflows])
 
   useEffect(() => {
+    setResumeLoaded(false)
+    setResumedAppStatus(null)
+  }, [editApplicationId])
+
+  useEffect(() => {
+    if (!editApplicationId || resumeLoaded || workflowsState !== 'ok') return
+    let cancelled = false
+    void (async () => {
+      setResumeError(null)
+      setHydrating(true)
+      try {
+        const app = await getApplication(editApplicationId)
+        if (cancelled) return
+        if (app.intakeSegment !== 'ANCHOR') {
+          setResumeError('This is not an anchor application.')
+          return
+        }
+        if (!staffCanContinueIntake(app)) {
+          setResumeError(
+            'This anchor application cannot be edited in Continue intake right now. It may already be with Credit Officer.',
+          )
+          return
+        }
+        setResumedAppStatus(app.status)
+        let h = hydrateAnchorFormFromApplication(app)
+        try {
+          const docs = await listDocuments(app.id)
+          const uploaded = { ...h.documentUploaded }
+          for (const d of docs) {
+            uploaded[d.documentType] = true
+          }
+          h = { ...h, documentUploaded: uploaded }
+        } catch {
+          /* optional */
+        }
+        setForm(h)
+        setApplicationId(app.id)
+        setStep(0)
+      } catch (e) {
+        if (!cancelled) {
+          setResumeError(e instanceof ApiError ? e.message : 'Could not load application')
+        }
+      } finally {
+        if (!cancelled) {
+          setHydrating(false)
+          setResumeLoaded(true)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editApplicationId, resumeLoaded, workflowsState])
+
+  useEffect(() => {
+    if (editApplicationId) return
     if (variant === 'embedded' && initialRequest) {
       setForm((f) => ({
         ...f,
@@ -215,12 +291,12 @@ export function AnchorIntakeWizard({
       setStep(d.step)
       setApplicationId(d.applicationId)
     }
-  }, [variant, initialRequest])
+  }, [variant, initialRequest, editApplicationId])
 
   useEffect(() => {
-    if (variant === 'embedded') return
+    if (editApplicationId || variant === 'embedded') return
     saveAnchorDraft({ step, applicationId, form })
-  }, [variant, step, applicationId, form])
+  }, [variant, step, applicationId, form, editApplicationId])
 
   const syncDocumentsFromServer = useCallback(async (id: string) => {
     try {
@@ -405,16 +481,21 @@ export function AnchorIntakeWizard({
 
   async function onSubmitFinal() {
     if (!applicationId) return
-    const intakeSlice = { ...createEmptyIntakeFormState(), ...form } as IntakeFormState
-    if (!allConsentsChecked(intakeSlice)) {
-      setError('All consents are required before submission.')
-      return
-    }
     setBusy(true)
     setError(null)
     try {
+      if (editApplicationId && isAnchorPostSubmitEditStatus(resumedAppStatus)) {
+        await updateApplication(applicationId, buildAnchorFullUpdate(form, user))
+        void navigate(`/applications/${applicationId}`, { replace: true })
+        return
+      }
+      const intakeSlice = { ...createEmptyIntakeFormState(), ...form } as IntakeFormState
+      if (!allConsentsChecked(intakeSlice)) {
+        setError('All consents are required before submission.')
+        return
+      }
       await submitApplicationForKyc(applicationId)
-      if (variant === 'standalone') {
+      if (variant === 'standalone' && !editApplicationId) {
         clearAnchorDraft()
       }
       void navigate(`/applications/${applicationId}`, { replace: true })
@@ -426,18 +507,54 @@ export function AnchorIntakeWizard({
   }
 
   const docSlots = documentSlotsForAnchorIntake(form.borrowerType)
+  const editingExisting = Boolean(editApplicationId)
+  const saveOnly = editingExisting && isAnchorPostSubmitEditStatus(resumedAppStatus)
+
+  if (hydrating || resumeError) {
+    return (
+      <div>
+        <PageHeader
+          title={editingExisting ? 'Continue anchor intake' : 'New anchor (invoice discounting)'}
+          description={
+            editingExisting
+              ? 'Update corporate and identity details while this anchor application is with the Relationship Manager.'
+              : 'Onboard a corporate anchor for invoice discounting.'
+          }
+        />
+        <p className="mb-4 text-sm text-slate-600">
+          <Link
+            to={editApplicationId ? `/applications/${editApplicationId}` : '/applications'}
+            className="font-medium text-slate-800 underline"
+          >
+            ← {editApplicationId ? 'Application details' : 'Applications'}
+          </Link>
+        </p>
+        {hydrating ? <p className="text-sm text-slate-600">Loading application…</p> : null}
+        {resumeError ? <ErrorState message={resumeError} /> : null}
+      </div>
+    )
+  }
 
   return (
     <div>
       {variant === 'standalone' ? (
         <>
           <PageHeader
-            title="New anchor (invoice discounting)"
-            description="Onboard a corporate anchor for invoice discounting. This uses the same approval flow as borrower applications after submit."
+            title={editingExisting ? 'Continue anchor intake' : 'New anchor (invoice discounting)'}
+            description={
+              editingExisting
+                ? saveOnly
+                  ? 'Update corporate and identity details while this anchor application is with the Relationship Manager. Changes are saved to the existing application.'
+                  : 'Resume filling this draft anchor application.'
+                : 'Onboard a corporate anchor for invoice discounting. This uses the same approval flow as borrower applications after submit.'
+            }
           />
           <div className="-mt-2 mb-6">
-            <Link to="/applications" className="text-sm font-medium text-slate-700 underline-offset-2 hover:underline">
-              Back to applications
+            <Link
+              to={editApplicationId ? `/applications/${editApplicationId}` : '/applications'}
+              className="text-sm font-medium text-slate-700 underline-offset-2 hover:underline"
+            >
+              {editApplicationId ? 'Back to application details' : 'Back to applications'}
             </Link>
           </div>
         </>
@@ -736,7 +853,7 @@ export function AnchorIntakeWizard({
           </button>
         ) : (
           <button type="button" className={intakePrimaryButtonClass} onClick={() => void onSubmitFinal()} disabled={busy}>
-            {busy ? 'Submitting…' : 'Submit for KYC'}
+            {busy ? (saveOnly ? 'Saving…' : 'Submitting…') : saveOnly ? 'Save changes' : 'Submit for KYC'}
           </button>
         )}
       </div>

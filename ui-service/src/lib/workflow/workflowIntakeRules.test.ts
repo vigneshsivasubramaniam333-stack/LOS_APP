@@ -5,6 +5,7 @@ import {
   intakeConfigFromApi,
   isWorkflowDrivenIntake,
   missingRequiredWorkflowDocuments,
+  resolveDocumentSlots,
   validateMandatoryGroups,
   validateWorkflowAge,
   validateWorkflowKycStep,
@@ -125,5 +126,19 @@ describe('workflowIntakeRules', () => {
     expect(missingRequiredWorkflowDocuments(form, workflow, 'INDIVIDUAL')).toContain('PHOTOGRAPH')
     form.documentUploaded.PHOTOGRAPH = true
     expect(missingRequiredWorkflowDocuments(form, workflow, 'INDIVIDUAL')).toEqual([])
+  })
+
+  it('resolves voter and driving licence upload slots from workflow KYC steps', () => {
+    const workflow = wf({
+      intakeConfig: { policy: 'WORKFLOW_DRIVEN' },
+      steps: [
+        { step: 'VOTER_ID_VERIFY', mandatory: true },
+        { step: 'DL_VERIFY', mandatory: true },
+      ],
+    })
+    const slots = resolveDocumentSlots(workflow, 'INDIVIDUAL')
+    expect(slots.map((s) => s.documentType)).toEqual(expect.arrayContaining(['VOTER_ID', 'DRIVING_LICENSE']))
+    expect(slots.find((s) => s.documentType === 'VOTER_ID')?.label).toBe('Voter ID card')
+    expect(slots.find((s) => s.documentType === 'DRIVING_LICENSE')?.label).toBe('Driving licence')
   })
 })

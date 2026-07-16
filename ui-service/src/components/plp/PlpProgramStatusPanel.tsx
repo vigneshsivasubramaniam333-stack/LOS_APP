@@ -73,7 +73,8 @@ export function PlpProgramStatusPanel({
     <div className="mt-4 rounded border border-slate-200 bg-white p-4">
       <h4 className="bt-card-title mb-2">PLP program status</h4>
       <p className="text-sm text-slate-600 mb-2">
-        L1/L2 approval is done in PLP. LOS mirrors PLP status only.
+        L1/L2 approval is done in PLP. Refresh pulls status plus commercial fields (interest rate,
+        dependency, limits) into LOS for the RM view.
       </p>
       <p className="text-sm text-slate-800 mb-2">
         LOS: <strong>{LOS_STATUS_LABEL[st]}</strong>

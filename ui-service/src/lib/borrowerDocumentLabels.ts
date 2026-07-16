@@ -2,6 +2,8 @@
 const DOC_TYPE_LABEL: Record<string, string> = {
   PAN_CARD: 'PAN card',
   AADHAAR: 'Aadhaar',
+  VOTER_ID: 'Voter ID card',
+  DRIVING_LICENSE: 'Driving licence',
   BANK_STATEMENT: 'Bank statement',
   PHOTOGRAPH: 'Photograph',
   INCOME_PROOF: 'Income proof (salary / ITR)',

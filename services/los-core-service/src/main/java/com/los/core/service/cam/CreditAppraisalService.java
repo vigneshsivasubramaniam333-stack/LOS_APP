@@ -296,6 +296,14 @@ public class CreditAppraisalService {
         return changed;
     }
 
+    /** True when the officer has submitted the CAM and the manager may approve it. */
+    public boolean isCamAwaitingManagerReview(UUID applicationId) {
+        return camRepository.findByApplicationId(applicationId)
+                .map(cam -> "SUBMITTED".equalsIgnoreCase(
+                        cam.getCamStatus() != null ? cam.getCamStatus() : "DRAFT"))
+                .orElse(false);
+    }
+
     @Transactional
     public void markReviewed(UUID applicationId, UUID approvedByUserId) {
         CreditAppraisalMemo cam = camRepository.findByApplicationId(applicationId)

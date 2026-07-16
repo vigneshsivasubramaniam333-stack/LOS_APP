@@ -29,6 +29,15 @@ const INVOICE_FLOW_TYPES = [
 const DEFAULT_ID_INTEREST_RATE = '12'
 const DEFAULT_ID_TENURE_DAYS = '90'
 
+/** Matches LOS backend: editable on SENT_BACK, or before a successful PLP sync hands the program to L1. */
+function rmMayEditProgram(saved: PlpProgramSetupResponse | null): boolean {
+  if (!saved) return true
+  const status = saved.approvalStatus ?? 'DRAFT'
+  if (status === 'SENT_BACK') return true
+  if (status === 'APPROVED' || status === 'PENDING_L2' || status === 'REJECTED') return false
+  return saved.programSyncStatus !== 'SYNC_SUCCESS'
+}
+
 function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpProgramSetupResponse {
   return {
     programId: p.programId,
@@ -50,6 +59,10 @@ function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpPr
     plpSubProgramId: null,
     programSyncedAt: null,
     subProgramSyncedAt: null,
+    approvalStatus: p.approvalStatus ?? null,
+    approvalNotes: p.approvalNotes ?? null,
+    dependencyVintagePercent: p.dependencyVintagePercent ?? null,
+    anchorRelationshipVintageMonths: p.anchorRelationshipVintageMonths ?? null,
   }
 }
 
@@ -80,6 +93,43 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   const [saved, setSaved] = useState<PlpProgramSetupResponse | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
+  const applyProgramSummary = useCallback((existing: PlpProgramSummary, resolvedAnchorId: string) => {
+    const hydrated = setupResponseFromSummary(existing, resolvedAnchorId)
+    setSaved(hydrated)
+    setProgramName(existing.programName)
+    setProgramType(existing.programType)
+    setCreditLimit(existing.creditLimit != null ? String(existing.creditLimit) : '')
+    setInterestRate(existing.interestRate != null ? String(existing.interestRate) : '')
+    setTenureDays(existing.tenureDays != null ? String(existing.tenureDays) : '')
+    setValidityStart(existing.validityStartDate ?? '')
+    setValidityEnd(existing.validityEndDate ?? '')
+    if (existing.flowType) setFlowType(existing.flowType)
+    if (existing.lmsEntryIn) setLmsEntryIn(existing.lmsEntryIn)
+    if (existing.encoreProductCode) setEncoreProductCode(existing.encoreProductCode)
+    setDependencyVintagePercent(
+      existing.dependencyVintagePercent != null ? String(existing.dependencyVintagePercent) : '',
+    )
+    setAnchorRelationshipVintageMonths(
+      existing.anchorRelationshipVintageMonths != null
+        ? String(existing.anchorRelationshipVintageMonths)
+        : '',
+    )
+    return hydrated
+  }, [])
+
+  const reloadProgramFromLos = useCallback(async () => {
+    if (!anchorId) return
+    try {
+      const programs = await listPlpProgramsForAnchor(anchorId)
+      const existing = programs[0]
+      if (existing) {
+        applyProgramSummary(existing, anchorId)
+      }
+    } catch {
+      /* keep current form values */
+    }
+  }, [anchorId, applyProgramSummary])
+
   const loadAnchors = useCallback(async () => {
     try {
       const list = await listSyncedAnchors()
@@ -103,24 +153,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           const existing = programs[0]
           if (existing) {
             hasExistingProgram = true
-            const hydrated = setupResponseFromSummary(existing, resolvedAnchorId)
-            setSaved(hydrated)
-            setProgramName(existing.programName)
-            setProgramType(existing.programType)
-            setCreditLimit(existing.creditLimit != null ? String(existing.creditLimit) : '')
-            setInterestRate(existing.interestRate != null ? String(existing.interestRate) : '')
-            setTenureDays(existing.tenureDays != null ? String(existing.tenureDays) : '')
-            setValidityStart(existing.validityStartDate ?? '')
-            setValidityEnd(existing.validityEndDate ?? '')
-            if (existing.flowType) setFlowType(existing.flowType)
-            if (existing.lmsEntryIn) setLmsEntryIn(existing.lmsEntryIn)
-            if (existing.encoreProductCode) setEncoreProductCode(existing.encoreProductCode)
-            if (existing.dependencyVintagePercent != null) {
-              setDependencyVintagePercent(String(existing.dependencyVintagePercent))
-            }
-            if (existing.anchorRelationshipVintageMonths != null) {
-              setAnchorRelationshipVintageMonths(String(existing.anchorRelationshipVintageMonths))
-            }
+            const hydrated = applyProgramSummary(existing, resolvedAnchorId)
             if (
               hydrated.programSyncStatus === 'SYNC_SUCCESS' &&
               hydrated.subProgramSyncStatus === 'SYNC_SUCCESS'
@@ -156,7 +189,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load anchors.')
     }
-  }, [app.id, app.requestedAmount])
+  }, [app.id, app.requestedAmount, applyProgramSummary])
 
   useEffect(() => {
     void loadAnchors()
@@ -169,6 +202,12 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
     }
     if (!canCreateProgram) {
       setError('Only Relationship Manager or Admin can create or update PLP programs.')
+      return
+    }
+    if (!rmMayEditProgram(saved)) {
+      setError(
+        'Program is under PLP review. Wait for a send-back before editing interest rate, dependency, or other details.',
+      )
       return
     }
     if (!anchorId || !programName.trim()) {
@@ -301,6 +340,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
             busy={busy}
             canCreate={canCreateProgram}
             ratingComplete={ratingComplete}
+            formLocked={!rmMayEditProgram(saved)}
             saved={saved}
             onSave={() => void handleSave()}
             successMsg={successMsg}
@@ -345,7 +385,9 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           />
         )
       ) : null}
-      {saved?.programId ? <PlpProgramStatusPanel programId={saved.programId} /> : null}
+      {saved?.programId ? (
+        <PlpProgramStatusPanel programId={saved.programId} onUpdated={() => void reloadProgramFromLos()} />
+      ) : null}
     </div>
   )
 }
@@ -383,6 +425,7 @@ function ProgramSetupForm(props: {
   busy: boolean
   canCreate: boolean
   ratingComplete: boolean
+  formLocked: boolean
   saved: PlpProgramSetupResponse | null
   onSave: () => void
   onRetryProgram: () => Promise<void>
@@ -421,14 +464,23 @@ function ProgramSetupForm(props: {
     busy,
     canCreate,
     ratingComplete,
+    formLocked,
     saved,
     onSave,
     onRetryProgram,
     onRetrySubProgram,
   } = props
 
+  const fieldsDisabled = formLocked || !canCreate
+
   return (
     <div className="border-t border-slate-200 px-4 pb-4 pt-2">
+      {formLocked ? (
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Program is under PLP review. Fields are read-only until L1/L2 sends the program back. Use{' '}
+          <strong>Refresh from PLP</strong> below to pull interest rate, dependency, and status updates.
+        </p>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
           Anchor
@@ -436,7 +488,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={anchorId}
             onChange={(e) => setAnchorId(e.target.value)}
-            disabled={anchors.length === 0}
+            disabled={fieldsDisabled || anchors.length === 0 || Boolean(saved)}
           >
             {anchors.length === 0 ? (
               <option value="">
@@ -460,6 +512,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={programName}
             onChange={(e) => setProgramName(e.target.value)}
+            disabled={fieldsDisabled}
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
@@ -468,6 +521,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={programType}
             onChange={(e) => setProgramType(e.target.value)}
+            disabled={fieldsDisabled}
           >
             {PROGRAM_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -483,6 +537,7 @@ function ProgramSetupForm(props: {
               className="mt-1 bt-input w-full text-sm"
               value={flowType}
               onChange={(e) => setFlowType(e.target.value)}
+              disabled={fieldsDisabled}
             >
               {INVOICE_FLOW_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -499,6 +554,7 @@ function ProgramSetupForm(props: {
               className="mt-1 bt-input w-full text-sm"
               value={lmsEntryIn}
               onChange={(e) => setLmsEntryIn(e.target.value)}
+              disabled={fieldsDisabled}
             >
               <option value="NO">No — internal loan account on PLP</option>
               <option value="YES">Yes — create loan in Encore LMS</option>
@@ -513,6 +569,7 @@ function ProgramSetupForm(props: {
               value={encoreProductCode}
               onChange={(e) => setEncoreProductCode(e.target.value)}
               placeholder="e.g. IPPOPAYM01"
+              disabled={fieldsDisabled}
             />
           </label>
         ) : null}
@@ -528,6 +585,7 @@ function ProgramSetupForm(props: {
                 value={dependencyVintagePercent}
                 onChange={(e) => setDependencyVintagePercent(e.target.value)}
                 placeholder="e.g. 12.00"
+                disabled={fieldsDisabled}
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
@@ -540,6 +598,7 @@ function ProgramSetupForm(props: {
                 value={anchorRelationshipVintageMonths}
                 onChange={(e) => setAnchorRelationshipVintageMonths(e.target.value)}
                 placeholder="e.g. 10"
+                disabled={fieldsDisabled}
               />
             </label>
           </>
@@ -551,6 +610,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={creditLimit}
             onChange={(e) => setCreditLimit(e.target.value)}
+            disabled={fieldsDisabled}
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
@@ -561,6 +621,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={interestRate}
             onChange={(e) => setInterestRate(e.target.value)}
+            disabled={fieldsDisabled}
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
@@ -570,6 +631,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={tenureDays}
             onChange={(e) => setTenureDays(e.target.value)}
+            disabled={fieldsDisabled}
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
@@ -579,6 +641,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={validityStart}
             onChange={(e) => setValidityStart(e.target.value)}
+            disabled={fieldsDisabled}
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
@@ -588,6 +651,7 @@ function ProgramSetupForm(props: {
             className="mt-1 bt-input w-full text-sm"
             value={validityEnd}
             onChange={(e) => setValidityEnd(e.target.value)}
+            disabled={fieldsDisabled}
           />
         </label>
       </div>
@@ -634,10 +698,16 @@ function ProgramSetupForm(props: {
       <button
         type="button"
         className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        disabled={busy || !canCreate}
+        disabled={busy || !canCreate || formLocked}
         onClick={onSave}
       >
-        {busy ? 'Saving…' : saved ? 'Update & resubmit to PLP' : 'Save program to PLP'}
+        {busy
+          ? 'Saving…'
+          : formLocked
+            ? 'Locked until PLP send-back'
+            : saved
+              ? 'Update & resubmit to PLP'
+              : 'Save program to PLP'}
       </button>
     </div>
   )

@@ -21,6 +21,11 @@ type LoadState =
   | { status: 'ok'; kind: 'transactions'; source: ServicingSource; data: TransactionRow[] }
   | { status: 'err'; message: string }
 
+function money(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n))) return '—'
+  return `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 function sourceNote(mode: Mode, source: ServicingSource): string {
   if (source === 'LMS') {
     return 'Sourced live from the loan management system (Encore).'
@@ -99,10 +104,10 @@ export function BorrowerLoanSubPage({ mode }: { mode: Mode }) {
                 <tr key={r.installmentNo} className="">
                   <td className="px-5 py-4 tabular-nums">{r.installmentNo}</td>
                   <td className="whitespace-nowrap px-5 py-4">{r.dueDate}</td>
-                  <td className="px-5 py-4 tabular-nums">₹{r.emi}</td>
-                  <td className="px-5 py-4 tabular-nums">₹{r.principal}</td>
-                  <td className="px-5 py-4 tabular-nums">₹{r.interest}</td>
-                  <td className="px-5 py-4 tabular-nums">₹{r.outstandingPrincipal}</td>
+                  <td className="px-5 py-4 tabular-nums">{money(r.emi)}</td>
+                  <td className="px-5 py-4 tabular-nums">{money(r.principal)}</td>
+                  <td className="px-5 py-4 tabular-nums">{money(r.interest)}</td>
+                  <td className="px-5 py-4 tabular-nums">{money(r.outstandingPrincipal)}</td>
                 </tr>
               ))}
             </tbody>

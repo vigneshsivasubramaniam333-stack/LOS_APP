@@ -58,7 +58,11 @@ import { notifyError, notifySuccess } from '@/lib/notify'
 import { notifyBorrowerToComplete, submitDelegatedBorrowerIntake } from '@/api/workflow'
 import { activeCatalogHasSecuredProduct, uniqueActiveWorkflowLoanProducts, workflowLoanProductDisplayName } from '@/utils/workflowProducts'
 import { hydrateIntakeFormFromApplication } from '@/lib/intake/hydrateIntakeFromApplication'
-import { applyHydratedIntakeDefaults, inferFirstIncompleteIntakeStep } from '@/lib/intake/intakeResume'
+import {
+  applyHydratedIntakeDefaults,
+  inferFirstIncompleteIntakeStep,
+  staffCanContinueIntake,
+} from '@/lib/intake/intakeResume'
 import {
   isBorrowerResumableIntakeStatus,
   isDelegatedBorrowerIntake,
@@ -71,6 +75,7 @@ import {
 import { IntakeTenureField } from '@/components/intake/IntakeTenureField'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import type { BorrowerType } from '@/types/createApplication'
+import type { ApplicationStatus } from '@/types/application'
 
 function Stepper({ step, labels }: { step: number; labels: readonly string[] }) {
   return (
@@ -102,8 +107,13 @@ export interface ApplicationIntakeWizardProps {
   mode: IntakeMode
   /** Lender / sales pages use the staff header + back link; borrower layout uses its own shell. */
   variant: 'borrower' | 'staff'
-  /** Staff: resume intake on an existing DRAFT application (`/applications/:id/intake`). */
+  /** Staff: resume intake on an existing editable application (`/applications/:id/intake`). */
   editApplicationId?: string
+}
+
+/** Statuses where RM is editing an already-submitted case — save changes, do not re-submit for KYC. */
+function isStaffPostSubmitEditStatus(status: ApplicationStatus | null): boolean {
+  return status === 'BORROWER_SUBMITTED' || status === 'SENT_BACK_TO_RM'
 }
 
 export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: ApplicationIntakeWizardProps) {
@@ -132,6 +142,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
   const [resumeError, setResumeError] = useState<string | null>(null)
   const [incompleteServer, setIncompleteServer] = useState<BorrowerAppSummary[]>([])
   const [resumeLoaded, setResumeLoaded] = useState(false)
+  const [resumedAppStatus, setResumedAppStatus] = useState<ApplicationStatus | null>(null)
 
   const resumeApplicationId =
     editApplicationId ?? (variant === 'borrower' ? searchParams.get('resume') : null)
@@ -259,6 +270,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
 
   useEffect(() => {
     setResumeLoaded(false)
+    setResumedAppStatus(null)
   }, [resumeApplicationId])
 
   useEffect(() => {
@@ -280,11 +292,14 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
             return
           }
         } else if (editApplicationId) {
-          if (app.status !== 'DRAFT' || app.intakeOwner === 'BORROWER') {
-            setResumeError('Only staff-owned DRAFT applications can be edited here.')
+          if (!staffCanContinueIntake(app)) {
+            setResumeError(
+              'This application cannot be edited in Continue intake. Open it from the applications list, or wait until it is with the Relationship Manager again.',
+            )
             return
           }
         }
+        setResumedAppStatus(app.status)
         const h0 = hydrateIntakeFormFromApplication(app)
         let h = applyHydratedIntakeDefaults(h0, app, variant)
         try {
@@ -639,13 +654,23 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
 
   async function onSubmitFinal() {
     if (!applicationId) return
-    if (!allConsentsChecked(form)) {
-      setError('All consents are required before submission.')
-      return
-    }
     setBusy(true)
     setError(null)
     try {
+      // RM editing a case already with them — persist intake changes and return (do not re-run KYC submit).
+      if (editApplicationId && isStaffPostSubmitEditStatus(resumedAppStatus)) {
+        await updateApplication(applicationId, buildIntakeBorrowerUpdate(form, mode, user))
+        if (needColl) {
+          await persistBorrowerIntakeCollateral(applicationId, form)
+        }
+        notifySuccess('Application details updated.')
+        void navigate(`/applications/${applicationId}`, { replace: true })
+        return
+      }
+      if (!allConsentsChecked(form)) {
+        setError('All consents are required before submission.')
+        return
+      }
       let useDelegated = delegatedApp
       if (variant === 'borrower' && !useDelegated) {
         const app = await getApplication(applicationId)
@@ -728,7 +753,9 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
             title={editApplicationId ? 'Continue application intake' : pageTitle(mode)}
             description={
               editApplicationId
-                ? 'Resume filling this draft application. Fields follow the active workflow configuration.'
+                ? isStaffPostSubmitEditStatus(resumedAppStatus)
+                  ? 'Update borrower and KYC details while this application is with the Relationship Manager. Changes are saved to the existing application.'
+                  : 'Resume filling this draft application. Fields follow the active workflow configuration.'
                 : pageDescription(mode)
             }
           />
@@ -1658,15 +1685,23 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy
-              ? 'Submitting…'
-              : delegatedApp
-                ? 'Submit for review'
-                : variant === 'borrower'
-                  ? 'Submit application'
-                  : 'Submit for verification'}
+              ? isStaffPostSubmitEditStatus(resumedAppStatus)
+                ? 'Saving…'
+                : 'Submitting…'
+              : isStaffPostSubmitEditStatus(resumedAppStatus)
+                ? 'Save changes'
+                : delegatedApp
+                  ? 'Submit for review'
+                  : variant === 'borrower'
+                    ? 'Submit application'
+                    : 'Submit for verification'}
           </button>
         )}
-        {staffCanCreateOrNotify && step === steps.borrower && !anchorBranch && notifyBasicsOk ? (
+        {staffCanCreateOrNotify &&
+        step === steps.borrower &&
+        !anchorBranch &&
+        notifyBasicsOk &&
+        !isStaffPostSubmitEditStatus(resumedAppStatus) ? (
           <button
             type="button"
             onClick={() => {

@@ -16,6 +16,8 @@ import type { DocumentResponse } from '@/types/document'
 const PRESET_DOC_TYPES = [
   { value: 'PAN_CARD', label: 'PAN card' },
   { value: 'AADHAAR', label: 'Aadhaar' },
+  { value: 'VOTER_ID', label: 'Voter ID card' },
+  { value: 'DRIVING_LICENSE', label: 'Driving licence' },
   { value: 'BANK_STATEMENT', label: 'Bank statement' },
   { value: 'PHOTOGRAPH', label: 'Photograph' },
   { value: 'INCOME_PROOF', label: 'Income proof (salary / ITR)' },

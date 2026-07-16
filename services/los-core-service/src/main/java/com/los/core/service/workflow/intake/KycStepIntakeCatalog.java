@@ -21,8 +21,8 @@ public final class KycStepIntakeCatalog {
     private static final Map<String, StepIntakeMeta> CATALOG = Map.ofEntries(
             Map.entry("PAN_VERIFY", new StepIntakeMeta("panNumber", List.of("PAN_CARD"))),
             Map.entry("AADHAAR_OTP", new StepIntakeMeta("aadhaar", List.of("AADHAAR"))),
-            Map.entry("VOTER_ID_VERIFY", new StepIntakeMeta("voterId", List.of())),
-            Map.entry("DL_VERIFY", new StepIntakeMeta("dlNumber", List.of())),
+            Map.entry("VOTER_ID_VERIFY", new StepIntakeMeta("voterId", List.of("VOTER_ID"))),
+            Map.entry("DL_VERIFY", new StepIntakeMeta("dlNumber", List.of("DRIVING_LICENSE"))),
             Map.entry("GSTIN_VERIFY", new StepIntakeMeta("gstin", List.of("GST_RETURN"))),
             Map.entry("BANK_PENNY_DROP", new StepIntakeMeta("bankAccountNumber", List.of("BANK_STATEMENT"))),
             Map.entry("FACE_MATCH", new StepIntakeMeta(null, List.of("PHOTOGRAPH"))),

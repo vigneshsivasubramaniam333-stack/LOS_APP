@@ -57,19 +57,24 @@ export function BorrowerSubmissionReviewPanel({
   const inPreSanctionWindow = PRE_SANCTION_SEND_BACK_STATUSES.has(status)
   /** Anchor apps are staff-owned; there is no RM → borrower portal send-back. CO → RM still applies. */
   const isAnchorApp = isInvoiceDiscountingAnchorApp(app)
+  const camSubmittedToManager = app.camStatus === 'SUBMITTED'
 
   const showHandoffRm =
     (status === 'BORROWER_SUBMITTED' || status === 'SENT_BACK_TO_RM') && canHandOffToCo(role)
   const showSendBackToBorrower =
     !isAnchorApp &&
     canSendBackToBorrower(role) &&
-    (status === 'BORROWER_SUBMITTED' ||
-      status === 'PENDING_CREDIT_OFFICER' ||
-      status === 'SENT_BACK_TO_RM' ||
-      inPreSanctionWindow)
+    (status === 'BORROWER_SUBMITTED' || status === 'SENT_BACK_TO_RM')
   const showAcceptCo = status === 'PENDING_CREDIT_OFFICER' && canAcceptBorrowerSubmission(role)
   const showSendBackToRm =
-    canSendBackToRm(role) && (status === 'PENDING_CREDIT_OFFICER' || inPreSanctionWindow)
+    canSendBackToRm(role) &&
+    !camSubmittedToManager &&
+    (status === 'PENDING_CREDIT_OFFICER' ||
+      status === 'KYC_IN_PROGRESS' ||
+      status === 'KYC_FAILED' ||
+      status === 'UNDERWRITING' ||
+      status === 'UNDERWRITING_COMPLETED' ||
+      status === 'CAM_READY')
   const showAdminAcceptFromSubmitted =
     status === 'BORROWER_SUBMITTED' &&
     (role === 'ADMIN' || role === 'ADMINISTRATOR') &&
@@ -106,9 +111,11 @@ export function BorrowerSubmissionReviewPanel({
       : status === 'SENT_BACK_TO_RM'
         ? 'Sent back to Relationship Manager'
         : inPreSanctionWindow
-          ? isAnchorApp
-            ? 'Application in processing — CO can send back to RM'
-            : 'Application in processing — send-back available'
+          ? camSubmittedToManager
+            ? 'Submitted to Credit Manager'
+            : isAnchorApp
+              ? 'Application in processing — CO can send back to RM'
+              : 'Application in processing — send-back available'
           : 'Borrower submitted — review required'
 
   const blurb =
@@ -119,9 +126,11 @@ export function BorrowerSubmissionReviewPanel({
           ? 'Credit Officer returned this file. Hand off again to Credit Officer when ready.'
           : 'Credit Officer returned this file. Hand off again to Credit Officer when ready, or send back to the borrower.'
         : inPreSanctionWindow
-          ? isAnchorApp
-            ? 'Optional send-back to the Relationship Manager remains available until sanction or eSign. Anchor applications are not sent back to a borrower portal.'
-            : 'Optional send-back remains available until sanction or eSign. RM can return the case to the borrower; CO can return it to the RM.'
+          ? camSubmittedToManager
+            ? 'This case is already submitted to the Credit Manager. Further send-back to RM stays hidden until the manager sends the CAM back.'
+            : isAnchorApp
+              ? 'Optional send-back to the Relationship Manager remains available until CAM submission or sanction. Anchor applications are not sent back to a borrower portal.'
+              : 'Optional send-back remains available while the case is still with RM/CO. RM can return it to the borrower before handoff, and CO can return it to the RM before CAM submission.'
           : 'The borrower completed the delegated intake. Hand off to Credit Officer, or send back to the borrower.'
 
   return (

@@ -130,4 +130,5 @@ export interface ApplicationResponse {
   /** Merged in GET /applications/{id}: provider vs manual + effective. */
   creditControlView?: Record<string, unknown> | null
   latestUnderwritingEvaluation?: Record<string, unknown> | null
+  camStatus?: 'DRAFT' | 'SUBMITTED' | 'SENT_BACK' | 'REJECTED' | 'APPROVED' | null
 }

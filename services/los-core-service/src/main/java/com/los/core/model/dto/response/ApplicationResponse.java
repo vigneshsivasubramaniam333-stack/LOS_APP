@@ -110,4 +110,6 @@ public class ApplicationResponse {
     private Map<String, Object> creditControlView;
     /** Latest row from {@code underwriting_evaluations}. */
     private Map<String, Object> latestUnderwritingEvaluation;
+    /** Current CAM workflow state when a memo exists (e.g. DRAFT, SUBMITTED, SENT_BACK, APPROVED). */
+    private String camStatus;
 }
