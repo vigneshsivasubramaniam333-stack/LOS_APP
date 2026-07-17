@@ -10,6 +10,7 @@ const STATUS_LABELS: Record<string, string> = {
   UNDERWRITING: 'Underwriting',
   UNDERWRITING_COMPLETED: 'Underwriting completed',
   CAM_READY: 'CAM ready',
+  CAM_SENT_BACK: 'CAM sent back',
   CAM_REVIEWED: 'CAM reviewed',
   SANCTIONED: 'Sanctioned',
   DISBURSED: 'Disbursed',

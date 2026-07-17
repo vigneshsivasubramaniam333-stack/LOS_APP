@@ -15,6 +15,7 @@ export type ApplicationStatus =
   | 'APPROVED'
   | 'REJECTED'
   | 'CAM_READY'
+  | 'CAM_SENT_BACK'
   | 'CAM_REVIEWED'
   | 'SANCTION_PENDING'
   | 'SANCTIONED'

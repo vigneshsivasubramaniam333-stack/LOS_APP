@@ -236,7 +236,7 @@ export function AnchorIntakeWizard({
           setResumeError('This is not an anchor application.')
           return
         }
-        if (!staffCanContinueIntake(app)) {
+        if (!staffCanContinueIntake(app, user?.role)) {
           setResumeError(
             'This anchor application cannot be edited in Continue intake right now. It may already be with Credit Officer.',
           )

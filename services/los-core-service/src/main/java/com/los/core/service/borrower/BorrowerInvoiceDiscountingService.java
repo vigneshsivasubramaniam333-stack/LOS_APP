@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -84,6 +85,7 @@ public class BorrowerInvoiceDiscountingService {
                     loans.add(toLoan(loan));
                 }
             }
+            invoices = enrichInvoicesWithLoanOutstanding(invoices, loans);
             String paymentMethod = "SMART_COLLECT";
             try {
                 paymentMethod = plpBorrowerClient.getPaymentMethod(plpBorrowerId.get());
@@ -427,6 +429,78 @@ public class BorrowerInvoiceDiscountingService {
                 .earlyPayable(earlyPayable)
                 .digitalInvoiceFileName(asString(inv.get("digitalInvoiceFileName")))
                 .digitalInvoiceContentType(asString(inv.get("digitalInvoiceContentType")))
+                .build();
+    }
+
+    /**
+     * When PLP reports zero available (e.g. fully discounted) but a live loan has LMS outstanding,
+     * surface that balance in the invoice list "Available" column.
+     */
+    private static List<BorrowerInvoiceItemResponse> enrichInvoicesWithLoanOutstanding(
+            List<BorrowerInvoiceItemResponse> invoices,
+            List<BorrowerInvoiceLoanResponse> loans) {
+        Map<String, BigDecimal> outstandingByInvoice = new HashMap<>();
+        for (BorrowerInvoiceLoanResponse loan : loans) {
+            String invId = loan.getInvoiceId();
+            if (invId == null || invId.isBlank()) {
+                continue;
+            }
+            BigDecimal outstanding = loan.getOutstandingAmount();
+            if (outstanding == null || outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+                outstanding = loan.getTotalRepayable();
+            }
+            if (outstanding != null && outstanding.compareTo(BigDecimal.ZERO) > 0) {
+                outstandingByInvoice.merge(invId, outstanding, BigDecimal::add);
+            }
+        }
+        if (outstandingByInvoice.isEmpty()) {
+            return invoices;
+        }
+        List<BorrowerInvoiceItemResponse> enriched = new ArrayList<>();
+        for (BorrowerInvoiceItemResponse inv : invoices) {
+            BigDecimal outstanding = outstandingByInvoice.get(inv.getInvoiceId());
+            if (outstanding == null) {
+                enriched.add(inv);
+                continue;
+            }
+            BigDecimal current = inv.getAvailableAmount();
+            if (current != null && current.compareTo(BigDecimal.ZERO) > 0) {
+                enriched.add(inv);
+                continue;
+            }
+            enriched.add(copyInvoiceWithAvailable(inv, outstanding));
+        }
+        return enriched;
+    }
+
+    private static BorrowerInvoiceItemResponse copyInvoiceWithAvailable(
+            BorrowerInvoiceItemResponse inv, BigDecimal availableAmount) {
+        return BorrowerInvoiceItemResponse.builder()
+                .invoiceId(inv.getInvoiceId())
+                .invoiceNumber(inv.getInvoiceNumber())
+                .invoiceDate(inv.getInvoiceDate())
+                .dueDate(inv.getDueDate())
+                .invoiceAmount(inv.getInvoiceAmount())
+                .netAmount(inv.getNetAmount())
+                .eligibleAmount(inv.getEligibleAmount())
+                .availableAmount(availableAmount)
+                .status(inv.getStatus())
+                .friendlyStatus(inv.getFriendlyStatus())
+                .programId(inv.getProgramId())
+                .anchorId(inv.getAnchorId())
+                .flowType(inv.getFlowType())
+                .acceptable(inv.isAcceptable())
+                .financeable(inv.isFinanceable())
+                .maxFinanceableAmount(inv.getMaxFinanceableAmount())
+                .suggestedFinanceAmount(inv.getSuggestedFinanceAmount())
+                .pipAmount(inv.getPipAmount())
+                .subProgramId(inv.getSubProgramId())
+                .isEarlyPayAllowed(inv.getIsEarlyPayAllowed())
+                .showEarlyPay(inv.getShowEarlyPay())
+                .balDueAmount(inv.getBalDueAmount())
+                .earlyPayable(inv.isEarlyPayable())
+                .digitalInvoiceFileName(inv.getDigitalInvoiceFileName())
+                .digitalInvoiceContentType(inv.getDigitalInvoiceContentType())
                 .build();
     }
 

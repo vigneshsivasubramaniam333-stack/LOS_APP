@@ -355,6 +355,7 @@ export function CamSection({
   const camWorkflowOpen =
     !!cam &&
     (app.status === 'CAM_READY' ||
+      app.status === 'CAM_SENT_BACK' ||
       app.status === 'CAM_REVIEWED' ||
       app.status === 'SANCTION_PENDING' ||
       app.status === 'APPROVED' ||

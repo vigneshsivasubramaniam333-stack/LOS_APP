@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getProgramApproval,
   refreshPlpProgramStatus,
@@ -18,16 +18,21 @@ const LOS_STATUS_LABEL: Record<ProgramApprovalStatus, string> = {
 export function PlpProgramStatusPanel({
   programId,
   onUpdated,
+  autoRefreshOnMount = true,
 }: {
   programId: string
   onUpdated?: () => void
+  /** Pull latest status and commercial fields from PLP when the panel opens (e.g. sanction tab). */
+  autoRefreshOnMount?: boolean
 }) {
   const [status, setStatus] = useState<ProgramApprovalResponse | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const onUpdatedRef = useRef(onUpdated)
+  onUpdatedRef.current = onUpdated
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(null)
     try {
       setStatus(await getProgramApproval(programId))
@@ -35,27 +40,39 @@ export function PlpProgramStatusPanel({
       setError(e instanceof ApiError ? e.message : 'Failed to load program status')
       setStatus(null)
     }
-  }
-
-  useEffect(() => {
-    void (async () => {
-      setLoading(true)
-      await load()
-      setLoading(false)
-    })()
   }, [programId])
 
-  async function onRefresh() {
+  const refreshFromPlp = useCallback(async () => {
     setBusy(true)
     setError(null)
     try {
       setStatus(await refreshPlpProgramStatus(programId))
-      onUpdated?.()
+      onUpdatedRef.current?.()
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Failed to refresh from PLP')
     } finally {
       setBusy(false)
     }
+  }, [programId])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      await load()
+      if (cancelled) return
+      setLoading(false)
+      if (autoRefreshOnMount) {
+        await refreshFromPlp()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [load, refreshFromPlp, autoRefreshOnMount])
+
+  async function onRefresh() {
+    await refreshFromPlp()
   }
 
   if (loading) {

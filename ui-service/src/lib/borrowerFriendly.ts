@@ -19,6 +19,7 @@ export function friendlyStatusHeadline(status: ApplicationStatus): string {
     REJECTED: 'Application did not go through',
     SANCTION_ISSUED: 'Your terms are being prepared',
     CAM_READY: 'We are finalising the credit summary',
+    CAM_SENT_BACK: 'Credit summary sent back for revision',
     CAM_REVIEWED: 'Moving to the next step',
     SANCTION_PENDING: 'Final approval in progress',
     SANCTIONED: 'Your loan is approved on agreed terms',

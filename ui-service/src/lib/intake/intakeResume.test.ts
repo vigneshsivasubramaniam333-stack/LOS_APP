@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { INVOICE_DISCOUNTING_PRODUCT_CODE } from '@/catalog/loanProducts'
 import { createEmptyIntakeFormState } from './intakeTypes'
-import { applyHydratedIntakeDefaults, inferFirstIncompleteIntakeStep } from './intakeResume'
+import { applyHydratedIntakeDefaults, inferFirstIncompleteIntakeStep, staffCanContinueIntake } from './intakeResume'
 import { staffIntakeStepIndices } from './staffIntakeSteps'
 import { validateProductStep } from './intakeValidation'
 import type { ApplicationResponse } from '@/types/application'
@@ -104,6 +104,13 @@ describe('intakeResume', () => {
     )
     expect(step).toBe(steps.consent)
     expect(step).toBeLessThan(steps.kyc)
+  })
+
+  it('staffCanContinueIntake blocks credit officers', () => {
+    const draft = app({ status: 'DRAFT', intakeOwner: 'STAFF' })
+    expect(staffCanContinueIntake(draft, 'RELATIONSHIP_MANAGER')).toBe(true)
+    expect(staffCanContinueIntake(draft, 'CREDIT_OFFICER')).toBe(false)
+    expect(staffCanContinueIntake(draft, 'ADMIN')).toBe(true)
   })
 
   it('inferFirstIncompleteIntakeStep does not jump past KYC when KYC is empty', () => {

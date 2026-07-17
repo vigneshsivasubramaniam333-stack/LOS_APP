@@ -215,7 +215,7 @@ export function ApplicationDetailPage() {
         actions={
           app && id ? (
             <div className="flex flex-wrap items-center gap-3">
-              {staffCanContinueIntake(app) ? (
+              {staffCanContinueIntake(app, user?.role) ? (
                 <Link
                   to={`/applications/${id}/intake`}
                   className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white"

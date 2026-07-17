@@ -52,6 +52,7 @@ public class ApplicationReviewService {
             ApplicationStatus.UNDERWRITING,
             ApplicationStatus.UNDERWRITING_COMPLETED,
             ApplicationStatus.CAM_READY,
+            ApplicationStatus.CAM_SENT_BACK,
             ApplicationStatus.CAM_REVIEWED,
             ApplicationStatus.SANCTION_PENDING,
             ApplicationStatus.APPROVED);

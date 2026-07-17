@@ -102,8 +102,14 @@ export function resolveIntakeResumeStep(
  * - staff-owned DRAFT (in-progress staff intake),
  * - borrower apps still with RM ({@code BORROWER_SUBMITTED} / {@code SENT_BACK_TO_RM}),
  * - anchor apps still with RM ({@code DRAFT}, pre-CO {@code KYC_*} / {@code SENT_BACK_TO_RM}).
+ *
+ * Credit officers work cases from the application detail view, not intake resume.
  */
-export function staffCanContinueIntake(app: ApplicationResponse): boolean {
+export function staffCanContinueIntake(app: ApplicationResponse, role?: string | null): boolean {
+  const r = (role ?? '').trim().toUpperCase()
+  if (r === 'CREDIT_OFFICER') {
+    return false
+  }
   if (app.intakeSegment === 'ANCHOR') {
     return (
       app.status === 'DRAFT' ||

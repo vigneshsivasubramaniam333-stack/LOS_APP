@@ -219,6 +219,50 @@ class CreditAppraisalServiceTest {
     }
 
     @Test
+    void submitCam_fromCamSentBack_restoresCamReadyApplicationStatus() {
+        UUID id = UUID.randomUUID();
+        CreditAppraisalMemo cam = CreditAppraisalMemo.builder()
+                .applicationId(id)
+                .camStatus("SENT_BACK")
+                .camJson(Map.of())
+                .build();
+        when(camRepository.findByApplicationId(id)).thenReturn(Optional.of(cam));
+        when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
+        LoanApplication app = LoanApplication.builder().id(id).applicationNumber("X").status(ApplicationStatus.CAM_SENT_BACK).build();
+        when(applicationRepository.findById(id)).thenReturn(Optional.of(app));
+
+        CamResponse res = service.submitCam(id, null);
+        assertThat(res.getCamStatus()).isEqualTo("SUBMITTED");
+        assertThat(res.getApplicationStatus()).isEqualTo("CAM_READY");
+
+        ArgumentCaptor<LoanApplication> cap = ArgumentCaptor.forClass(LoanApplication.class);
+        verify(applicationRepository).save(cap.capture());
+        assertThat(cap.getValue().getStatus()).isEqualTo(ApplicationStatus.CAM_READY);
+    }
+
+    @Test
+    void sendBackCam_movesApplicationToCamSentBack() {
+        UUID id = UUID.randomUUID();
+        CreditAppraisalMemo cam = CreditAppraisalMemo.builder()
+                .applicationId(id)
+                .camStatus("SUBMITTED")
+                .camJson(Map.of())
+                .build();
+        when(camRepository.findByApplicationId(id)).thenReturn(Optional.of(cam));
+        when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
+        LoanApplication app = LoanApplication.builder().id(id).applicationNumber("X").status(ApplicationStatus.CAM_READY).build();
+        when(applicationRepository.findById(id)).thenReturn(Optional.of(app));
+
+        CamResponse res = service.sendBackCam(id, null, "Please revise");
+        assertThat(res.getCamStatus()).isEqualTo("SENT_BACK");
+        assertThat(res.getApplicationStatus()).isEqualTo("CAM_SENT_BACK");
+
+        ArgumentCaptor<LoanApplication> cap = ArgumentCaptor.forClass(LoanApplication.class);
+        verify(applicationRepository).save(cap.capture());
+        assertThat(cap.getValue().getStatus()).isEqualTo(ApplicationStatus.CAM_SENT_BACK);
+    }
+
+    @Test
     void markReviewed_failsIfAlreadyApproved() {
         UUID id = UUID.randomUUID();
         CreditAppraisalMemo cam = CreditAppraisalMemo.builder()

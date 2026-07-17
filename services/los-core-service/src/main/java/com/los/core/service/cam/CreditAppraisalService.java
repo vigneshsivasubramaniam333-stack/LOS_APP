@@ -8,6 +8,7 @@ import com.los.core.model.entity.CreditAppraisalMemo;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.entity.UnderwritingScorecard;
 import com.los.core.model.entity.UnderwritingEvaluation;
+import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.CreditAppraisalMemoRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.UnderwritingEvaluationRepository;
@@ -203,6 +204,11 @@ public class CreditAppraisalService {
         cam.setSubmittedAt(Instant.now());
         cam = camRepository.save(cam);
         LoanApplication app = applicationRepository.findById(applicationId).orElseThrow();
+        if (app.getStatus() == ApplicationStatus.CAM_SENT_BACK) {
+            app.setStatus(ApplicationStatus.CAM_READY);
+            app.setUpdatedAt(Instant.now());
+            applicationRepository.save(app);
+        }
         return toResponse(cam, app);
     }
 
@@ -229,6 +235,11 @@ public class CreditAppraisalService {
         cam.setCamStatus("SENT_BACK");
         cam = camRepository.save(cam);
         LoanApplication app = applicationRepository.findById(applicationId).orElseThrow();
+        if (app.getStatus() == ApplicationStatus.CAM_READY || app.getStatus() == ApplicationStatus.CAM_REVIEWED) {
+            app.setStatus(ApplicationStatus.CAM_SENT_BACK);
+            app.setUpdatedAt(Instant.now());
+            applicationRepository.save(app);
+        }
         return toResponse(cam, app);
     }
 

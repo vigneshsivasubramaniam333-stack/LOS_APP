@@ -292,7 +292,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
             return
           }
         } else if (editApplicationId) {
-          if (!staffCanContinueIntake(app)) {
+          if (!staffCanContinueIntake(app, user?.role)) {
             setResumeError(
               'This application cannot be edited in Continue intake. Open it from the applications list, or wait until it is with the Relationship Manager again.',
             )

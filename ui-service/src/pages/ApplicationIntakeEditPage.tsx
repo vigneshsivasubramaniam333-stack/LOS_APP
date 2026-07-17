@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getApplication } from '@/api/applications'
 import { ApiError } from '@/api/http'
+import { useAuth } from '@/auth/useAuth'
 import { ApplicationIntakeWizard } from '@/components/intake/ApplicationIntakeWizard'
 import { AnchorIntakeWizard } from '@/components/intake/AnchorIntakeWizard'
 import { ErrorState } from '@/components/ErrorState'
@@ -14,6 +15,7 @@ import type { ApplicationResponse } from '@/types/application'
 /** Staff continues intake / edits details on an editable borrower or anchor application. */
 export function ApplicationIntakeEditPage() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
   const [app, setApp] = useState<ApplicationResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,7 +32,7 @@ export function ApplicationIntakeEditPage() {
       try {
         const loaded = await getApplication(id)
         if (cancelled) return
-        if (!staffCanContinueIntake(loaded)) {
+        if (!staffCanContinueIntake(loaded, user?.role)) {
           setError(
             'This application cannot be edited in Continue intake right now. It may already be with Credit Officer, or is not in an RM-editable status.',
           )
@@ -50,7 +52,7 @@ export function ApplicationIntakeEditPage() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, user?.role])
 
   if (!id || !isUuid(id)) {
     return (

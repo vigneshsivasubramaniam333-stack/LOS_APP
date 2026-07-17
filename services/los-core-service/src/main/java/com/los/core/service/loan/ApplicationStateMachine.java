@@ -38,7 +38,9 @@ public final class ApplicationStateMachine {
         m.put(UNDERWRITING_COMPLETED, Set.of(
                 CAM_READY, ON_HOLD, BORROWER_SENT_BACK, SENT_BACK_TO_RM));
         m.put(CAM_READY, Set.of(
-                CAM_REVIEWED, REJECTED, ON_HOLD, WITHDRAWN, BORROWER_SENT_BACK, SENT_BACK_TO_RM));
+                CAM_REVIEWED, CAM_SENT_BACK, REJECTED, ON_HOLD, WITHDRAWN, BORROWER_SENT_BACK, SENT_BACK_TO_RM));
+        m.put(CAM_SENT_BACK, Set.of(
+                CAM_READY, REJECTED, ON_HOLD, WITHDRAWN, BORROWER_SENT_BACK, SENT_BACK_TO_RM));
         m.put(CAM_REVIEWED, Set.of(
                 SANCTION_PENDING, REJECTED, ON_HOLD, SANCTIONED, WITHDRAWN,
                 BORROWER_SENT_BACK, SENT_BACK_TO_RM));
@@ -63,6 +65,7 @@ public final class ApplicationStateMachine {
                 UNDERWRITING,
                 APPROVED,
                 CAM_READY,
+                CAM_SENT_BACK,
                 CAM_REVIEWED,
                 SANCTION_ISSUED,
                 KFS_GENERATED,

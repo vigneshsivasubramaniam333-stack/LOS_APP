@@ -20,6 +20,8 @@ public enum ApplicationStatus {
     /** Credit approved; CAM generated / awaiting review */
     UNDERWRITING_COMPLETED,
     CAM_READY,
+    /** Credit manager sent CAM back to credit officer for rework */
+    CAM_SENT_BACK,
     CAM_REVIEWED,
     SANCTION_PENDING,
     SANCTIONED,

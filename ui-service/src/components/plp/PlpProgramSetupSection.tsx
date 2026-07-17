@@ -386,7 +386,7 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
         )
       ) : null}
       {saved?.programId ? (
-        <PlpProgramStatusPanel programId={saved.programId} onUpdated={() => void reloadProgramFromLos()} />
+        <PlpProgramStatusPanel programId={saved.programId} onUpdated={reloadProgramFromLos} />
       ) : null}
     </div>
   )
