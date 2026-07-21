@@ -38,6 +38,7 @@ public class ApplicationReviewService {
     private final AuditService auditService;
     private final RabbitTemplate rabbitTemplate;
     private final WorkflowRoleGuard workflowRoleGuard;
+    private final ApplicationInputChangeTracker applicationInputChangeTracker;
 
     @Value("${los.borrower-ui-url:http://localhost:5173/borrower}")
     private String borrowerUiUrl;
@@ -114,6 +115,7 @@ public class ApplicationReviewService {
         app.setBorrowerSentBackNotes(trimmed);
         app.setIntakeOwner(IntakeOwner.BORROWER);
         storeReviewNotes(app, "SENT_BACK_TO_BORROWER", trimmed);
+        applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
         auditService.logEvent(applicationId, "FLOW", "BORROWER_SENT_BACK", null,
@@ -141,6 +143,7 @@ public class ApplicationReviewService {
         app.setStatus(ApplicationStatus.PENDING_CREDIT_OFFICER);
         app.setIntakeOwner(IntakeOwner.STAFF);
         storeReviewNotes(app, "HANDOFF_TO_CREDIT_OFFICER", trimmed);
+        applicationInputChangeTracker.refreshIntakeChangeSinceSendBack(app);
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
         auditService.logEvent(applicationId, "FLOW", "HANDOFF_TO_CREDIT_OFFICER", null,
@@ -174,6 +177,7 @@ public class ApplicationReviewService {
         app.setStatus(ApplicationStatus.SENT_BACK_TO_RM);
         app.setIntakeOwner(IntakeOwner.STAFF);
         storeReviewNotes(app, "SENT_BACK_TO_RM", trimmed);
+        applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
         auditService.logEvent(applicationId, "FLOW", "SENT_BACK_TO_RM", null,

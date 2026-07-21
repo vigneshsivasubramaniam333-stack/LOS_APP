@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { saveScorecardInputs, type ManualCreditInputsPayload } from '@/api/applications'
 import { ErrorState } from '@/components/ErrorState'
-import { buildScorecardMetricsPayload } from '@/components/scorecard/ScorecardMetricsManualSection'
+import {
+  buildCustomMetricsFromRequirements,
+  buildScorecardMetricsPayload,
+  readScorecardManualInputValue,
+} from '@/components/scorecard/ScorecardMetricsManualSection'
 import { messageForKycAction } from '@/api/kycErrorMessage'
-import { paramDef, type ScorecardParamDef } from '@/lib/credit/scorecardConfig'
-import type { ScorecardInputRequirement } from '@/lib/credit/scorecardInputRequirements'
+import type { ScorecardParamDef } from '@/lib/credit/scorecardConfig'
+import {
+  requirementToParamDef,
+  type ScorecardInputRequirement,
+} from '@/lib/credit/scorecardInputRequirements'
 import type { ApplicationResponse } from '@/types/application'
-
-function readManualValue(manual: Record<string, unknown> | undefined, key: string): string {
-  const cell = manual?.[key] as { value?: unknown } | undefined
-  if (cell?.value == null) return ''
-  return String(cell.value)
-}
 
 function yesNoFromStored(raw: string): string {
   const v = raw.trim().toUpperCase()
@@ -38,6 +39,28 @@ function FieldInput({
       </select>
     )
   }
+  if (param.type === 'enum' && param.enumOptions?.length) {
+    return (
+      <select className="bt-input w-full text-sm" value={value || ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— Select —</option>
+        {param.enumOptions.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  if (param.type === 'text') {
+    return (
+      <input
+        type="text"
+        className="bt-input w-full text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    )
+  }
   return (
     <input
       type="number"
@@ -59,56 +82,6 @@ type Props = {
   focusParameter?: string | null
 }
 
-const KNOWN_SCORECARD_MANUAL_KEYS = new Set([
-  'avgDailyBalance3m',
-  'avgMonthlyTransactions3m',
-  'avgMonthlySettlements3m',
-  'monthlyTransactions3m',
-  'inwardChequeReturns3m',
-  'avgDailySettlements3m',
-  'noOfTxns60days',
-  'txnMth1',
-  'txnMth2',
-  'txnMth3',
-  'avgGmv3m',
-  'active90days',
-  'residenceOwned',
-  'residenceStability',
-  'businessStability',
-  'existingLoanTrackRecordAll',
-  'existingLoanTrackRecord15d',
-  'qrTxnEDI',
-  'eligibleOnePointFiveX',
-])
-
-function readScorecardMetricValue(manual: Record<string, unknown> | undefined, key: string): string {
-  const raw = manual?.scorecardMetrics
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return ''
-  const cell = (raw as Record<string, unknown>)[key]
-  const value =
-    cell && typeof cell === 'object' && !Array.isArray(cell)
-      ? (cell as { value?: unknown }).value
-      : cell
-  return value == null ? '' : String(value)
-}
-
-function readScorecardInputValue(manual: Record<string, unknown> | undefined, key: string): string {
-  return readScorecardMetricValue(manual, key) || readManualValue(manual, key)
-}
-
-function customMetricsFromRequirements(
-  values: Record<string, string>,
-  requirements: ScorecardInputRequirement[],
-): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const req of requirements) {
-    if (KNOWN_SCORECARD_MANUAL_KEYS.has(req.manualKey)) continue
-    const value = values[req.manualKey]?.trim()
-    if (value) out[req.manualKey] = value
-  }
-  return out
-}
-
 /** OTHER / GST scorecard fields collected before underwriting — not in Manual credit inputs. */
 export function ScorecardPreRunInputsPanel({
   applicationId,
@@ -128,9 +101,9 @@ export function ScorecardPreRunInputsPanel({
   const initialValues = useMemo(() => {
     const out: Record<string, string> = {}
     for (const req of visibleRequirements) {
-      const def = paramDef(req.source, req.parameter)
-      const raw = readScorecardInputValue(manual, req.manualKey)
-      out[req.manualKey] = def?.type === 'yesno' ? yesNoFromStored(raw) : raw
+      const def = requirementToParamDef(req)
+      const raw = readScorecardManualInputValue(manual, req.manualKey)
+      out[req.manualKey] = def.type === 'yesno' ? yesNoFromStored(raw) : raw
     }
     return out
   }, [manual, visibleRequirements])
@@ -169,10 +142,8 @@ export function ScorecardPreRunInputsPanel({
     }
     setSaving(true)
     try {
-      const payload = buildScorecardMetricsPayload(
-        values,
-        customMetricsFromRequirements(values, visibleRequirements),
-      ) as ManualCreditInputsPayload
+      const customMetrics = buildCustomMetricsFromRequirements(values, visibleRequirements)
+      const payload = buildScorecardMetricsPayload(values, customMetrics) as ManualCreditInputsPayload
       await saveScorecardInputs(applicationId, payload)
       await onRefetch()
       setOkMsg('Scorecard inputs saved. You can start or re-run underwriting.')
@@ -193,7 +164,7 @@ export function ScorecardPreRunInputsPanel({
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {visibleRequirements.map((req) => {
-          const def = paramDef(req.source, req.parameter)
+          const def = requirementToParamDef(req)
           const ready = req.ready || Boolean(values[req.manualKey]?.trim())
           return (
             <label
@@ -207,7 +178,7 @@ export function ScorecardPreRunInputsPanel({
               </span>
               <span className="mb-2 block text-[10px] uppercase tracking-wide text-slate-500">{req.source}</span>
               <FieldInput
-                param={def ?? { value: req.parameter, label: req.label, type: 'number' }}
+                param={def}
                 value={values[req.manualKey] ?? ''}
                 onChange={(v) => setValues((prev) => ({ ...prev, [req.manualKey]: v }))}
               />

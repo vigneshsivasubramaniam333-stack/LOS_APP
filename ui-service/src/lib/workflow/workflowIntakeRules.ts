@@ -1,6 +1,11 @@
 import type { IntakeFormState } from '@/lib/intake/intakeTypes'
-import type {
-  WorkflowConfigResponse,
+import {
+  DEFAULT_LOAN_PURPOSE_OPTIONS,
+  DEFAULT_OCCUPATION_OPTIONS,
+  resolveLoanPurposeOptions,
+  resolveOccupationOptions,
+} from '@/lib/intake/intakeOptionCatalogs'
+import type {  WorkflowConfigResponse,
   WorkflowIntakeConfig,
   WorkflowMandatoryFieldGroup,
   WorkflowStandaloneDocument,
@@ -29,9 +34,13 @@ export function defaultWorkflowDrivenIntakeConfig(): WorkflowIntakeConfig {
         required: false,
         allowedValues: ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'],
       },
+      occupation: { collect: true, required: true },
+      loanPurpose: { collect: true, required: true },
     },
     ageRules: { enabled: false, minAge: 18, maxAge: 70 },
     tenureRules: { inputMode: 'numeric', min: 1, max: 360 },
+    occupationRules: { options: [...DEFAULT_OCCUPATION_OPTIONS] },
+    loanPurposeRules: { options: [...DEFAULT_LOAN_PURPOSE_OPTIONS] },
     mandatoryFieldGroups: [],
     standaloneDocuments: [],
   }
@@ -121,7 +130,7 @@ export function shouldShowKycIntakeField(
 
 export function shouldCollectPersonalField(
   workflow: WorkflowConfigResponse | null | undefined,
-  field: 'dateOfBirth' | 'gender',
+  field: 'dateOfBirth' | 'gender' | 'occupation' | 'loanPurpose',
   legacyFallback: boolean,
 ): boolean {
   if (!isWorkflowDrivenIntake(workflow)) {
@@ -129,6 +138,13 @@ export function shouldCollectPersonalField(
   }
   const cfg = workflow?.intakeConfig?.personalFields?.[field]
   return cfg?.collect === true
+}
+
+export function shouldCollectLoanPurposeField(
+  workflow: WorkflowConfigResponse | null | undefined,
+  legacyFallback = true,
+): boolean {
+  return shouldCollectPersonalField(workflow, 'loanPurpose', legacyFallback)
 }
 
 export function resolveTenureRules(workflow: WorkflowConfigResponse | null | undefined): WorkflowTenureRules | null {
@@ -297,6 +313,54 @@ export function validateWorkflowPersonalFields(
     const ok = pf.gender.allowedValues.some((v) => v.toUpperCase() === form.gender.trim().toUpperCase())
     if (!ok) {
       return 'Select a valid gender option.'
+    }
+  }
+  const occupationErr = validateWorkflowOccupation(form, workflow)
+  if (occupationErr) return occupationErr
+  return null
+}
+
+export function validateWorkflowOccupation(
+  form: IntakeFormState,
+  workflow: WorkflowConfigResponse | null | undefined,
+): string | null {
+  if (!isWorkflowDrivenIntake(workflow)) {
+    return null
+  }
+  const pf = workflow?.intakeConfig?.personalFields?.occupation
+  if (!pf?.collect) {
+    return null
+  }
+  if (pf.required && !form.occupation.trim()) {
+    return 'Select occupation.'
+  }
+  if (form.occupation.trim()) {
+    const ok = resolveOccupationOptions(workflow).some((o) => o.value === form.occupation.trim())
+    if (!ok) {
+      return 'Select a valid occupation option.'
+    }
+  }
+  return null
+}
+
+export function validateWorkflowLoanPurpose(
+  form: IntakeFormState,
+  workflow: WorkflowConfigResponse | null | undefined,
+): string | null {
+  if (!isWorkflowDrivenIntake(workflow)) {
+    return null
+  }
+  const pf = workflow?.intakeConfig?.personalFields?.loanPurpose
+  if (!pf?.collect) {
+    return null
+  }
+  if (pf.required && !form.loanPurpose.trim()) {
+    return 'Select a loan purpose.'
+  }
+  if (form.loanPurpose.trim()) {
+    const ok = resolveLoanPurposeOptions(workflow).some((o) => o.value === form.loanPurpose.trim())
+    if (!ok) {
+      return 'Select a valid loan purpose option.'
     }
   }
   return null

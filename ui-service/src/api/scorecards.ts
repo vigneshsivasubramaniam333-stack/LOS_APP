@@ -1,6 +1,19 @@
 import { http } from './http'
 import type { BorrowerType } from '@/types/createApplication'
 
+export type ScorecardInputType = 'number' | 'text' | 'dropdown'
+
+export interface ScorecardParamOption {
+  value: string
+  label: string
+  score: number
+}
+
+export interface ScorecardParameterDef {
+  inputType: ScorecardInputType
+  options?: ScorecardParamOption[]
+}
+
 export interface ScorecardRow {
   id: string
   parameter: string
@@ -9,6 +22,9 @@ export interface ScorecardRow {
   weight: number
   score: number
   attachment?: string
+  /** Editor-only for OTHER custom params; persisted via scorecardJson.parameterDefs */
+  inputType?: ScorecardInputType
+  options?: ScorecardParamOption[]
 }
 
 export interface HardRuleRow {

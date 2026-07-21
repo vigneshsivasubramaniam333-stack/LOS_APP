@@ -101,6 +101,24 @@ export const SCORECARD_PARAMETER_SOURCE_HELP: Record<
   },
   REQUESTED_AMOUNT: { label: 'Requested loan amount', sources: ['Application'] },
   TENURE_MONTHS: { label: 'Tenure', sources: ['Application'] },
+  AGE: {
+    label: 'Applicant age (years)',
+    sources: ['Date of birth collected at application intake (computed at underwriting)'],
+  },
+  OCCUPATION: {
+    label: 'Occupation',
+    sources: [
+      'Occupation code collected at application intake',
+      'Scorecard rows: EQ / MATCH_OPTION against that code',
+    ],
+  },
+  LOAN_PURPOSE: {
+    label: 'Loan purpose',
+    sources: [
+      'Loan purpose code collected at application intake',
+      'Scorecard rows: EQ / MATCH_OPTION against that code',
+    ],
+  },
   avgDailyBalance3m: {
     label: 'Avg daily balance (3m)',
     sources: ['Bank statement analytics', 'Manual credit → Scorecard metrics'],

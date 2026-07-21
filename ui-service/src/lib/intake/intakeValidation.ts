@@ -11,11 +11,15 @@ import {
   activeWorkflowForProduct,
   isWorkflowDrivenIntake,
   missingRequiredWorkflowDocuments,
+  shouldCollectLoanPurposeField,
   validateWorkflowAge,
   validateWorkflowKycStep,
+  validateWorkflowLoanPurpose,
+  validateWorkflowOccupation,
   validateWorkflowPersonalFields,
   validateWorkflowTenure,
 } from '@/lib/workflow/workflowIntakeRules'
+import { resolveLoanPurposeOptions, resolveOccupationOptions } from '@/lib/intake/intakeOptionCatalogs'
 
 export { productsForBorrowerType }
 export type { WorkflowConfigResponse }
@@ -137,6 +141,8 @@ export function validateProductStep(
   const workflow = activeWorkflowForProduct(activeWorkflows, s.borrowerType, s.loanProduct)
   const tenureErr = validateWorkflowTenure(s, workflow)
   if (tenureErr) return tenureErr
+  const loanPurposeErr = validateLoanPurposeSelection(s, workflow)
+  if (loanPurposeErr) return loanPurposeErr
   if (mode === 'SALES_ASSISTED') {
     if (!s.salesOfficerName.trim()) {
       return 'Enter the assisting sales officer name.'
@@ -228,6 +234,8 @@ export function validateBorrowerStep(
     if (personalErr) return personalErr
     const ageErr = validateWorkflowAge(s, workflow)
     if (ageErr) return ageErr
+    const occupationErr = validateOccupationSelection(s, workflow)
+    if (occupationErr) return occupationErr
   } else {
     if (!s.businessName.trim()) {
       return 'Enter the business or entity name.'
@@ -311,6 +319,49 @@ export function missingIntakeDocumentTypes(
 
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i
 
+export function validateLoanPurposeSelection(
+  s: IntakeFormState,
+  workflow: WorkflowConfigResponse | null | undefined,
+): string | null {
+  if (isInvoiceDiscountingProduct(s.loanProduct) && s.invoiceOnboardingChoice === 'ANCHOR') {
+    return null
+  }
+  if (isWorkflowDrivenIntake(workflow)) {
+    return validateWorkflowLoanPurpose(s, workflow)
+  }
+  if (!shouldCollectLoanPurposeField(workflow, true)) {
+    return null
+  }
+  if (!s.loanPurpose.trim()) {
+    return 'Select a loan purpose.'
+  }
+  const ok = resolveLoanPurposeOptions(workflow).some((o) => o.value === s.loanPurpose.trim())
+  if (!ok) {
+    return 'Select a valid loan purpose option.'
+  }
+  return null
+}
+
+export function validateOccupationSelection(
+  s: IntakeFormState,
+  workflow: WorkflowConfigResponse | null | undefined,
+): string | null {
+  if (s.borrowerType !== 'INDIVIDUAL') {
+    return null
+  }
+  if (isWorkflowDrivenIntake(workflow)) {
+    return validateWorkflowOccupation(s, workflow)
+  }
+  if (!s.occupation.trim()) {
+    return 'Select occupation.'
+  }
+  const ok = resolveOccupationOptions(workflow).some((o) => o.value === s.occupation.trim())
+  if (!ok) {
+    return 'Select a valid occupation option.'
+  }
+  return null
+}
+
 /**
  * Product step + “existing loans” for borrower 6-step journey (INDIVIDUAL only).
  */
@@ -325,9 +376,6 @@ export function validateBorrowerProductStep(
   }
   if (!s.hasExistingLoans) {
     return 'Indicate whether you have other loans running.'
-  }
-  if (!s.purpose.trim()) {
-    return 'Enter a short purpose for the loan (how you plan to use the amount).'
   }
   return null
 }
@@ -352,6 +400,8 @@ export function validateBorrowerPersonalAddressStep(
     if (loc) return loc
     if (!s.maritalStatus.trim()) return 'Select your marital status.'
     if (!s.addressProofType.trim()) return 'Select the type of address proof you can provide.'
+    const occupationErr = validateOccupationSelection(s, workflow)
+    if (occupationErr) return occupationErr
     return null
   }
   if (!s.fullName.trim()) return 'Enter your full name as per PAN.'
@@ -367,6 +417,8 @@ export function validateBorrowerPersonalAddressStep(
   if (!s.gender.trim()) return 'Select your gender (or “prefer not to say”).'
   if (!s.maritalStatus.trim()) return 'Select your marital status.'
   if (!s.addressProofType.trim()) return 'Select the type of address proof you can provide.'
+  const occupationErr = validateOccupationSelection(s, workflow)
+  if (occupationErr) return occupationErr
   return null
 }
 

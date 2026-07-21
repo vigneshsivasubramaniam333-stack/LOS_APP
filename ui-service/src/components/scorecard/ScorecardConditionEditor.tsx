@@ -1,5 +1,12 @@
 import { useMemo } from 'react'
-import { defaultConditionForParam, formatCondition, opsForParamType, parseCondition, type ConditionOp } from '@/lib/credit/scorecardCondition'
+import {
+  conditionOpLabel,
+  defaultConditionForParam,
+  formatCondition,
+  opsForParamType,
+  parseCondition,
+  type ConditionOp,
+} from '@/lib/credit/scorecardCondition'
 import type { ScorecardParamDef } from '@/lib/credit/scorecardConfig'
 
 type Props = {
@@ -45,7 +52,7 @@ export function ScorecardConditionEditor({ value, onChange, paramDef, className 
       >
         {ops.map((o) => (
           <option key={o} value={o}>
-            {o === 'GTE' ? 'At least (≥)' : o === 'GT' ? 'Greater than (>)' : o === 'LTE' ? 'At most (≤)' : o === 'LT' ? 'Less than (<)' : o === 'EQ' ? 'Equals' : o === 'NE' ? 'Not equal' : 'Between'}
+            {conditionOpLabel(o, type)}
           </option>
         ))}
       </select>
@@ -93,6 +100,15 @@ export function ScorecardConditionEditor({ value, onChange, paramDef, className 
             </option>
           ))}
         </select>
+      ) : type === 'text' ? (
+        <input
+          type="text"
+          className="bt-input bt-input-sm w-28"
+          value={parsed && parsed.op !== 'BETWEEN' ? parsed.value : ''}
+          onChange={(e) => updateValue(e.target.value)}
+          placeholder="Text value"
+          aria-label="Text value"
+        />
       ) : (
         <input
           type="number"

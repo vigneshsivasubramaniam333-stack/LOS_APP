@@ -7,6 +7,7 @@ import com.los.core.model.enums.StepOutcome;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.flow.event.AutoBureauPullRequestedEvent;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.core.service.loan.ApplicationInputChangeTracker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,6 +30,7 @@ public class KycWorkflowStepExecutor implements IStepExecutor {
     private final LoanApplicationRepository applicationRepository;
     private final IKycOrchestrationService kycOrchestrationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ApplicationInputChangeTracker applicationInputChangeTracker;
 
     @Override
     public boolean supports(String stepType) {
@@ -61,6 +63,8 @@ public class KycWorkflowStepExecutor implements IStepExecutor {
             log.warn("KYC workflow for {} — {} failures out of {} steps",
                     app.getApplicationNumber(), failureCount, results.size());
         } else {
+            applicationInputChangeTracker.recordKycVerifiedSnapshot(app);
+            applicationRepository.save(app);
             eventPublisher.publishEvent(
                     new AutoBureauPullRequestedEvent(applicationId, "KYC_WORKFLOW_SUCCESS"));
         }

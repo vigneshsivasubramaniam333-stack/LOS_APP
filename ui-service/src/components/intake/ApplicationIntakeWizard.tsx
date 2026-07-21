@@ -69,9 +69,16 @@ import {
 } from '@/lib/borrowerApplicationDeletable'
 import {
   resolveDocumentSlots,
+  shouldCollectLoanPurposeField,
   shouldCollectPersonalField,
   shouldShowKycIntakeField,
 } from '@/lib/workflow/workflowIntakeRules'
+import {
+  labelForLoanPurpose,
+  labelForOccupation,
+  resolveLoanPurposeOptions,
+  resolveOccupationOptions,
+} from '@/lib/intake/intakeOptionCatalogs'
 import { IntakeTenureField } from '@/components/intake/IntakeTenureField'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import type { BorrowerType } from '@/types/createApplication'
@@ -1018,18 +1025,34 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     lmsTenureUnit={form.lmsTenureUnit}
                   />
                 ) : null}
-                {!(
+                {shouldCollectLoanPurposeField(selectedWorkflow, true) &&
+                !(
                   isInvoiceDiscountingProduct(form.loanProduct) && form.invoiceOnboardingChoice === 'ANCHOR'
                 ) ? (
                   <label className="block text-sm text-slate-700 sm:col-span-2">
-                    <span className="mb-1 block text-xs font-medium text-slate-500">Purpose of loan</span>
-                    <textarea
+                    <span className="mb-1 block text-xs font-medium text-slate-500">
+                      Loan purpose
+                      {selectedWorkflow?.intakeConfig?.personalFields?.loanPurpose?.required !== false ? ' *' : ''}
+                    </span>
+                    <select
                       className="bt-input w-full text-slate-900"
-                      rows={2}
-                      value={form.purpose}
-                      onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
-                      placeholder="How you plan to use the funds (short note)"
-                    />
+                      value={form.loanPurpose}
+                      onChange={(e) => {
+                        const code = e.target.value
+                        setForm((f) => ({
+                          ...f,
+                          loanPurpose: code,
+                          purpose: code ? labelForLoanPurpose(code, selectedWorkflow) : '',
+                        }))
+                      }}
+                    >
+                      <option value="">— Select loan purpose —</option>
+                      {resolveLoanPurposeOptions(selectedWorkflow).map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 ) : null}
               </div>
@@ -1108,16 +1131,36 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     lmsTenureUnit={form.lmsTenureUnit}
                   />
                 ) : null}
-                <label className="block text-sm text-slate-700 sm:col-span-2">
-                  <span className="mb-1 block text-xs font-medium text-slate-500">Purpose of loan</span>
-                  <textarea
-                    className="bt-input w-full text-slate-900"
-                    rows={2}
-                    value={form.purpose}
-                    onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
-                    placeholder="How you plan to use the funds (short note)"
-                  />
-                </label>
+                {shouldCollectLoanPurposeField(selectedWorkflow, true) &&
+                !(
+                  isInvoiceDiscountingProduct(form.loanProduct) && form.invoiceOnboardingChoice === 'ANCHOR'
+                ) ? (
+                  <label className="block text-sm text-slate-700 sm:col-span-2">
+                    <span className="mb-1 block text-xs font-medium text-slate-500">
+                      Loan purpose
+                      {selectedWorkflow?.intakeConfig?.personalFields?.loanPurpose?.required !== false ? ' *' : ''}
+                    </span>
+                    <select
+                      className="bt-input w-full text-slate-900"
+                      value={form.loanPurpose}
+                      onChange={(e) => {
+                        const code = e.target.value
+                        setForm((f) => ({
+                          ...f,
+                          loanPurpose: code,
+                          purpose: code ? labelForLoanPurpose(code, selectedWorkflow) : '',
+                        }))
+                      }}
+                    >
+                      <option value="">— Select loan purpose —</option>
+                      {resolveLoanPurposeOptions(selectedWorkflow).map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
               </div>
             </>
           )}
@@ -1223,6 +1266,34 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     ]).map((g) => (
                       <option key={g} value={g}>
                         {g.replaceAll('_', ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {form.borrowerType === 'INDIVIDUAL' &&
+              shouldCollectPersonalField(selectedWorkflow, 'occupation', true) ? (
+                <label className="block text-sm text-slate-700">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">
+                    Occupation
+                    {selectedWorkflow?.intakeConfig?.personalFields?.occupation?.required !== false ? ' *' : ''}
+                  </span>
+                  <select
+                    className="bt-input w-full"
+                    value={form.occupation}
+                    onChange={(e) => {
+                      const code = e.target.value
+                      setForm((f) => ({
+                        ...f,
+                        occupation: code,
+                        occupationIndustry: code ? labelForOccupation(code, selectedWorkflow) : '',
+                      }))
+                    }}
+                  >
+                    <option value="">— Select occupation —</option>
+                    {resolveOccupationOptions(selectedWorkflow).map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>

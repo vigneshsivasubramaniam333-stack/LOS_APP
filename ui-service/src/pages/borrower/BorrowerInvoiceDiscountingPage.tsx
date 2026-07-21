@@ -21,7 +21,23 @@ import {
 } from '@/components/borrower/BorrowerInvoiceActionsMenu'
 import { LosEarlyPayRequestModal } from '@/components/borrower/LosEarlyPayRequestModal'
 import { ApiError } from '@/api/http'
+import { LoadingState } from '@/components/LoadingState'
 import { PageHeader } from '@/components/PageHeader'
+import { notifyErrorMessage, notifySuccess } from '@/lib/notify'
+
+/** Long PLP/integration errors stay as page banners; short feedback uses toasts. */
+const LONG_FEEDBACK_CHARS = 160
+
+function sanitizeNonNegativeNumberInput(raw: string): string {
+  if (raw.trim() === '') return ''
+  if (raw === '.' || raw === '0.' || /^\d*\.?\d*$/.test(raw)) {
+    const n = Number(raw)
+    if (raw === '.' || raw.endsWith('.')) return raw.startsWith('-') ? raw.slice(1) : raw
+    if (Number.isFinite(n) && n < 0) return String(Math.abs(n))
+    return raw.startsWith('-') ? raw.slice(1) : raw
+  }
+  return raw.replace(/^-/, '')
+}
 
 function money(n: number | null | undefined): string {
   if (n == null) return '—'
@@ -94,7 +110,6 @@ export function BorrowerInvoiceDiscountingPage({
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionErr, setActionErr] = useState<string | null>(null)
-  const [actionOk, setActionOk] = useState<string | null>(null)
   const [financeAmounts, setFinanceAmounts] = useState<Record<string, string>>({})
   const [repayAmounts, setRepayAmounts] = useState<Record<string, string>>({})
   const [expandedLoanInvoiceIds, setExpandedLoanInvoiceIds] = useState<Set<string>>(() => new Set())
@@ -218,13 +233,26 @@ export function BorrowerInvoiceDiscountingPage({
     })
   }, [cartInvoiceIds])
 
+  const reportSuccess = (message: string) => {
+    setActionErr(null)
+    notifySuccess(message)
+  }
+
+  const reportError = (message: string) => {
+    if (message.length > LONG_FEEDBACK_CHARS || message.includes('\n')) {
+      setActionErr(message)
+      return
+    }
+    setActionErr(null)
+    notifyErrorMessage(message)
+  }
+
   const addToCart = async (invoiceId: string) => {
     setAddingToCart(true)
     setActionErr(null)
-    setActionOk(null)
     try {
       await addPaymentCartLine(invoiceId)
-      setActionOk('Added to payment cart.')
+      reportSuccess('Added to payment cart.')
       await refreshCartInvoiceIds()
       setSelectedForCart((prev) => {
         const next = new Set(prev)
@@ -232,7 +260,7 @@ export function BorrowerInvoiceDiscountingPage({
         return next
       })
     } catch (ex) {
-      setActionErr(ex instanceof ApiError ? ex.message : 'Could not add to cart.')
+      reportError(ex instanceof ApiError ? ex.message : 'Could not add to cart.')
     } finally {
       setAddingToCart(false)
     }
@@ -242,14 +270,13 @@ export function BorrowerInvoiceDiscountingPage({
     if (selectedForCart.size === 0) return
     setAddingToCart(true)
     setActionErr(null)
-    setActionOk(null)
     try {
       await addPaymentCartBulk(Array.from(selectedForCart))
-      setActionOk(`Added ${selectedForCart.size} invoice(s) to payment cart.`)
+      reportSuccess(`Added ${selectedForCart.size} invoice(s) to payment cart.`)
       setSelectedForCart(new Set())
       await refreshCartInvoiceIds()
     } catch (ex) {
-      setActionErr(ex instanceof ApiError ? ex.message : 'Bulk add failed.')
+      reportError(ex instanceof ApiError ? ex.message : 'Bulk add failed.')
     } finally {
       setAddingToCart(false)
     }
@@ -334,15 +361,14 @@ export function BorrowerInvoiceDiscountingPage({
 
   async function onAccept(inv: BorrowerInvoiceItem) {
     setActionErr(null)
-    setActionOk(null)
     setBusyId(inv.invoiceId)
     try {
       const updated = await acceptInvoice(inv.invoiceId)
       setData(updated)
       applyFinanceDefaults(updated)
-      setActionOk(`Invoice ${inv.invoiceNumber ?? ''} accepted. You can now request finance.`)
+      reportSuccess(`Invoice ${inv.invoiceNumber ?? ''} accepted. You can now request finance.`)
     } catch (ex) {
-      setActionErr(ex instanceof ApiError ? ex.message : 'Could not accept the invoice.')
+      reportError(ex instanceof ApiError ? ex.message : 'Could not accept the invoice.')
     } finally {
       setBusyId(null)
     }
@@ -351,15 +377,14 @@ export function BorrowerInvoiceDiscountingPage({
   async function onFinance(e: FormEvent, inv: BorrowerInvoiceItem) {
     e.preventDefault()
     setActionErr(null)
-    setActionOk(null)
     const value = Number(financeAmounts[inv.invoiceId] ?? '')
     if (!Number.isFinite(value) || value <= 0) {
-      setActionErr('Enter a valid finance amount greater than 0.')
+      reportError('Enter a valid finance amount greater than 0.')
       return
     }
     const cap = inv.maxFinanceableAmount ?? inv.availableAmount ?? inv.eligibleAmount ?? 0
     if (cap > 0 && value > cap) {
-      setActionErr(`Finance amount cannot exceed ${money(cap)} (available for this invoice).`)
+      reportError(`Finance amount cannot exceed ${money(cap)} (available for this invoice).`)
       return
     }
     setBusyId(inv.invoiceId)
@@ -367,9 +392,9 @@ export function BorrowerInvoiceDiscountingPage({
       const updated = await requestInvoiceFinance(inv.invoiceId, value)
       setData(updated)
       applyFinanceDefaults(updated)
-      setActionOk(`Finance request of ${money(value)} submitted for invoice ${inv.invoiceNumber ?? ''}.`)
+      reportSuccess(`Finance request of ${money(value)} submitted for invoice ${inv.invoiceNumber ?? ''}.`)
     } catch (ex) {
-      setActionErr(ex instanceof ApiError ? ex.message : 'Could not submit the finance request.')
+      reportError(ex instanceof ApiError ? ex.message : 'Could not submit the finance request.')
     } finally {
       setBusyId(null)
     }
@@ -378,10 +403,9 @@ export function BorrowerInvoiceDiscountingPage({
   async function onRepay(e: FormEvent, loan: BorrowerInvoiceLoan) {
     e.preventDefault()
     setActionErr(null)
-    setActionOk(null)
     const value = Number(repayAmounts[loan.loanId] ?? '')
     if (!Number.isFinite(value) || value <= 0) {
-      setActionErr('Enter a valid repayment amount greater than 0.')
+      reportError('Enter a valid repayment amount greater than 0.')
       return
     }
     setBusyId(loan.loanId)
@@ -390,9 +414,9 @@ export function BorrowerInvoiceDiscountingPage({
       setData(updated)
       applyFinanceDefaults(updated)
       setRepayAmounts((m) => ({ ...m, [loan.loanId]: '' }))
-      setActionOk(`Repayment of ${money(value)} recorded for loan ${loan.loanNumber ?? ''}.`)
+      reportSuccess(`Repayment of ${money(value)} recorded for loan ${loan.loanNumber ?? ''}.`)
     } catch (ex) {
-      setActionErr(ex instanceof ApiError ? ex.message : 'Could not record the repayment.')
+      reportError(ex instanceof ApiError ? ex.message : 'Could not record the repayment.')
     } finally {
       setBusyId(null)
     }
@@ -416,8 +440,17 @@ export function BorrowerInvoiceDiscountingPage({
         }
       />
 
-      {loadErr ? <p className="text-sm text-amber-800">{loadErr}</p> : null}
-      {loading ? <p className="text-sm text-slate-600">Loading…</p> : null}
+      {loadErr ? (
+        <div className="bt-alert bt-alert-error" role="alert">
+          {loadErr}
+        </div>
+      ) : null}
+
+      {actionErr ? (
+        <div className="bt-alert bt-alert-error whitespace-pre-wrap break-words" role="alert">
+          {actionErr}
+        </div>
+      ) : null}
 
       {data && !data.available ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600 shadow-sm">
@@ -425,11 +458,10 @@ export function BorrowerInvoiceDiscountingPage({
         </div>
       ) : null}
 
-      {actionErr ? <p className="text-sm text-rose-700">{actionErr}</p> : null}
-      {actionOk ? <p className="text-sm text-emerald-700">{actionOk}</p> : null}
-
-      {data && data.available ? (
+      {(loading || (data && data.available)) ? (
         <>
+          {data && data.available ? (
+            <>
           <p className="text-sm text-slate-600">
             {data.invoices.length} invoice(s), {data.loans.length} invoice-discounting loan(s).
             {usePayu ? (
@@ -477,6 +509,8 @@ export function BorrowerInvoiceDiscountingPage({
               </div>
             </div>
           ) : null}
+            </>
+          ) : null}
 
           <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -496,9 +530,6 @@ export function BorrowerInvoiceDiscountingPage({
                 ))}
               </div>
             </div>
-            {visibleInvoices.length === 0 ? (
-              <p className="text-sm text-slate-500">No {lifecycleTab} invoices found for your account.</p>
-            ) : (
               <div className="bt-card shadow-sm">
                 <div className="overflow-x-auto">
                 <table className="min-w-full text-sm border-collapse">
@@ -528,7 +559,20 @@ export function BorrowerInvoiceDiscountingPage({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {visibleInvoices.flatMap((inv) => {
+                    {loading ? (
+                      <tr>
+                        <td colSpan={usePayu ? 10 : 8} className="px-5 py-10">
+                          <LoadingState label="Loading invoices…" />
+                        </td>
+                      </tr>
+                    ) : visibleInvoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={usePayu ? 10 : 8} className="px-5 py-10 text-center text-sm text-slate-500">
+                          No {lifecycleTab} invoices found for your account.
+                        </td>
+                      </tr>
+                    ) : (
+                    visibleInvoices.flatMap((inv) => {
                       const linkedLoans = loansByInvoiceId.get(inv.invoiceId) ?? []
                       const invoiceActions = buildInvoiceActions(inv, linkedLoans)
                       const rows = [
@@ -592,12 +636,15 @@ export function BorrowerInvoiceDiscountingPage({
                               <form onSubmit={(e) => onFinance(e, inv)} className="flex flex-col gap-1.5">
                                 <input
                                   type="number"
-                                  min="1"
+                                  min={0}
                                   max={inv.maxFinanceableAmount ?? inv.availableAmount ?? undefined}
                                   step="0.01"
                                   value={financeAmounts[inv.invoiceId] ?? defaultFinanceAmount(inv)}
                                   onChange={(e) =>
-                                    setFinanceAmounts((m) => ({ ...m, [inv.invoiceId]: e.target.value }))
+                                    setFinanceAmounts((m) => ({
+                                      ...m,
+                                      [inv.invoiceId]: sanitizeNonNegativeNumberInput(e.target.value),
+                                    }))
                                   }
                                   className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
                                 />
@@ -640,10 +687,10 @@ export function BorrowerInvoiceDiscountingPage({
                         rows.push(
                           <tr key={`${inv.invoiceId}-loans`}>
                             <td colSpan={usePayu ? 10 : 8} className="px-5 py-4 bg-slate-50/40 align-middle">
-                              <div className="space-y-4">
+                              <div className="w-full space-y-4">
                                 {linkedLoans.map((loan) =>
                                   usePayu ? (
-                                    <div key={loan.loanId} className="space-y-2">
+                                    <div key={loan.loanId} className="w-full space-y-2">
                                       {inv.pipAmount && inv.pipAmount > 0 ? (
                                         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
                                           <span className="uppercase tracking-wide">PRUS</span>
@@ -664,7 +711,10 @@ export function BorrowerInvoiceDiscountingPage({
                                       busyId={busyId}
                                       repayAmount={repayAmounts[loan.loanId] ?? ''}
                                       onRepayAmountChange={(value) =>
-                                        setRepayAmounts((m) => ({ ...m, [loan.loanId]: value }))
+                                        setRepayAmounts((m) => ({
+                                          ...m,
+                                          [loan.loanId]: sanitizeNonNegativeNumberInput(value),
+                                        }))
                                       }
                                       onRepay={onRepay}
                                     />
@@ -676,12 +726,12 @@ export function BorrowerInvoiceDiscountingPage({
                         )
                       }
                       return rows
-                    })}
+                    })
+                    )}
                   </tbody>
                 </table>
                 </div>
               </div>
-            )}
           </section>
         </>
       ) : null}

@@ -112,4 +112,11 @@ public class ApplicationResponse {
     private Map<String, Object> latestUnderwritingEvaluation;
     /** Current CAM workflow state when a memo exists (e.g. DRAFT, SUBMITTED, SENT_BACK, APPROVED). */
     private String camStatus;
+
+    /** True when KYC identity fields changed after the last successful verification run. */
+    private Boolean kycInputsModifiedSinceVerify;
+    private java.util.List<String> kycInputChangeSummary;
+    /** True when intake/KYC fields changed after the latest staff send-back snapshot. */
+    private Boolean intakeModifiedSinceSendBack;
+    private java.util.List<String> intakeChangeSummary;
 }

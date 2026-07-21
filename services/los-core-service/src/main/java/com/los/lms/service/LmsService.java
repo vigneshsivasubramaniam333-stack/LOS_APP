@@ -188,7 +188,7 @@ public class LmsService {
         handover.setEncoreTransactionId(encoreTransactionId);
         handover.setLmsReferenceId(lmsRef);
         handover.setHandoverStatus(status);
-        handover.setDisbursementDate(LocalDate.now());
+        handover.setDisbursementDate(parseHandoverDisbursementDate(request));
         handover.setFirstEmiDate(firstEmiDate);
         handover.setEmiAmount(emiAmount);
         handover.setErrorMessage(errorMessage);
@@ -1226,6 +1226,13 @@ public class LmsService {
             }
         }
         return null;
+    }
+
+    private static LocalDate parseHandoverDisbursementDate(LoanHandoverRequest request) {
+        if (request != null && request.getDisbursementDate() != null && !request.getDisbursementDate().isBlank()) {
+            return LocalDate.parse(request.getDisbursementDate().trim());
+        }
+        return LocalDate.now();
     }
 
     // ---- Helper methods ----

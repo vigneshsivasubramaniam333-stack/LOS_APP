@@ -3,6 +3,7 @@ package com.los.core.service.credit;
 import com.los.core.model.dto.request.ManualCreditInputsRequest;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.service.kyc.IKycOrchestrationService;
+import com.los.core.service.underwriting.ApplicationScorecardParameterResolver;
 import com.los.plp.service.InvoiceDiscountingVintageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -423,6 +424,7 @@ public class CreditControlService {
         putScorecardValueExact(manual, sc, "qrTxnEDI");
         putScorecardValueExact(manual, sc, "eligibleOnePointFiveX");
         mergeScorecardMetricsMap(manual, sc);
+        applyApplicationScorecardParameters(app, sc);
         if (inc != null) {
             sc.put("MONTHLY_INCOME", inc);
         }
@@ -776,6 +778,23 @@ public class CreditControlService {
             return m.get("value");
         }
         return cell;
+    }
+
+    private void applyApplicationScorecardParameters(LoanApplication app, Map<String, BigDecimal> sc) {
+        Map<String, Object> personal = app.getPersonalInfo() != null ? app.getPersonalInfo() : Map.of();
+        putIfNotNull(sc, "AGE", ApplicationScorecardParameterResolver.ageYears(personal));
+        if (app.getRequestedAmount() != null) {
+            sc.put("REQUESTED_AMOUNT", app.getRequestedAmount());
+        }
+        if (app.getTenureMonths() != null) {
+            sc.put("TENURE_MONTHS", BigDecimal.valueOf(app.getTenureMonths()));
+        }
+    }
+
+    private static void putIfNotNull(Map<String, BigDecimal> sc, String key, BigDecimal value) {
+        if (value != null) {
+            sc.put(key, value);
+        }
     }
 
     private static String normalizeSource(String s) {

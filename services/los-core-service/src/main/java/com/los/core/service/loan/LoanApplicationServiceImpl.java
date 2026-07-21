@@ -48,6 +48,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
     private final ApplicationCustomerIdResolver applicationCustomerIdResolver;
     private final IntakeMetadataEnricher intakeMetadataEnricher;
     private final ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
+    private final ApplicationInputChangeTracker applicationInputChangeTracker;
 
     private static final AtomicLong SEQUENCE = new AtomicLong(System.currentTimeMillis() % 100000);
     private static final Pattern EMAIL_RE = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
@@ -293,6 +294,9 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
         if (request.getCollateralInfo() != null) app.setCollateralInfo(mergeJsonb(app.getCollateralInfo(), request.getCollateralInfo()));
         if (request.getRemarks() != null) app.setRemarks(request.getRemarks());
 
+        applicationInputChangeTracker.refreshKycChangeFlags(app);
+        applicationInputChangeTracker.refreshIntakeChangeSinceSendBack(app);
+
         app = applicationRepository.save(app);
         log.info("Application updated: {}", app.getApplicationNumber());
 
@@ -447,6 +451,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
                 r.setLatestUnderwritingEvaluation(underwritingEvaluationService.toApiMap(ev)));
         creditAppraisalMemoRepository.findByApplicationId(app.getId())
                 .ifPresent(cam -> r.setCamStatus(cam.getCamStatus()));
+        applicationInputChangeTracker.applyToResponse(r, app);
         return r;
     }
 

@@ -5,6 +5,10 @@ import type { IntakeFormState, IntakeMode } from './intakeTypes'
 import { isBusinessBorrowerType } from './intakeTypes'
 import type { SessionUser } from '@/auth/types'
 import { isInvoiceDiscountingProduct } from '@/catalog/loanProducts'
+import {
+  labelForLoanPurpose,
+  labelForOccupation,
+} from '@/lib/intake/intakeOptionCatalogs'
 
 function appendLmsConfigToCreate(s: IntakeFormState, payload: CreateApplicationRequest): CreateApplicationRequest {
   if (isInvoiceDiscountingProduct(s.loanProduct)) {
@@ -42,6 +46,25 @@ function trimStringRecord(rec: Record<string, string | boolean | number | null |
     }
   }
   return out
+}
+
+function appendCodedIntakePersonalFields(
+  s: IntakeFormState,
+  personal: Record<string, string>,
+  workflow?: import('@/types/workflow').WorkflowConfigResponse | null,
+): void {
+  if (s.loanPurpose.trim()) {
+    personal.loanPurpose = s.loanPurpose.trim()
+    personal.purpose = labelForLoanPurpose(s.loanPurpose, workflow)
+  } else if (s.purpose.trim()) {
+    personal.purpose = s.purpose.trim()
+  }
+  if (s.occupation.trim()) {
+    personal.occupation = s.occupation.trim()
+    personal.occupationIndustry = labelForOccupation(s.occupation, workflow)
+  } else if (s.occupationIndustry.trim()) {
+    personal.occupationIndustry = s.occupationIndustry.trim()
+  }
 }
 
 function parseTenure(s: string): number | null {
@@ -148,6 +171,7 @@ export function buildIntakeCreateRequest(s: IntakeFormState, mode: IntakeMode, s
     if (s.existingLoansDetails.trim()) personal.existingLoansDetails = s.existingLoansDetails.trim()
     if (s.addressProofType.trim()) personal.addressProofType = s.addressProofType.trim()
   }
+  appendCodedIntakePersonalFields(s, personal)
 
   const business: Record<string, string> = {}
   if (isBusinessBorrowerType(s.borrowerType)) {
@@ -241,6 +265,7 @@ export function buildIntakeBorrowerUpdate(s: IntakeFormState, mode: IntakeMode, 
     if (s.existingLoansDetails.trim()) personal.existingLoansDetails = s.existingLoansDetails.trim()
     if (s.addressProofType.trim()) personal.addressProofType = s.addressProofType.trim()
   }
+  appendCodedIntakePersonalFields(s, personal)
 
   const business: Record<string, string> = {}
   if (isBusinessBorrowerType(s.borrowerType)) {
@@ -320,6 +345,8 @@ export function buildBorrowerEmploymentUpdate(s: IntakeFormState): UpdateApplica
     monthlyNetIncome: s.monthlyNetIncome,
     occupationIndustry: s.occupationIndustry,
     workExperienceYears: s.workExperienceYears,
+    occupation: s.occupation,
   })
+  appendCodedIntakePersonalFields(s, personal)
   return { personalInfo: personal as unknown as Record<string, unknown> }
 }

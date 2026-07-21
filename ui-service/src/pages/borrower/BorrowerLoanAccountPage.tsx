@@ -8,6 +8,17 @@ import {
 } from '@/api/borrowerPortal'
 import { ApiError } from '@/api/http'
 import { isUuid } from '@/lib/format'
+import { LoadingState } from '@/components/LoadingState'
+
+function sanitizeNonNegativeNumberInput(raw: string): string {
+  if (raw.trim() === '') return ''
+  const cleaned = raw.replace(/^-/, '')
+  if (cleaned === '' || cleaned === '.') return cleaned
+  if (!/^\d*\.?\d*$/.test(cleaned)) return cleaned.replace(/[^\d.]/g, '')
+  const n = Number(cleaned)
+  if (Number.isFinite(n) && n < 0) return String(Math.abs(n))
+  return cleaned
+}
 
 function money(n: number | null | undefined): string {
   if (n == null) return '—'
@@ -98,8 +109,8 @@ export function BorrowerLoanAccountPage() {
       </Link>
       <h1 className="text-xl font-semibold tracking-tight text-bl-navy">Loan account</h1>
 
-      {loadErr ? <p className="text-sm text-amber-800">{loadErr}</p> : null}
-      {loading ? <p className="text-sm text-slate-600">Loading…</p> : null}
+      {loadErr ? <div className="bt-alert bt-alert-error">{loadErr}</div> : null}
+      {loading ? <LoadingState label="Loading loan account…" /> : null}
 
       {account ? (
         <>
@@ -141,10 +152,10 @@ export function BorrowerLoanAccountPage() {
                 <span className="text-slate-600">Amount (₹)</span>
                 <input
                   type="number"
-                  min="1"
+                  min={0}
                   step="0.01"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => setAmount(sanitizeNonNegativeNumberInput(e.target.value))}
                   className="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-bl-primary focus:outline-none focus:ring-1 focus:ring-bl-primary/30"
                   placeholder={account.nextEmiAmount ? String(account.nextEmiAmount) : '0.00'}
                 />

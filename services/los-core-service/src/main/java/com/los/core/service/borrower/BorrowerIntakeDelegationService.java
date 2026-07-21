@@ -15,6 +15,7 @@ import com.los.core.service.loan.ApplicationPartyResolver;
 import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
 import com.los.core.service.loan.InvoiceDiscountingSanctionDefaultsService;
 import com.los.core.service.loan.LoanApplicationFlowService;
+import com.los.core.service.loan.ApplicationInputChangeTracker;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class BorrowerIntakeDelegationService {
     private final RabbitTemplate rabbitTemplate;
     private final LosWorkflowProperties workflowProperties;
     private final InvoiceDiscountingSanctionDefaultsService invoiceDiscountingSanctionDefaultsService;
+    private final ApplicationInputChangeTracker applicationInputChangeTracker;
 
     @Value("${los.borrower-ui-url:http://localhost:5173/borrower}")
     private String borrowerUiUrl;
@@ -116,6 +118,7 @@ public class BorrowerIntakeDelegationService {
         }
         // Reject a requested amount above the program's Max. dealer limit before it reaches sanction / PLP link.
         invoiceDiscountingSanctionDefaultsService.validateRequestedAmountWithinProgramLimit(app);
+        applicationInputChangeTracker.refreshIntakeChangeSinceSendBack(app);
         app.setStatus(ApplicationStatus.BORROWER_SUBMITTED);
         app.setBorrowerSentBackNotes(null);
         app.setUpdatedAt(Instant.now());

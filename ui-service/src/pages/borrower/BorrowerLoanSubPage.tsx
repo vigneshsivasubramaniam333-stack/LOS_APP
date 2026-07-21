@@ -11,6 +11,7 @@ import {
 } from '@/api/borrowerPortal'
 import { ApiError } from '@/api/http'
 import { isUuid } from '@/lib/format'
+import { LoadingState } from '@/components/LoadingState'
 
 type Mode = 'repayment' | 'statement' | 'transactions'
 
@@ -59,7 +60,7 @@ export function BorrowerLoanSubPage({ mode }: { mode: Mode }) {
     return <p className="text-sm text-amber-800">{load.message}</p>
   }
   if (load.status === 'loading') {
-    return <p className="text-sm text-slate-600">Loading…</p>
+    return <LoadingState label="Loading…" />
   }
   return (
     <div className="space-y-6">

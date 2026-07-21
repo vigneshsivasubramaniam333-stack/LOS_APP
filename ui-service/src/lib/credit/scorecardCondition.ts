@@ -1,6 +1,15 @@
 import type { ScorecardParamDef, ScorecardParamType } from './scorecardConfig'
 
-export type ConditionOp = 'GTE' | 'GT' | 'LTE' | 'LT' | 'EQ' | 'NE' | 'BETWEEN'
+export type ConditionOp =
+  | 'GTE'
+  | 'GT'
+  | 'LTE'
+  | 'LT'
+  | 'EQ'
+  | 'NE'
+  | 'CONTAINS'
+  | 'NOT_CONTAINS'
+  | 'BETWEEN'
 
 export type ParsedCondition =
   | { op: 'BETWEEN'; min: string; max: string }
@@ -13,14 +22,27 @@ const OP_LABELS: Record<ConditionOp, string> = {
   LT: 'Less than (<)',
   EQ: 'Equals',
   NE: 'Not equal',
+  CONTAINS: 'Contains',
+  NOT_CONTAINS: 'Does not contain',
   BETWEEN: 'Between (inclusive)',
 }
 
-export function conditionOpLabel(op: ConditionOp): string {
+const TEXT_OP_LABELS: Partial<Record<ConditionOp, string>> = {
+  EQ: 'Matches',
+  NE: 'Does not match',
+  CONTAINS: 'Contains',
+  NOT_CONTAINS: 'Does not contain',
+}
+
+export function conditionOpLabel(op: ConditionOp, type?: ScorecardParamType): string {
+  if (type === 'text' && TEXT_OP_LABELS[op]) return TEXT_OP_LABELS[op]!
   return OP_LABELS[op]
 }
 
 export function opsForParamType(type: ScorecardParamType): ConditionOp[] {
+  if (type === 'text') {
+    return ['EQ', 'NE', 'CONTAINS', 'NOT_CONTAINS']
+  }
   if (type === 'yesno' || type === 'enum') {
     return ['EQ', 'NE']
   }
@@ -39,7 +61,7 @@ export function parseCondition(raw: string | undefined | null): ParsedCondition 
     if (mid < 0) return null
     return { op: 'BETWEEN', min: rest.substring(0, mid).trim(), max: rest.substring(mid + 1).trim() }
   }
-  if (['GTE', 'GT', 'LTE', 'LT', 'EQ', 'NE'].includes(op)) {
+  if (['GTE', 'GT', 'LTE', 'LT', 'EQ', 'NE', 'CONTAINS', 'NOT_CONTAINS'].includes(op)) {
     return { op, value: rest }
   }
   return null
@@ -65,6 +87,7 @@ export function defaultConditionForParam(param: ScorecardParamDef | undefined): 
   if (!param) return 'GTE:0'
   if (param.type === 'yesno') return 'EQ:1'
   if (param.type === 'enum' && param.enumOptions?.length) return `EQ:${param.enumOptions[0].value}`
+  if (param.type === 'text') return 'EQ:'
   return 'GTE:0'
 }
 
@@ -80,5 +103,5 @@ export function describeCondition(raw: string, param?: ScorecardParamDef): strin
   } else if (param?.type === 'enum' && param.enumOptions) {
     val = param.enumOptions.find((o) => o.value === parsed.value)?.label ?? val
   }
-  return `${OP_LABELS[parsed.op]} ${val}`
+  return `${conditionOpLabel(parsed.op, param?.type)} ${val}`
 }

@@ -76,7 +76,9 @@ class WorkflowIntakeValidatorTest {
                 .tenureMonths(6)
                 .personalInfo(Map.of(
                         "dateOfBirth", "1990-01-01",
-                        "voterId", "ABC1234567"))
+                        "voterId", "ABC1234567",
+                        "occupation", "SALARIED_PRIVATE",
+                        "loanPurpose", "EDUCATION"))
                 .build();
         WorkflowConfig wf = WorkflowConfig.builder()
                 .intakeConfig(intakeConfig)

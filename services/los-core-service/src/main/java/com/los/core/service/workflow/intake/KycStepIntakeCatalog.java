@@ -52,12 +52,16 @@ public final class KycStepIntakeCatalog {
                 "collect", true,
                 "required", false,
                 "allowedValues", List.of("MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY")));
+        personalFields.put("occupation", Map.of("collect", true, "required", true));
+        personalFields.put("loanPurpose", Map.of("collect", true, "required", true));
 
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("policy", POLICY_WORKFLOW_DRIVEN);
         config.put("personalFields", personalFields);
         config.put("ageRules", Map.of("enabled", false, "minAge", 18, "maxAge", 70));
         config.put("tenureRules", Map.of("inputMode", "numeric", "min", 1, "max", 360));
+        config.put("occupationRules", Map.of("options", IntakeOptionCatalog.defaultOccupationOptionsMaps()));
+        config.put("loanPurposeRules", Map.of("options", IntakeOptionCatalog.defaultLoanPurposeOptionsMaps()));
         config.put("mandatoryFieldGroups", List.of());
         config.put("standaloneDocuments", List.of());
         return config;

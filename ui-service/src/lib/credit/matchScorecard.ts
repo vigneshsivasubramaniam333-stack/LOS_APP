@@ -1,5 +1,4 @@
-import type { UnderwritingScorecardResponse } from '@/api/scorecards'
-import type { ScorecardRow } from '@/api/scorecards'
+import type { ScorecardParameterDef, ScorecardRow, UnderwritingScorecardResponse } from '@/api/scorecards'
 
 export type ScorecardMatchInput = {
   borrowerType: string
@@ -59,4 +58,13 @@ export function scorecardRowsFromJson(scorecard: UnderwritingScorecardResponse |
   const raw = scorecard.scorecardJson.rows
   if (!Array.isArray(raw)) return []
   return raw.filter((r): r is ScorecardRow => Boolean(r && typeof r === 'object' && 'parameter' in r))
+}
+
+export function scorecardParameterDefsFromJson(
+  scorecard: UnderwritingScorecardResponse | null,
+): Record<string, ScorecardParameterDef> {
+  if (!scorecard?.scorecardJson) return {}
+  const raw = scorecard.scorecardJson.parameterDefs
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return raw as Record<string, ScorecardParameterDef>
 }

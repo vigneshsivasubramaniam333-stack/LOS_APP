@@ -15,6 +15,14 @@ function loanPrincipal(loan: BorrowerInvoiceLoan): number {
   return Number(loan.disbursedAmount ?? loan.sanctionedAmount ?? loan.requestedAmount ?? 0)
 }
 
+function loanInterest(loan: BorrowerInvoiceLoan): number | null {
+  const explicit = Number(loan.interestAmount ?? 0)
+  if (explicit > 0) return explicit
+  const payable = Number(loan.outstandingAmount ?? loan.totalRepayable ?? loanPrincipal(loan))
+  const derived = payable - loanPrincipal(loan)
+  return derived > 0 ? derived : null
+}
+
 function repaymentProgress(totalRepaid: number, outstanding: number): number {
   const repaid = Number.isFinite(totalRepaid) ? totalRepaid : 0
   const out = Number.isFinite(outstanding) ? outstanding : 0
@@ -99,7 +107,7 @@ export function BorrowerInvoiceLoanCard({
   }
 
   return (
-    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <article className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -121,8 +129,9 @@ export function BorrowerInvoiceLoanCard({
         </div>
       </div>
 
-      <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5">
         <Stat label="Financed" value={money(principal)} tone="slate" />
+        <Stat label="Interest" value={money(loanInterest(loan))} tone="amber" />
         <Stat label="Total repaid" value={money(repaid)} tone="emerald" />
         <Stat label="Outstanding" value={money(outstanding)} tone="rose" />
         <Stat label="Total obligation" value={money(repaid + outstanding)} tone="sky" />
@@ -223,19 +232,21 @@ function Stat({
 }: {
   label: string
   value: string
-  tone: 'slate' | 'emerald' | 'rose' | 'sky'
+  tone: 'slate' | 'emerald' | 'rose' | 'sky' | 'amber'
 }) {
   const tones = {
     slate: 'bg-slate-50 text-slate-800',
     emerald: 'bg-emerald-50 text-emerald-800',
     rose: 'bg-rose-50 text-rose-800',
     sky: 'bg-sky-50 text-sky-800',
+    amber: 'bg-amber-50 text-amber-900',
   }
   const labelTones = {
     slate: 'text-slate-500',
     emerald: 'text-emerald-600',
     rose: 'text-rose-600',
     sky: 'text-sky-600',
+    amber: 'text-amber-700',
   }
   return (
     <div className={`rounded-lg px-3 py-2.5 ${tones[tone]}`}>

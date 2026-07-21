@@ -49,7 +49,7 @@ export interface BorrowerInvoiceLoan {
   sanctionedAmount: number | null
   disbursedAmount: number | null
   outstandingAmount: number | null
-  /** LMS interest due when available; derived from payable - principal when explicit value is absent. */
+  /** LMS interest due when available (e.g. totalNormalInterestDue). */
   interestAmount?: number | null
   totalRepayable: number | null
   totalRepaid: number | null
@@ -152,6 +152,8 @@ export interface PaymentCartLine {
   invoiceId: string
   invoiceNumber?: string | null
   amountToPay: number
+  /** LMS interest due when available (display only). */
+  interestAmount?: number | null
 }
 
 export interface PayuInitiatePayload {

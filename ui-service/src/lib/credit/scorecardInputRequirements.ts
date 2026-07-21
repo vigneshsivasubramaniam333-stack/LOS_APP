@@ -1,5 +1,5 @@
-import type { ScorecardRow } from '@/api/scorecards'
-import { paramDef } from '@/lib/credit/scorecardConfig'
+import type { ScorecardParameterDef, ScorecardRow } from '@/api/scorecards'
+import { paramDef, type ScorecardParamType } from '@/lib/credit/scorecardConfig'
 
 export type ScorecardInputRequirement = {
   parameter: string
@@ -7,6 +7,8 @@ export type ScorecardInputRequirement = {
   label: string
   manualKey: string
   ready: boolean
+  inputType?: 'number' | 'text' | 'dropdown' | 'yesno'
+  options?: { value: string; label: string }[]
 }
 
 function readScorecardValue(scorecardMap: Record<string, string> | undefined, parameter: string): string {
@@ -23,10 +25,44 @@ function manualKeyForRow(row: ScorecardRow): string {
   return def?.manualKey ?? row.parameter
 }
 
+function inputMetaFromDefs(
+  parameter: string,
+  source: string,
+  parameterDefs?: Record<string, ScorecardParameterDef>,
+): Pick<ScorecardInputRequirement, 'inputType' | 'options' | 'label'> {
+  const catalog = paramDef(source, parameter)
+  const custom = parameterDefs?.[parameter]
+  if (custom?.inputType === 'dropdown') {
+    return {
+      inputType: 'dropdown',
+      label: catalog?.label ?? parameter,
+      options: (custom.options ?? []).map((o) => ({ value: o.value, label: o.label })),
+    }
+  }
+  if (custom?.inputType === 'text') {
+    return { inputType: 'text', label: catalog?.label ?? parameter }
+  }
+  if (catalog?.type === 'yesno') {
+    return { inputType: 'yesno', label: catalog.label }
+  }
+  if (catalog?.type === 'enum') {
+    return {
+      inputType: 'dropdown',
+      label: catalog.label,
+      options: catalog.enumOptions,
+    }
+  }
+  if (catalog?.type === 'text') {
+    return { inputType: 'text', label: catalog.label }
+  }
+  return { inputType: 'number', label: catalog?.label ?? parameter }
+}
+
 /** OTHER / GST rows referenced by the matched scorecard (bank statement uses server gap-fill). */
 export function scorecardManualInputRequirements(
   rows: ScorecardRow[],
   scorecardMap: Record<string, string> | undefined,
+  parameterDefs?: Record<string, ScorecardParameterDef>,
 ): ScorecardInputRequirement[] {
   const seen = new Set<string>()
   const out: ScorecardInputRequirement[] = []
@@ -40,12 +76,15 @@ export function scorecardManualInputRequirements(
     seen.add(key)
     const manualKey = manualKeyForRow(row)
     const value = readScorecardValue(scorecardMap, parameter)
+    const meta = inputMetaFromDefs(parameter, row.source, parameterDefs)
     out.push({
       parameter,
       source,
-      label: paramDef(row.source, row.parameter)?.label ?? parameter,
+      label: meta.label,
       manualKey,
       ready: value.length > 0,
+      inputType: meta.inputType,
+      options: meta.options,
     })
   }
   return out
@@ -55,11 +94,35 @@ export function scorecardManualInputRequirements(
 export function missingScorecardInputRequirements(
   rows: ScorecardRow[],
   scorecardMap: Record<string, string> | undefined,
+  parameterDefs?: Record<string, ScorecardParameterDef>,
 ): ScorecardInputRequirement[] {
-  return scorecardManualInputRequirements(rows, scorecardMap).filter((r) => !r.ready)
+  return scorecardManualInputRequirements(rows, scorecardMap, parameterDefs).filter((r) => !r.ready)
 }
 
 export function allScorecardInputsReady(requirements: ScorecardInputRequirement[]): boolean {
   if (requirements.length === 0) return true
   return requirements.every((r) => r.ready)
+}
+
+export function requirementToParamDef(req: ScorecardInputRequirement): {
+  value: string
+  label: string
+  type: ScorecardParamType
+  enumOptions?: { value: string; label: string }[]
+} {
+  if (req.inputType === 'dropdown') {
+    return {
+      value: req.parameter,
+      label: req.label,
+      type: 'enum',
+      enumOptions: req.options,
+    }
+  }
+  if (req.inputType === 'text') {
+    return { value: req.parameter, label: req.label, type: 'text' }
+  }
+  if (req.inputType === 'yesno') {
+    return { value: req.parameter, label: req.label, type: 'yesno' }
+  }
+  return { value: req.parameter, label: req.label, type: 'number' }
 }

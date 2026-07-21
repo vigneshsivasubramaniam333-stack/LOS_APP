@@ -8,7 +8,7 @@ function readManualValue(manual: Record<string, unknown> | undefined, key: strin
   return String(cell.value)
 }
 
-function readMetricsMap(manual: Record<string, unknown> | undefined): Record<string, string> {
+export function readMetricsMap(manual: Record<string, unknown> | undefined): Record<string, string> {
   const raw = manual?.scorecardMetrics as Record<string, { value?: unknown }> | undefined
   if (!raw) return {}
   const out: Record<string, string> = {}
@@ -16,6 +16,51 @@ function readMetricsMap(manual: Record<string, unknown> | undefined): Record<str
     if (v?.value != null) out[k] = String(v.value)
   }
   return out
+}
+
+/** Top-level manual keys that buildScorecardMetricsPayload reads from the values map. */
+export const KNOWN_SCORECARD_MANUAL_KEYS = new Set([
+  'avgDailyBalance3m',
+  'avgMonthlyTransactions3m',
+  'avgMonthlySettlements3m',
+  'monthlyTransactions3m',
+  'inwardChequeReturns3m',
+  'avgDailySettlements3m',
+  'noOfTxns60days',
+  'txnMth1',
+  'txnMth2',
+  'txnMth3',
+  'avgGmv3m',
+  'active90days',
+  'residenceOwned',
+  'residenceStability',
+  'businessStability',
+  'existingLoanTrackRecordAll',
+  'existingLoanTrackRecord15d',
+  'qrTxnEDI',
+  'eligibleOnePointFiveX',
+])
+
+export function buildCustomMetricsFromRequirements(
+  values: Record<string, string>,
+  requirements: { manualKey: string }[],
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const req of requirements) {
+    if (KNOWN_SCORECARD_MANUAL_KEYS.has(req.manualKey)) continue
+    const v = values[req.manualKey]?.trim()
+    if (v) out[req.manualKey] = v
+  }
+  return out
+}
+
+export function readScorecardManualInputValue(
+  manual: Record<string, unknown> | undefined,
+  manualKey: string,
+): string {
+  const fromMetrics = readMetricsMap(manual)[manualKey]
+  if (fromMetrics != null && fromMetrics !== '') return fromMetrics
+  return readManualValue(manual, manualKey)
 }
 
 const COLLECTION_SOURCES = ['BANK_STATEMENT', 'GST_STATEMENT', 'OTHER'] as const

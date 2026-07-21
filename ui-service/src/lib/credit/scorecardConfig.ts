@@ -1,5 +1,7 @@
 /** Parameter value types for condition UI and manual collection. */
-export type ScorecardParamType = 'number' | 'yesno' | 'enum'
+export type ScorecardParamType = 'number' | 'yesno' | 'enum' | 'text'
+
+export type ScorecardInputType = 'number' | 'text' | 'dropdown'
 
 export type ScorecardParamDef = {
   value: string
@@ -42,6 +44,35 @@ export const SCORECARD_SOURCES: ScorecardSourceDef[] = [
     parameters: [
       { value: 'REQUESTED_AMOUNT', label: 'Requested amount', type: 'number' },
       { value: 'TENURE_MONTHS', label: 'Tenure', type: 'number' },
+      { value: 'AGE', label: 'Applicant age (years)', type: 'number' },
+      {
+        value: 'OCCUPATION',
+        label: 'Occupation',
+        type: 'enum',
+        enumOptions: [
+          { value: 'OTHER', label: 'None / Other' },
+          { value: 'SELF_EMPLOYED_BUSINESS', label: 'Self Employed / Business' },
+          { value: 'SELF_EMPLOYED_PROFESSIONAL', label: 'Self Employed professional' },
+          { value: 'SALARIED_PRIVATE', label: 'Salaried — private sector' },
+          { value: 'SALARIED_GOVERNMENT', label: 'Salaried — government' },
+        ],
+      },
+      {
+        value: 'LOAN_PURPOSE',
+        label: 'Loan purpose',
+        type: 'enum',
+        enumOptions: [
+          { value: 'OTHER', label: 'Others' },
+          { value: 'SIBLING_MARRIAGE', label: "Sibling's Marriage" },
+          { value: 'PURCHASE_DURABLES', label: 'Purchase of Durables' },
+          { value: 'BUSINESS_PURPOSE', label: 'Business Purpose' },
+          { value: 'OWN_MARRIAGE', label: 'Own Marriage' },
+          { value: 'EDUCATION', label: 'Education' },
+          { value: 'VEHICLE_PURCHASE', label: 'Vehicle Purchase' },
+          { value: 'HOUSE_REPAIR', label: 'House Repair' },
+          { value: 'DEBT_CONSOLIDATION', label: 'Debt Consolidation' },
+        ],
+      },
     ],
   },
   {

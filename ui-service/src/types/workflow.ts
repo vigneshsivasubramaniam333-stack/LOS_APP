@@ -31,6 +31,16 @@ export interface WorkflowTenureRules {
   options?: WorkflowTenureOption[]
 }
 
+/** Allowed intake dropdown value — scores live only on underwriting scorecards. */
+export interface WorkflowCodedOption {
+  value: string
+  label: string
+}
+
+export interface WorkflowCodedFieldRules {
+  options?: WorkflowCodedOption[]
+}
+
 export interface WorkflowMandatoryFieldGroup {
   id: string
   label: string
@@ -54,9 +64,13 @@ export interface WorkflowIntakeConfig {
   personalFields?: {
     dateOfBirth?: WorkflowPersonalFieldConfig
     gender?: WorkflowPersonalFieldConfig
+    occupation?: WorkflowPersonalFieldConfig
+    loanPurpose?: WorkflowPersonalFieldConfig
   }
   ageRules?: WorkflowAgeRules
   tenureRules?: WorkflowTenureRules
+  occupationRules?: WorkflowCodedFieldRules
+  loanPurposeRules?: WorkflowCodedFieldRules
   mandatoryFieldGroups?: WorkflowMandatoryFieldGroup[]
   standaloneDocuments?: WorkflowStandaloneDocument[]
 }

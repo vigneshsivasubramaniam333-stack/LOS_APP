@@ -28,6 +28,10 @@ export interface IntakeFormState {
   /** Invoice discounting borrower: declared anchor relationship vintage (months) */
   anchorRelationshipVintageMonths: string
   purpose: string
+  /** Coded loan purpose for scorecard (dropdown). */
+  loanPurpose: string
+  /** Coded occupation for scorecard (dropdown). */
+  occupation: string
   /** Sales-assisted only */
   salesOfficerName: string
   salesOfficerId: string
@@ -135,6 +139,8 @@ export function createEmptyIntakeFormState(): IntakeFormState {
     dependencyVintagePercent: '',
     anchorRelationshipVintageMonths: '',
     purpose: '',
+    loanPurpose: '',
+    occupation: '',
     salesOfficerName: '',
     salesOfficerId: '',
     borrowerMobile: '',

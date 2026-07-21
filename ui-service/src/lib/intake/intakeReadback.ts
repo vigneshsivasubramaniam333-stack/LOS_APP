@@ -3,6 +3,7 @@ import { loanProductLabel } from '@/catalog/loanProducts'
 import { lmsTenureUnitLabel, tenureMagnitudeLabel } from '@/catalog/lmsTenureUnits'
 import { applicationPartyLabels, resolveIntakeSegment } from '@/lib/applicationPartyLabels'
 import { BORROWER_INTAKE_KEY } from './collateralIntakePayload'
+import { labelForLoanPurpose, labelForOccupation } from '@/lib/intake/intakeOptionCatalogs'
 import type { ApplicationResponse } from '@/types/application'
 
 /** Internal / system keys we never surface as row labels to staff (values may still inform other UI). */
@@ -84,7 +85,10 @@ export function buildIntakeReadback(app: ApplicationResponse): IntakeReadbackSec
     pushRow(product, 'LMS tenure type', lmsTenureUnitLabel(app.lmsTenureUnit))
   }
   if (pi) {
-    pushRow(product, 'Purpose of loan', pi.purpose)
+    const purposeLabel = str(pi.loanPurpose)
+      ? labelForLoanPurpose(str(pi.loanPurpose))
+      : str(pi.purpose)
+    pushRow(product, 'Purpose of loan', purposeLabel)
   }
   if (product.length) out.push({ title: 'Product & request', rows: product })
 
@@ -201,7 +205,10 @@ export function buildIntakeReadback(app: ApplicationResponse): IntakeReadbackSec
     if (str(pi.monthlyNetIncome)) {
       work.push({ label: 'Monthly net income (INR, declared)', value: str(pi.monthlyNetIncome) })
     }
-    pushRow(work, 'Occupation / industry', pi.occupationIndustry)
+    const occupationLabel = str(pi.occupation)
+      ? labelForOccupation(str(pi.occupation))
+      : str(pi.occupationIndustry)
+    pushRow(work, 'Occupation / industry', occupationLabel)
     pushRow(work, 'Work experience (years)', pi.workExperienceYears)
   }
   if (work.length) out.push({ title: 'Employment & income (declared at intake)', rows: work })

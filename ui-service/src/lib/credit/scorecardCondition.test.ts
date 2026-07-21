@@ -16,4 +16,10 @@ describe('scorecardCondition', () => {
     expect(opsForParamType('yesno')).toEqual(['EQ', 'NE'])
     expect(opsForParamType('number')).toContain('BETWEEN')
   })
+
+  it('gives text matches/contains operators', () => {
+    expect(opsForParamType('text')).toEqual(['EQ', 'NE', 'CONTAINS', 'NOT_CONTAINS'])
+    expect(parseCondition('CONTAINS:gov')).toEqual({ op: 'CONTAINS', value: 'gov' })
+    expect(formatCondition({ op: 'NOT_CONTAINS', value: 'x' })).toBe('NOT_CONTAINS:x')
+  })
 })

@@ -4,21 +4,24 @@ export function BtToastHost() {
   return (
     <Toaster
       position="top-right"
-      gutter={10}
+      gutter={12}
       toastOptions={{
         duration: 4500,
         style: {
-          borderRadius: '8px',
-          fontSize: '13px',
+          borderRadius: '10px',
+          fontSize: '14px',
+          lineHeight: '1.45',
           fontFamily: 'Inter, sans-serif',
-          maxWidth: '420px',
+          maxWidth: '480px',
+          padding: '12px 14px',
+          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.12)',
         },
         success: {
           className: 'bt-toast bt-toast-success',
         },
         error: {
           className: 'bt-toast bt-toast-error',
-          duration: 5500,
+          duration: 6500,
         },
       }}
     />

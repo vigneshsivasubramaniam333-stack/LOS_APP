@@ -7,6 +7,7 @@ import { ProgramConfigDetailsPanel } from '@/components/borrower/ProgramConfigDe
 import { BtBadge } from '@/components/ui/BtBadge'
 import { BtCard } from '@/components/ui/BtCard'
 import { BtPageHeader } from '@/components/ui/BtPageHeader'
+import { LoadingState } from '@/components/LoadingState'
 import {
   buildBorrowerTermsRowsFromEnrollment,
   buildProgramConfigurationRowsFromEnrollment,
@@ -253,8 +254,11 @@ export function BorrowerProgramsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="animate-pulse text-sm text-[var(--bt-gray-400)]">Loading programs…</div>
+      <div>
+        <BtPageHeader title="Programs" description="Programs and limits you are linked to" />
+        <div className="mt-4">
+          <LoadingState label="Loading programs…" />
+        </div>
       </div>
     )
   }

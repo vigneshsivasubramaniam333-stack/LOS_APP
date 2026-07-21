@@ -5,12 +5,13 @@ import {
   listScorecards,
   updateScorecard,
   type HardRuleRow,
+  type ScorecardParameterDef,
   type ScorecardRow,
   type UnderwritingScorecardRequest,
   type UnderwritingScorecardResponse,
 } from '@/api/scorecards'
 import { ApiError } from '@/api/http'
-import { ScorecardParameterEditor } from '@/components/scorecard/ScorecardParameterEditor'
+import { ScorecardParameterEditor, buildParameterDefsFromRows } from '@/components/scorecard/ScorecardParameterEditor'
 import { ScorecardConditionEditor } from '@/components/scorecard/ScorecardConditionEditor'
 import { ErrorState } from '@/components/ErrorState'
 import { LoadingState } from '@/components/LoadingState'
@@ -90,6 +91,7 @@ export function ScorecardsPage() {
   const [approveMin, setApproveMin] = useState(70)
   const [manualMin, setManualMin] = useState(40)
   const [grid, setGrid] = useState<ScorecardRow[]>([newRow()])
+  const [parameterDefs, setParameterDefs] = useState<Record<string, ScorecardParameterDef>>({})
   const [hards, setHards] = useState<HardRuleRow[]>([])
 
   const load = useCallback(async () => {
@@ -146,18 +148,31 @@ export function ScorecardsPage() {
     setApproveMin(typeof t.approveMinPercent === 'number' ? t.approveMinPercent : 70)
     setManualMin(typeof t.manualMinPercent === 'number' ? t.manualMinPercent : 40)
     const sc = r.scorecardJson || {}
+    const rawDefs = (sc as { parameterDefs?: Record<string, ScorecardParameterDef> }).parameterDefs
+    const defs = rawDefs && typeof rawDefs === 'object' ? rawDefs : {}
+    setParameterDefs(defs)
     const rawRows = (sc as { rows?: unknown }).rows
     if (Array.isArray(rawRows) && rawRows.length) {
       setGrid(
-        (rawRows as Record<string, unknown>[]).map((x, i) => ({
-          id: String(x.id ?? `e${i}`),
-          parameter: String(x.parameter ?? 'BUREAU_SCORE'),
-          source: String(x.source ?? 'BUREAU'),
-          condition: String(x.condition ?? 'GTE:650'),
-          weight: Number(x.weight) || 1,
-          score: Number(x.score) || 0,
-          attachment: x.attachment != null ? String(x.attachment) : undefined,
-        })),
+        (rawRows as Record<string, unknown>[]).map((x, i) => {
+          const parameter = String(x.parameter ?? 'BUREAU_SCORE')
+          const def = defs[parameter]
+          return {
+            id: String(x.id ?? `e${i}`),
+            parameter,
+            source: String(x.source ?? 'BUREAU'),
+            condition: String(x.condition ?? 'GTE:650'),
+            weight: Number(x.weight) || 1,
+            score: Number(x.score) || 0,
+            attachment: x.attachment != null ? String(x.attachment) : undefined,
+            ...(def
+              ? {
+                  inputType: def.inputType,
+                  options: def.options,
+                }
+              : {}),
+          }
+        }),
       )
     } else {
       setGrid([newRow()])
@@ -196,6 +211,7 @@ export function ScorecardsPage() {
     setApproveMin(70)
     setManualMin(40)
     setGrid([newRow(), newRow()])
+    setParameterDefs({})
     setHards([newHard()])
     setActionError(null)
   }
@@ -226,6 +242,9 @@ export function ScorecardsPage() {
           score: r.score,
           ...(r.attachment?.trim() ? { attachment: r.attachment.trim() } : {}),
         })),
+        ...(Object.keys(buildParameterDefsFromRows(grid)).length
+          ? { parameterDefs: buildParameterDefsFromRows(grid) }
+          : {}),
       },
       thresholdsJson: { approveMinPercent: approveMin, manualMinPercent: manualMin },
       hardRulesJson: {
@@ -435,14 +454,20 @@ export function ScorecardsPage() {
 
                 <DetailSection
                   title="Parameters"
-                  description="Select source first — only parameters for that source are listed. OTHER allows custom parameters collected during underwriting."
+                  description="Select source first — only parameters for that source are listed. OTHER custom parameters support Number, Text, or Dropdown (with per-option scores)."
                 >
                   <div className="mb-2 flex justify-end">
                     <button type="button" className="bt-btn bt-btn-ghost bt-btn-sm" onClick={() => setGrid((g) => [...g, newRow()])}>
                       + Add parameter
                     </button>
                   </div>
-                  <ScorecardParameterEditor rows={grid} onChange={setGrid} loanProduct={loanProduct} />
+                  <ScorecardParameterEditor
+                    rows={grid}
+                    onChange={setGrid}
+                    parameterDefs={parameterDefs}
+                    onParameterDefsChange={setParameterDefs}
+                    loanProduct={loanProduct}
+                  />
                 </DetailSection>
 
                 <DetailSection title="Hard rules" description="Evaluated before scoring — can force reject or manual review">

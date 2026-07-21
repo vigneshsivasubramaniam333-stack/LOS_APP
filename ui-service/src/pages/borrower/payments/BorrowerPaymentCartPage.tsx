@@ -7,9 +7,15 @@ import {
   type PaymentCartLine,
 } from '@/api/borrowerInvoiceDiscounting'
 import { PageHeader } from '@/components/PageHeader'
+import { LoadingState } from '@/components/LoadingState'
 
 function money(n: number): string {
-  return `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+  return `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 0 })}`
+}
+
+function moneyOrDash(n: number | null | undefined): string {
+  if (n == null || Number(n) <= 0) return '—'
+  return money(Number(n))
 }
 
 export function BorrowerPaymentCartPage() {
@@ -59,25 +65,37 @@ export function BorrowerPaymentCartPage() {
       <Link to="/borrower/invoice-discounting" className="text-sm font-medium text-sky-700 hover:underline">
         ← Back to invoice discounting
       </Link>
-      {err && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{err}</p>}
-      {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
-      ) : lines.length === 0 ? (
-        <p className="text-sm text-slate-500">Cart is empty.</p>
-      ) : (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+      {err && <div className="bt-alert bt-alert-error">{err}</div>}
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Invoice</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Interest</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Amount</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Invoice</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Amount</th>
-                <th className="px-4 py-2" />
+                <td colSpan={4} className="px-4 py-10">
+                  <LoadingState label="Loading cart…" />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {lines.map((line) => (
+            ) : lines.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                  Cart is empty.
+                </td>
+              </tr>
+            ) : (
+              lines.map((line) => (
                 <tr key={line.id} className="border-b border-slate-100">
                   <td className="px-4 py-2 font-mono text-xs">{line.invoiceNumber ?? line.invoiceId}</td>
+                  <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                    {moneyOrDash(line.interestAmount)}
+                  </td>
                   <td className="px-4 py-2 text-right font-medium">{money(line.amountToPay)}</td>
                   <td className="px-4 py-2 text-right">
                     <button
@@ -89,9 +107,11 @@ export function BorrowerPaymentCartPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              ))
+            )}
+          </tbody>
+        </table>
+        {!loading && lines.length > 0 ? (
           <div className="px-4 py-3 flex items-center justify-between bg-slate-50 border-t border-slate-200">
             <span className="font-semibold text-slate-800">Total: {money(total)}</span>
             <button
@@ -103,8 +123,8 @@ export function BorrowerPaymentCartPage() {
               {paying ? 'Starting…' : 'Pay via PayU'}
             </button>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
     </div>
   )
 }

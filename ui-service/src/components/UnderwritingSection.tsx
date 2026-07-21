@@ -23,7 +23,7 @@ import { helpForParameter } from '@/lib/scorecardParameterSources'
 import { ScorecardSummaryPanel } from '@/components/credit/ScorecardSummaryPanel'
 import { ScorecardPreRunInputsPanel } from '@/components/credit/ScorecardPreRunInputsPanel'
 import { buildCreditSummary } from '@/lib/credit/creditSummaryBuilder'
-import { matchScorecardForApplication, scorecardRowsFromJson } from '@/lib/credit/matchScorecard'
+import { matchScorecardForApplication, scorecardParameterDefsFromJson, scorecardRowsFromJson } from '@/lib/credit/matchScorecard'
 import {
   allScorecardInputsReady,
   scorecardManualInputRequirements,
@@ -194,7 +194,11 @@ export function UnderwritingSection({
 
   const scorecardInputRequirements = useMemo(
     () =>
-      scorecardManualInputRequirements(scorecardRowsFromJson(matchedScorecard), scorecardMapForMatch),
+      scorecardManualInputRequirements(
+        scorecardRowsFromJson(matchedScorecard),
+        scorecardMapForMatch,
+        scorecardParameterDefsFromJson(matchedScorecard),
+      ),
     [matchedScorecard, scorecardMapForMatch],
   )
 

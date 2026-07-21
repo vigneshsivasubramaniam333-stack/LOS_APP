@@ -1,7 +1,76 @@
-import type { WorkflowIntakeConfig, WorkflowMandatoryFieldGroup, WorkflowStandaloneDocument } from '@/types/workflow'
+import type { WorkflowCodedOption, WorkflowIntakeConfig, WorkflowMandatoryFieldGroup, WorkflowStandaloneDocument } from '@/types/workflow'
 import type { VisualWorkflowStep } from '@/lib/workflowVisual'
 import { KYC_IDENTITY_WORKFLOW_STEPS } from '@/lib/workflowVisual'
+import { DEFAULT_LOAN_PURPOSE_OPTIONS, DEFAULT_OCCUPATION_OPTIONS } from '@/lib/intake/intakeOptionCatalogs'
 import { defaultWorkflowDrivenIntakeConfig, newMandatoryGroup, newStandaloneDocument } from '@/lib/workflow/workflowIntakeRules'
+
+function CodedOptionsEditor({
+  title,
+  description,
+  options,
+  onChange,
+}: {
+  title: string
+  description: string
+  options: WorkflowCodedOption[]
+  onChange: (options: WorkflowCodedOption[]) => void
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+      <h3 className="text-sm font-medium text-slate-800">{title}</h3>
+      <p className="mt-1 text-xs text-slate-500">{description}</p>
+      <div className="mt-2 space-y-2">
+        {options.map((opt, idx) => (
+          <div key={`${opt.value}-${idx}`} className="flex flex-wrap items-end gap-2">
+            <label className="block text-xs text-slate-600">
+              Label
+              <input
+                className="mt-0.5 block w-44 rounded border border-slate-300 px-2 py-1 text-sm"
+                value={opt.label}
+                onChange={(e) => {
+                  const next = [...options]
+                  next[idx] = { ...opt, label: e.target.value }
+                  onChange(next)
+                }}
+              />
+            </label>
+            <label className="block text-xs text-slate-600">
+              Code
+              <input
+                className="mt-0.5 block w-40 rounded border border-slate-300 px-2 py-1 text-sm font-mono"
+                value={opt.value}
+                onChange={(e) => {
+                  const next = [...options]
+                  next[idx] = { ...opt, value: e.target.value }
+                  onChange(next)
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="text-xs text-rose-700"
+              onClick={() => onChange(options.filter((_, i) => i !== idx))}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+          onClick={() =>
+            onChange([
+              ...options,
+              { value: `OPTION_${options.length + 1}`, label: 'New option' },
+            ])
+          }
+        >
+          Add option
+        </button>
+      </div>
+    </section>
+  )
+}
 
 function intakeSummary(config: WorkflowIntakeConfig): string {
   const parts: string[] = []
@@ -81,11 +150,19 @@ export function WorkflowIntakeRulesPanel({
           <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
             <h3 className="text-sm font-medium text-slate-800">Personal fields</h3>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              {(['dateOfBirth', 'gender'] as const).map((field) => {
+              {(['dateOfBirth', 'gender', 'occupation', 'loanPurpose'] as const).map((field) => {
                 const cfg = intakeConfig.personalFields?.[field] ?? {}
+                const fieldLabel =
+                  field === 'dateOfBirth'
+                    ? 'Date of birth'
+                    : field === 'gender'
+                      ? 'Gender'
+                      : field === 'occupation'
+                        ? 'Occupation'
+                        : 'Loan purpose'
                 return (
                   <div key={field} className="rounded border border-slate-200 bg-white p-2">
-                    <p className="text-xs font-medium capitalize text-slate-700">{field === 'dateOfBirth' ? 'Date of birth' : 'Gender'}</p>
+                    <p className="text-xs font-medium capitalize text-slate-700">{fieldLabel}</p>
                     <label className="mt-1 flex items-center gap-2 text-xs text-slate-600">
                       <input
                         type="checkbox"
@@ -301,6 +378,20 @@ export function WorkflowIntakeRulesPanel({
               </div>
             )}
           </section>
+
+          <CodedOptionsEditor
+            title="Occupation options"
+            description="Allowed dropdown values for occupation at intake. Scores are configured on underwriting scorecards."
+            options={intakeConfig.occupationRules?.options ?? DEFAULT_OCCUPATION_OPTIONS}
+            onChange={(options) => patch({ occupationRules: { options } })}
+          />
+
+          <CodedOptionsEditor
+            title="Loan purpose options"
+            description="Allowed dropdown values for loan purpose at intake. Scores are configured on underwriting scorecards."
+            options={intakeConfig.loanPurposeRules?.options ?? DEFAULT_LOAN_PURPOSE_OPTIONS}
+            onChange={(options) => patch({ loanPurposeRules: { options } })}
+          />
 
           <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
             <div className="flex items-center justify-between gap-2">

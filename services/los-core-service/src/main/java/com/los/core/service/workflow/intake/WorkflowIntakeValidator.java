@@ -147,6 +147,39 @@ public class WorkflowIntakeValidator {
 
         validatePersonalField(personalFields, personal, "dateOfBirth", "Date of birth");
         validatePersonalField(personalFields, personal, "gender", "Gender");
+        validateCodedPersonalField(intakeConfig, personalFields, personal, "occupation", "Occupation", "occupationRules");
+        validateCodedPersonalField(intakeConfig, personalFields, personal, "loanPurpose", "Loan purpose", "loanPurposeRules");
+    }
+
+    private void validateCodedPersonalField(
+            Map<String, Object> intakeConfig,
+            Map<String, Object> personalFields,
+            Map<String, Object> personal,
+            String key,
+            String label,
+            String rulesKey) {
+        if (!(personalFields.get(key) instanceof Map<?, ?> cfg)) {
+            return;
+        }
+        boolean collect = boolValue(cfg.get("collect"));
+        boolean required = boolValue(cfg.get("required"));
+        if (!collect) {
+            return;
+        }
+        String value = stringValue(personal.get(key));
+        if (required && value.isBlank()) {
+            throw fieldError(key, label + " is required.");
+        }
+        if (value.isBlank()) {
+            return;
+        }
+        List<IntakeOptionCatalog.CodedOption> options = "occupationRules".equals(rulesKey)
+                ? IntakeOptionCatalog.occupationOptionsFromIntakeConfig(intakeConfig)
+                : IntakeOptionCatalog.loanPurposeOptionsFromIntakeConfig(intakeConfig);
+        boolean ok = options.stream().anyMatch(o -> o.value().equals(value));
+        if (!ok) {
+            throw fieldError(key, "Select a valid " + label.toLowerCase(Locale.ROOT) + " option.");
+        }
     }
 
     private static void validatePersonalField(

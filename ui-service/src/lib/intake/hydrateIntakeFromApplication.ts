@@ -1,4 +1,8 @@
 import { createEmptyIntakeFormState, type IntakeFormState } from '@/lib/intake/intakeTypes'
+import {
+  inferLoanPurposeCodeFromLegacyText,
+  inferOccupationCodeFromLegacyText,
+} from '@/lib/intake/intakeOptionCatalogs'
 import type { ApplicationResponse } from '@/types/application'
 
 /**
@@ -29,6 +33,14 @@ export function hydrateIntakeFormFromApplication(
     loanProduct: app.loanProduct ?? base.loanProduct,
     invoiceOnboardingChoice,
     purpose: str(pi, 'purpose') || base.purpose,
+    loanPurpose:
+      str(pi, 'loanPurpose') ||
+      inferLoanPurposeCodeFromLegacyText(str(pi, 'purpose')) ||
+      base.loanPurpose,
+    occupation:
+      str(pi, 'occupation') ||
+      inferOccupationCodeFromLegacyText(str(pi, 'occupationIndustry')) ||
+      base.occupation,
     requestedAmount: app.requestedAmount != null ? String(app.requestedAmount) : base.requestedAmount,
     tenureMonths: app.tenureMonths != null ? String(app.tenureMonths) : base.tenureMonths,
     lmsProductCode: app.lmsProductCode?.trim() || base.lmsProductCode,

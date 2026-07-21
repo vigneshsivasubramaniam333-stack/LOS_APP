@@ -137,6 +137,7 @@ public class ScorecardPolicyEngine {
         }
 
         Map<String, Object> scj = c.getScorecardJson() != null ? c.getScorecardJson() : Map.of();
+        Map<String, Map<String, Object>> parameterDefs = parseParameterDefs(scj);
         List<Map<String, Object>> rowMaps = new ArrayList<>();
         Object rows = scj.get("rows");
         if (rows instanceof List<?> rlist) {
@@ -162,10 +163,39 @@ public class ScorecardPolicyEngine {
             if (maxRow < 0) {
                 maxRow = 0;
             }
-            maxPoints += maxRow;
+
+            Map<String, Object> def = parameterDefs.get(p);
+            boolean matchOption = "MATCH_OPTION".equalsIgnoreCase(cond)
+                    || (def != null && isOptionScoredInputType(def) && (cond == null || cond.isBlank()));
+            boolean textTyped = def != null && "text".equalsIgnoreCase(str(def.get("inputType")));
+
+            String stringValue = resolveStringValue(source, p, app, ctx);
             BigDecimal v = resolve(source, p, app, ctx);
-            boolean m = conditionMatches(cond, v);
-            int add = m ? maxRow : 0;
+            boolean m;
+            int add;
+            String valueUsed;
+
+            if (matchOption && def != null) {
+                int optionMax = maxOptionScore(def);
+                if (optionMax > 0) {
+                    maxRow = optionMax;
+                }
+                maxPoints += maxRow;
+                Integer optionScore = lookupOptionScore(def, stringValue);
+                m = optionScore != null;
+                add = m ? optionScore : 0;
+                valueUsed = stringValue;
+            } else if (textTyped || isStringCondition(cond, v, stringValue)) {
+                maxPoints += maxRow;
+                m = stringConditionMatches(cond, stringValue);
+                add = m ? maxRow : 0;
+                valueUsed = stringValue;
+            } else {
+                maxPoints += maxRow;
+                m = conditionMatches(cond, v);
+                add = m ? maxRow : 0;
+                valueUsed = v != null ? v.toPlainString() : stringValue;
+            }
             earned += add;
             Map<String, Object> one = new LinkedHashMap<>();
             one.put("rowId", str(row.get("id")));
@@ -174,7 +204,7 @@ public class ScorecardPolicyEngine {
             one.put("condition", cond);
             one.put("weight", w);
             one.put("maxScore", maxRow);
-            one.put("valueUsed", v != null ? v.toPlainString() : null);
+            one.put("valueUsed", valueUsed);
             one.put("valueSource", describeSource(source, p, ctx, app));
             one.put("matched", m);
             one.put("pointsEarned", add);
@@ -354,6 +384,10 @@ public class ScorecardPolicyEngine {
             if ("TENURE_MONTHS".equalsIgnoreCase(param) && app.getTenureMonths() != null) {
                 return BigDecimal.valueOf(app.getTenureMonths());
             }
+            BigDecimal applicationParam = ApplicationScorecardParameterResolver.resolve(param, app, null);
+            if (applicationParam != null) {
+                return applicationParam;
+            }
         }
         if ("CONTEXT".equals(src)) {
             if ("MONTHLY_INCOME".equalsIgnoreCase(param) || "EFFECTIVE_INCOME".equalsIgnoreCase(param)) {
@@ -468,6 +502,186 @@ public class ScorecardPolicyEngine {
             case "NE" -> v.compareTo(rhs) != 0;
             default -> false;
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Map<String, Object>> parseParameterDefs(Map<String, Object> scorecardJson) {
+        Object raw = scorecardJson.get("parameterDefs");
+        if (!(raw instanceof Map<?, ?> map)) {
+            return Map.of();
+        }
+        Map<String, Map<String, Object>> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            if (e.getKey() == null || !(e.getValue() instanceof Map<?, ?> def)) {
+                continue;
+            }
+            String key = String.valueOf(e.getKey()).trim();
+            if (key.isEmpty()) {
+                continue;
+            }
+            out.put(key, new LinkedHashMap<>((Map<String, Object>) def));
+        }
+        return out;
+    }
+
+    private static boolean isOptionScoredInputType(Map<String, Object> def) {
+        String inputType = str(def.get("inputType"));
+        return "dropdown".equalsIgnoreCase(inputType);
+    }
+
+    private static int maxOptionScore(Map<String, Object> def) {
+        Object optionsRaw = def.get("options");
+        if (!(optionsRaw instanceof List<?> list)) {
+            return 0;
+        }
+        int max = 0;
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> m) {
+                max = Math.max(max, intOrNull(m.get("score")));
+            }
+        }
+        return max;
+    }
+
+    private static Integer lookupOptionScore(Map<String, Object> def, String collected) {
+        if (collected == null || collected.isBlank()) {
+            return null;
+        }
+        String trimmed = collected.trim();
+        Object optionsRaw = def.get("options");
+        if (!(optionsRaw instanceof List<?> list)) {
+            return null;
+        }
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> m)) {
+                continue;
+            }
+            String value = str(m.get("value"));
+            String label = str(m.get("label"));
+            if (trimmed.equals(value) || (label != null && trimmed.equalsIgnoreCase(label))) {
+                return intOrNull(m.get("score"));
+            }
+        }
+        return null;
+    }
+
+    private static boolean isStringCondition(String cond, BigDecimal numericValue, String stringValue) {
+        if (cond == null || cond.isBlank() || stringValue == null || stringValue.isBlank()) {
+            return false;
+        }
+        String c = cond.trim();
+        int first = c.indexOf(':');
+        if (first < 0) {
+            return false;
+        }
+        String op = c.substring(0, first).trim().toUpperCase(Locale.ROOT);
+        if (!"EQ".equals(op) && !"NE".equals(op) && !"CONTAINS".equals(op) && !"NOT_CONTAINS".equals(op)) {
+            return false;
+        }
+        String rest = c.substring(first + 1).trim();
+        // Prefer string path when RHS is not a plain number (or when we have a string value and no numeric).
+        if (numericValue == null) {
+            return true;
+        }
+        if ("CONTAINS".equals(op) || "NOT_CONTAINS".equals(op)) {
+            return true;
+        }
+        try {
+            new BigDecimal(rest);
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private static boolean stringConditionMatches(String cond, String stringValue) {
+        if (cond == null || cond.isBlank() || stringValue == null) {
+            return false;
+        }
+        String c = cond.trim();
+        int first = c.indexOf(':');
+        if (first < 0) {
+            return false;
+        }
+        String op = c.substring(0, first).trim().toUpperCase(Locale.ROOT);
+        String rest = c.substring(first + 1).trim();
+        String left = stringValue.trim();
+        boolean eq = left.equalsIgnoreCase(rest);
+        if ("EQ".equals(op)) {
+            return eq;
+        }
+        if ("NE".equals(op)) {
+            return !eq;
+        }
+        boolean contains = left.toLowerCase(Locale.ROOT).contains(rest.toLowerCase(Locale.ROOT));
+        if ("CONTAINS".equals(op)) {
+            return contains;
+        }
+        if ("NOT_CONTAINS".equals(op)) {
+            return !contains;
+        }
+        return false;
+    }
+
+    private static String resolveStringValue(
+            String source, String param, LoanApplication app, EffectiveUnderwritingContext ctx) {
+        if (param == null) {
+            return null;
+        }
+        String fromApp = ApplicationScorecardParameterResolver.resolveString(param, app);
+        if (fromApp != null && !fromApp.isBlank()) {
+            return fromApp;
+        }
+        String fromMetrics = readManualScorecardMetricString(app, param);
+        if (fromMetrics != null && !fromMetrics.isBlank()) {
+            return fromMetrics;
+        }
+        if (ctx.scorecard() != null) {
+            BigDecimal z = ctx.scorecard().get(param);
+            if (z == null) {
+                z = ctx.scorecard().get(param.toUpperCase(Locale.ROOT));
+            }
+            if (z != null) {
+                return z.toPlainString();
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String readManualScorecardMetricString(LoanApplication app, String param) {
+        if (app.getFinancialInfo() == null) {
+            return null;
+        }
+        Object ccRaw = app.getFinancialInfo().get("creditControl");
+        if (!(ccRaw instanceof Map<?, ?> cc)) {
+            return null;
+        }
+        Object manualRaw = cc.get("manual");
+        if (!(manualRaw instanceof Map<?, ?> manual)) {
+            return null;
+        }
+        Object metricsRaw = manual.get("scorecardMetrics");
+        if (!(metricsRaw instanceof Map<?, ?> metrics)) {
+            // Also try top-level manual key for known fields
+            return unwrapManualString(manual.get(param));
+        }
+        String fromNested = unwrapManualString(metrics.get(param));
+        if (fromNested != null) {
+            return fromNested;
+        }
+        return unwrapManualString(manual.get(param));
+    }
+
+    private static String unwrapManualString(Object cell) {
+        if (cell == null) {
+            return null;
+        }
+        if (cell instanceof Map<?, ?> m && m.get("value") != null) {
+            return String.valueOf(m.get("value")).trim();
+        }
+        String s = cell.toString().trim();
+        return s.isEmpty() ? null : s;
     }
 
     private static int intOrNull(Object o) {
