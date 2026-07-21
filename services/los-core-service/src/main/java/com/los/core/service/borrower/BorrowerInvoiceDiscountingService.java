@@ -510,6 +510,7 @@ public class BorrowerInvoiceDiscountingService {
         BigDecimal sanctioned = asBig(loan.get("sanctionedAmount"));
         BigDecimal disbursed = asBig(loan.get("disbursedAmount"));
         BigDecimal principal = firstNonNullPositive(disbursed, sanctioned, requested);
+        BigDecimal totalRepayable = asBig(loan.get("totalRepayable"));
         return BorrowerInvoiceLoanResponse.builder()
                 .loanId(asString(loan.get("id")))
                 .loanNumber(asString(loan.get("loanNumber")))
@@ -520,11 +521,31 @@ public class BorrowerInvoiceDiscountingService {
                 .sanctionedAmount(sanctioned != null ? sanctioned : principal)
                 .disbursedAmount(disbursed)
                 .outstandingAmount(asBig(loan.get("outstandingAmount")))
-                .totalRepayable(asBig(loan.get("totalRepayable")))
+                .interestAmount(resolveInterestAmount(loan, principal, totalRepayable))
+                .totalRepayable(totalRepayable)
                 .totalRepaid(asBig(loan.get("totalRepaid")))
                 .dueDate(asString(loan.get("dueDate")))
                 .repayable(repayable(status))
                 .build();
+    }
+
+    private static BigDecimal resolveInterestAmount(
+            Map<String, Object> loan,
+            BigDecimal principal,
+            BigDecimal totalRepayable) {
+        BigDecimal explicit = firstNonNullPositive(
+                asBig(loan.get("interestAmount")),
+                asBig(loan.get("totalNormalInterestDue")),
+                asBig(loan.get("normalInterestDue")));
+        if (explicit != null) {
+            return explicit;
+        }
+        if (principal != null
+                && totalRepayable != null
+                && totalRepayable.compareTo(principal) > 0) {
+            return totalRepayable.subtract(principal);
+        }
+        return null;
     }
 
     private static BorrowerInvoiceDiscountingResponse unavailable(String message) {

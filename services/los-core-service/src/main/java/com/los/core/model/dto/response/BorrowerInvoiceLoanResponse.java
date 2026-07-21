@@ -20,6 +20,7 @@ public class BorrowerInvoiceLoanResponse {
     BigDecimal sanctionedAmount;
     BigDecimal disbursedAmount;
     BigDecimal outstandingAmount;
+    BigDecimal interestAmount;
     BigDecimal totalRepayable;
     BigDecimal totalRepaid;
     String dueDate;

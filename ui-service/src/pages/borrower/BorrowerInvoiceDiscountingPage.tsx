@@ -28,6 +28,34 @@ function money(n: number | null | undefined): string {
   return `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 }
 
+function loanPrincipal(loan: BorrowerInvoiceLoan): number {
+  return Number(loan.disbursedAmount ?? loan.sanctionedAmount ?? loan.requestedAmount ?? 0)
+}
+
+function loanPayable(loan: BorrowerInvoiceLoan): number {
+  return Number(loan.outstandingAmount ?? loan.totalRepayable ?? loanPrincipal(loan))
+}
+
+function loanInterest(loan: BorrowerInvoiceLoan): number | null {
+  const explicit = Number(loan.interestAmount ?? 0)
+  if (explicit > 0) return explicit
+  const derived = loanPayable(loan) - loanPrincipal(loan)
+  return derived > 0 ? derived : null
+}
+
+function interestFromLoans(loans: BorrowerInvoiceLoan[]): number | null {
+  let total = 0
+  let any = false
+  for (const loan of loans) {
+    const interest = loanInterest(loan)
+    if (interest != null && interest > 0) {
+      total += interest
+      any = true
+    }
+  }
+  return any ? total : null
+}
+
 function defaultFinanceAmount(inv: BorrowerInvoiceItem): string {
   const amt =
     inv.suggestedFinanceAmount ??
@@ -492,6 +520,7 @@ export function BorrowerInvoiceDiscountingPage({
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Due date</th>
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Amount</th>
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Available</th>
+                      <th className="px-5 py-3 align-middle whitespace-nowrap">Interest</th>
                       {usePayu ? <th className="px-5 py-3 align-middle whitespace-nowrap">PRUS</th> : null}
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Copy</th>
                       <th className="px-5 py-3 align-middle whitespace-nowrap">Status</th>
@@ -527,6 +556,9 @@ export function BorrowerInvoiceDiscountingPage({
                         <td className="whitespace-nowrap px-5 py-3 align-middle text-slate-600">{inv.dueDate ?? '—'}</td>
                         <td className="px-5 py-3 align-middle tabular-nums text-slate-700">{money(inv.invoiceAmount)}</td>
                         <td className="px-5 py-3 align-middle tabular-nums text-slate-700">{money(inv.availableAmount)}</td>
+                        <td className="px-5 py-3 align-middle tabular-nums text-slate-600">
+                          {money(interestFromLoans(linkedLoans))}
+                        </td>
                         {usePayu ? (
                           <td className="px-5 py-3 align-middle tabular-nums text-amber-700 text-xs font-medium">
                             {inv.pipAmount && inv.pipAmount > 0 ? money(inv.pipAmount) : '—'}
@@ -607,7 +639,7 @@ export function BorrowerInvoiceDiscountingPage({
                       if (linkedLoans.length > 0 && expandedLoanInvoiceIds.has(inv.invoiceId)) {
                         rows.push(
                           <tr key={`${inv.invoiceId}-loans`}>
-                            <td colSpan={usePayu ? 9 : 7} className="px-5 py-4 bg-slate-50/40 align-middle">
+                            <td colSpan={usePayu ? 10 : 8} className="px-5 py-4 bg-slate-50/40 align-middle">
                               <div className="space-y-4">
                                 {linkedLoans.map((loan) =>
                                   usePayu ? (

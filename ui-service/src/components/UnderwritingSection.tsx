@@ -39,6 +39,22 @@ function computeAaFoir(data: AaFetchedData): number | null {
   return (data.regularEmiOutflows / data.avgMonthlyInflow) * 100
 }
 
+function savedScorecardMetricsFromManual(manual: Record<string, unknown> | undefined): Record<string, string> {
+  const raw = manual?.scorecardMetrics
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, string> = {}
+  for (const [key, cell] of Object.entries(raw as Record<string, unknown>)) {
+    const value =
+      cell && typeof cell === 'object' && !Array.isArray(cell)
+        ? (cell as { value?: unknown }).value
+        : cell
+    if (value != null && String(value).trim()) {
+      out[key] = String(value).trim()
+    }
+  }
+  return out
+}
+
 export function UnderwritingSection({
   applicationId,
   app,
@@ -153,9 +169,17 @@ export function UnderwritingSection({
     }
   }, [applicationId, app.updatedAt])
 
-  const scorecardMapForMatch = (
-    app.creditControlView as { effective?: { scorecard?: Record<string, string> } } | undefined
-  )?.effective?.scorecard
+  const creditControlManual = (
+    app.creditControlView as { creditControl?: { manual?: Record<string, unknown> } } | undefined
+  )?.creditControl?.manual
+
+  const scorecardMapForMatch = useMemo(() => {
+    const effective = (
+      app.creditControlView as { effective?: { scorecard?: Record<string, string> } } | undefined
+    )?.effective?.scorecard
+    const savedCustom = savedScorecardMetricsFromManual(creditControlManual)
+    return { ...(effective ?? {}), ...savedCustom }
+  }, [app.creditControlView, creditControlManual])
 
   const matchedScorecard = useMemo(
     () =>

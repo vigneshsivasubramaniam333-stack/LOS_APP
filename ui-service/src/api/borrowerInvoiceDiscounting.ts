@@ -49,6 +49,8 @@ export interface BorrowerInvoiceLoan {
   sanctionedAmount: number | null
   disbursedAmount: number | null
   outstandingAmount: number | null
+  /** LMS interest due when available; derived from payable - principal when explicit value is absent. */
+  interestAmount?: number | null
   totalRepayable: number | null
   totalRepaid: number | null
   dueDate: string | null

@@ -55,8 +55,58 @@ type Props = {
   matchedScorecardName: string
   matchedScorecardVersion: number
   requirements: ScorecardInputRequirement[]
-  onRefetch: () => void
+  onRefetch: () => void | Promise<void>
   focusParameter?: string | null
+}
+
+const KNOWN_SCORECARD_MANUAL_KEYS = new Set([
+  'avgDailyBalance3m',
+  'avgMonthlyTransactions3m',
+  'avgMonthlySettlements3m',
+  'monthlyTransactions3m',
+  'inwardChequeReturns3m',
+  'avgDailySettlements3m',
+  'noOfTxns60days',
+  'txnMth1',
+  'txnMth2',
+  'txnMth3',
+  'avgGmv3m',
+  'active90days',
+  'residenceOwned',
+  'residenceStability',
+  'businessStability',
+  'existingLoanTrackRecordAll',
+  'existingLoanTrackRecord15d',
+  'qrTxnEDI',
+  'eligibleOnePointFiveX',
+])
+
+function readScorecardMetricValue(manual: Record<string, unknown> | undefined, key: string): string {
+  const raw = manual?.scorecardMetrics
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return ''
+  const cell = (raw as Record<string, unknown>)[key]
+  const value =
+    cell && typeof cell === 'object' && !Array.isArray(cell)
+      ? (cell as { value?: unknown }).value
+      : cell
+  return value == null ? '' : String(value)
+}
+
+function readScorecardInputValue(manual: Record<string, unknown> | undefined, key: string): string {
+  return readScorecardMetricValue(manual, key) || readManualValue(manual, key)
+}
+
+function customMetricsFromRequirements(
+  values: Record<string, string>,
+  requirements: ScorecardInputRequirement[],
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const req of requirements) {
+    if (KNOWN_SCORECARD_MANUAL_KEYS.has(req.manualKey)) continue
+    const value = values[req.manualKey]?.trim()
+    if (value) out[req.manualKey] = value
+  }
+  return out
 }
 
 /** OTHER / GST scorecard fields collected before underwriting — not in Manual credit inputs. */
@@ -79,7 +129,7 @@ export function ScorecardPreRunInputsPanel({
     const out: Record<string, string> = {}
     for (const req of visibleRequirements) {
       const def = paramDef(req.source, req.parameter)
-      const raw = readManualValue(manual, req.manualKey)
+      const raw = readScorecardInputValue(manual, req.manualKey)
       out[req.manualKey] = def?.type === 'yesno' ? yesNoFromStored(raw) : raw
     }
     return out
@@ -119,9 +169,12 @@ export function ScorecardPreRunInputsPanel({
     }
     setSaving(true)
     try {
-      const payload = buildScorecardMetricsPayload(values, {}) as ManualCreditInputsPayload
+      const payload = buildScorecardMetricsPayload(
+        values,
+        customMetricsFromRequirements(values, visibleRequirements),
+      ) as ManualCreditInputsPayload
       await saveScorecardInputs(applicationId, payload)
-      onRefetch()
+      await onRefetch()
       setOkMsg('Scorecard inputs saved. You can start or re-run underwriting.')
     } catch (e) {
       setErr(messageForKycAction(e))
