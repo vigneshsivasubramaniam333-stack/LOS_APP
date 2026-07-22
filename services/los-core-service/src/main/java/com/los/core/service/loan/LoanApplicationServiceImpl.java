@@ -15,6 +15,7 @@ import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.CreditAppraisalMemoRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
+import com.los.core.service.audit.RecordAuditService;
 import com.los.core.service.credit.CreditControlService;
 import com.los.core.service.loan.intake.ApplicationSubmitIdentityValidator;
 import com.los.core.service.loan.intake.ApplicationCustomerIdResolver;
@@ -42,6 +43,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
 
     private final LoanApplicationRepository applicationRepository;
     private final AuditService auditService;
+    private final RecordAuditService recordAuditService;
     private final CreditControlService creditControlService;
     private final UnderwritingEvaluationService underwritingEvaluationService;
     private final CreditAppraisalMemoRepository creditAppraisalMemoRepository;
@@ -280,6 +282,8 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
             );
         }
 
+        Map<String, Object> beforeSnapshot = applicationInputChangeTracker.fullFingerprint(app);
+
         if (request.getRequestedAmount() != null) app.setRequestedAmount(request.getRequestedAmount());
         if (request.getTenureMonths() != null) app.setTenureMonths(request.getTenureMonths());
         if (request.getLmsProductCode() != null && !isInvoiceDiscountingProduct(app.getLoanProduct())) {
@@ -297,8 +301,33 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
         applicationInputChangeTracker.refreshKycChangeFlags(app);
         applicationInputChangeTracker.refreshIntakeChangeSinceSendBack(app);
 
+        Map<String, Object> afterSnapshot = applicationInputChangeTracker.fullFingerprint(app);
+        List<String> changedFields = applicationInputChangeTracker.diffSnapshots(beforeSnapshot, afterSnapshot);
+
         app = applicationRepository.save(app);
         log.info("Application updated: {}", app.getApplicationNumber());
+
+        if (!changedFields.isEmpty()) {
+            auditService.logEvent(
+                    applicationId,
+                    "APPLICATION",
+                    "UPDATED",
+                    null,
+                    Map.of("fields", beforeSnapshot),
+                    Map.of("fields", afterSnapshot, "changedFields", changedFields),
+                    "Application fields updated: " + String.join(", ", changedFields));
+            recordAuditService.capture(
+                    "LOAN_APPLICATION",
+                    applicationId.toString(),
+                    "UPDATE",
+                    app.getStatus() != null ? app.getStatus().name() : null,
+                    null,
+                    null,
+                    applicationId,
+                    beforeSnapshot,
+                    afterSnapshot,
+                    "Application fields updated");
+        }
 
         return enrich(toResponse(app), app);
     }
@@ -378,7 +407,12 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
             if (app.getSubmittedAt() == null) app.setSubmittedAt(Instant.now());
         }
 
-        app = applicationRepository.save(app);
+        StatusChangeContext.set(null, remarks != null ? remarks : "Status transition");
+        try {
+            app = applicationRepository.save(app);
+        } finally {
+            StatusChangeContext.clear();
+        }
         log.info("Application {} transitioned: {} -> {}", app.getApplicationNumber(), oldStatus, newStatus);
 
         auditService.logEvent(applicationId, "STATUS_CHANGE", oldStatus + " -> " + newStatus,

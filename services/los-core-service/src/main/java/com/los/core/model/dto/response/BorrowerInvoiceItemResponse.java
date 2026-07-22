@@ -42,4 +42,6 @@ public class BorrowerInvoiceItemResponse {
     /** Original digital invoice filename when attached by anchor. */
     String digitalInvoiceFileName;
     String digitalInvoiceContentType;
+    /** True when borrower may delete this SBD/PO invoice (program flag + pre-finance status). */
+    boolean deletable;
 }

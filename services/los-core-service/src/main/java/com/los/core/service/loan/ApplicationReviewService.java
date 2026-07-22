@@ -111,13 +111,18 @@ public class ApplicationReviewService {
                             + from);
         }
         String trimmed = trimToNull(notes);
-        app.setStatus(ApplicationStatus.BORROWER_SENT_BACK);
-        app.setBorrowerSentBackNotes(trimmed);
-        app.setIntakeOwner(IntakeOwner.BORROWER);
-        storeReviewNotes(app, "SENT_BACK_TO_BORROWER", trimmed);
-        applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
-        app.setUpdatedAt(Instant.now());
-        applicationRepository.save(app);
+        StatusChangeContext.set(null, trimmed != null ? trimmed : "Sent back to borrower");
+        try {
+            app.setStatus(ApplicationStatus.BORROWER_SENT_BACK);
+            app.setBorrowerSentBackNotes(trimmed);
+            app.setIntakeOwner(IntakeOwner.BORROWER);
+            storeReviewNotes(app, "SENT_BACK_TO_BORROWER", trimmed);
+            applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
+            app.setUpdatedAt(Instant.now());
+            applicationRepository.save(app);
+        } finally {
+            StatusChangeContext.clear();
+        }
         auditService.logEvent(applicationId, "FLOW", "BORROWER_SENT_BACK", null,
                 Map.of("status", from.name()),
                 Map.of("status", ApplicationStatus.BORROWER_SENT_BACK.name(),
@@ -174,12 +179,17 @@ public class ApplicationReviewService {
                     Map.of("status", from.name()));
         }
         String trimmed = trimToNull(notes);
-        app.setStatus(ApplicationStatus.SENT_BACK_TO_RM);
-        app.setIntakeOwner(IntakeOwner.STAFF);
-        storeReviewNotes(app, "SENT_BACK_TO_RM", trimmed);
-        applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
-        app.setUpdatedAt(Instant.now());
-        applicationRepository.save(app);
+        StatusChangeContext.set(null, trimmed != null ? trimmed : "Sent back to Relationship Manager");
+        try {
+            app.setStatus(ApplicationStatus.SENT_BACK_TO_RM);
+            app.setIntakeOwner(IntakeOwner.STAFF);
+            storeReviewNotes(app, "SENT_BACK_TO_RM", trimmed);
+            applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
+            app.setUpdatedAt(Instant.now());
+            applicationRepository.save(app);
+        } finally {
+            StatusChangeContext.clear();
+        }
         auditService.logEvent(applicationId, "FLOW", "SENT_BACK_TO_RM", null,
                 Map.of("status", from.name()),
                 Map.of("status", ApplicationStatus.SENT_BACK_TO_RM.name(),

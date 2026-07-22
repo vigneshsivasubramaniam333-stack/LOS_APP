@@ -4,6 +4,7 @@ import {
   acceptInvoice,
   addPaymentCartBulk,
   addPaymentCartLine,
+  deleteInvoiceDiscountingInvoice,
   getInvoiceDiscounting,
   getPaymentCart,
   repayInvoiceLoan,
@@ -374,6 +375,25 @@ export function BorrowerInvoiceDiscountingPage({
     }
   }
 
+  async function onDeleteInvoice(inv: BorrowerInvoiceItem) {
+    if (!inv.deletable) return
+    if (!window.confirm('Delete this invoice permanently? This cannot be undone.')) {
+      return
+    }
+    setActionErr(null)
+    setBusyId(inv.invoiceId)
+    try {
+      const updated = await deleteInvoiceDiscountingInvoice(inv.invoiceId)
+      setData(updated)
+      applyFinanceDefaults(updated)
+      reportSuccess(`Invoice ${inv.invoiceNumber ?? ''} deleted.`)
+    } catch (ex) {
+      reportError(ex instanceof ApiError ? ex.message : 'Could not delete the invoice.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function onFinance(e: FormEvent, inv: BorrowerInvoiceItem) {
     e.preventDefault()
     setActionErr(null)
@@ -667,6 +687,16 @@ export function BorrowerInvoiceDiscountingPage({
                                 Request Early Pay
                               </button>
                             ) : null}
+                            {inv.deletable ? (
+                              <button
+                                type="button"
+                                onClick={() => void onDeleteInvoice(inv)}
+                                disabled={busyId === inv.invoiceId}
+                                className="w-full rounded-md border border-rose-600 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                              >
+                                {busyId === inv.invoiceId ? '…' : 'Delete'}
+                              </button>
+                            ) : null}
                             {invoiceActions.length > 0 ? (
                               <BorrowerInvoiceActionsMenu
                                 items={invoiceActions}
@@ -676,6 +706,7 @@ export function BorrowerInvoiceDiscountingPage({
                             {!inv.acceptable &&
                             !inv.financeable &&
                             !inv.earlyPayable &&
+                            !inv.deletable &&
                             invoiceActions.length === 0 ? (
                               <span className="text-xs text-slate-400">—</span>
                             ) : null}

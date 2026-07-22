@@ -5,9 +5,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.plp.client.PlpIntegrationClient;
-import com.los.plp.model.entity.SubProgramMaster;
 import com.los.plp.model.enums.PlpSyncStatus;
-import com.los.plp.repository.SubProgramMasterRepository;
 import com.los.plp.support.PlpApplicationSyncStatusReconcile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +21,6 @@ import java.util.UUID;
 public class PlpSanctionSyncOrchestrator {
 
     private final LoanApplicationRepository loanApplicationRepository;
-    private final SubProgramMasterRepository subProgramMasterRepository;
     private final PlpIntegrationClient plpIntegrationClient;
     private final PlpSubProgramSyncService plpSubProgramSyncService;
     private final PlpBorrowerSyncService plpBorrowerSyncService;
@@ -94,12 +91,9 @@ public class PlpSanctionSyncOrchestrator {
     }
 
     private void ensureMastersSynced(UUID subProgramId) {
-        SubProgramMaster subProgram = subProgramMasterRepository.findById(subProgramId)
-                .orElseThrow(() -> new IllegalArgumentException("Sub-program not found: " + subProgramId));
-        if (subProgram.getPlpSubProgramId() == null
-                || subProgram.getPlpSubProgramSyncStatus() != PlpSyncStatus.SYNC_SUCCESS) {
-            plpSubProgramSyncService.sync(subProgramId);
-        }
+        // Borrower sanction: push/ensure sub-program on PLP as ACTIVE (preApproved).
+        // Program-setup sync keeps DRAFT for L1/L2; this path activates for borrower ops.
+        plpSubProgramSyncService.sync(subProgramId, true);
     }
 
     private LoanApplication reload(UUID applicationId) {

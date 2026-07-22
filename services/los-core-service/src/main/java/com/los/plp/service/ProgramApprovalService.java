@@ -3,7 +3,9 @@ package com.los.plp.service;
 import com.los.core.exception.BusinessRuleException;
 import com.los.core.model.entity.LosUser;
 import com.los.core.repository.LosUserRepository;
+import com.los.core.service.audit.AuditService;
 import com.los.plp.config.PlpProperties;
+import com.los.plp.client.PlpApiAuditContext;
 import com.los.plp.client.PlpIntegrationClient;
 import com.los.plp.client.PlpIntegrationException;
 import com.los.plp.dto.PlpApiResponse;
@@ -17,7 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -30,6 +34,7 @@ public class ProgramApprovalService {
     private final PlpIntegrationClient plpIntegrationClient;
     private final PlpProgramStatusMirrorService plpProgramStatusMirrorService;
     private final PlpProperties plpProperties;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<ProgramApprovalResponse> listPendingForUser(UUID userId) {
@@ -65,14 +70,47 @@ public class ProgramApprovalService {
             throw new BusinessRuleException("PLP integration is disabled — cannot refresh program status");
         }
         try {
+            String previousStatus = program.getPlpOperationalStatus();
+            ProgramApprovalStatus previousApproval = program.getApprovalStatus();
+            UUID anchorApplicationId = program.getAnchorApplicationId();
+            String losProgramId = program.getId().toString();
             PlpApiResponse<PlpProgramStatusData> response =
-                    plpIntegrationClient.getProgramStatus(program.getId().toString());
+                    PlpApiAuditContext.callWithApplication(anchorApplicationId, () ->
+                            plpIntegrationClient.getProgramStatus(losProgramId));
             PlpProgramStatusData data = response.getData();
             if (data != null && data.getStatus() != null) {
                 plpProgramStatusMirrorService.mirror(program, data);
             }
             program = programMasterRepository.save(program);
             log.info("Refreshed PLP status for LOS program {} — plpStatus={}", programId, program.getPlpOperationalStatus());
+            UUID applicationId = program.getAnchorApplicationId();
+            if (applicationId != null) {
+                Map<String, Object> state = new LinkedHashMap<>();
+                state.put("programId", program.getId().toString());
+                state.put("previousPlpStatus", previousStatus != null ? previousStatus : "");
+                state.put("plpOperationalStatus", program.getPlpOperationalStatus() != null ? program.getPlpOperationalStatus() : "");
+                state.put("previousApprovalStatus", previousApproval != null ? previousApproval.name() : "");
+                state.put("approvalStatus", program.getApprovalStatus() != null ? program.getApprovalStatus().name() : "");
+                if (program.getApprovalNotes() != null) {
+                    state.put("approvalNotes", program.getApprovalNotes());
+                }
+                String action = "PROGRAM_STATUS_REFRESHED";
+                String description = "PLP program status refreshed";
+                if (program.getApprovalStatus() == ProgramApprovalStatus.APPROVED
+                        && previousApproval != ProgramApprovalStatus.APPROVED) {
+                    action = "PROGRAM_APPROVED_FROM_PLP";
+                    description = "Program approved in PLP (maker-checker)";
+                } else if (program.getApprovalStatus() == ProgramApprovalStatus.SENT_BACK
+                        && previousApproval != ProgramApprovalStatus.SENT_BACK) {
+                    action = "PROGRAM_SENT_BACK_FROM_PLP";
+                    description = "Program sent back from PLP for revision";
+                } else if (program.getApprovalStatus() == ProgramApprovalStatus.PENDING_L2
+                        && previousApproval != ProgramApprovalStatus.PENDING_L2) {
+                    action = "PROGRAM_PENDING_L2_FROM_PLP";
+                    description = "Program pending L2 approval in PLP";
+                }
+                auditService.logEvent(applicationId, "PLP_PROGRAM", action, null, null, state, description);
+            }
         } catch (PlpIntegrationException e) {
             throw new BusinessRuleException("Failed to refresh PLP program status: " + e.getMessage());
         }

@@ -5,9 +5,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.plp.client.PlpIntegrationClient;
-import com.los.plp.model.entity.SubProgramMaster;
 import com.los.plp.model.enums.PlpSyncStatus;
-import com.los.plp.repository.SubProgramMasterRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,6 +17,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,8 +25,6 @@ class PlpSanctionSyncOrchestratorTest {
 
     @Mock
     private LoanApplicationRepository loanApplicationRepository;
-    @Mock
-    private SubProgramMasterRepository subProgramMasterRepository;
     @Mock
     private PlpIntegrationClient plpIntegrationClient;
     @Mock
@@ -93,16 +90,9 @@ class PlpSanctionSyncOrchestratorTest {
         app.setPlpBorrowerId(UUID.randomUUID());
         app.setPlpBorrowerSyncStatus(PlpSyncStatus.SYNC_SUCCESS);
 
-        SubProgramMaster sp = SubProgramMaster.builder()
-                .id(subProgramId)
-                .plpSubProgramId(UUID.randomUUID())
-                .plpSubProgramSyncStatus(PlpSyncStatus.SYNC_SUCCESS)
-                .build();
-
         when(plpIntegrationClient.isEnabled()).thenReturn(true);
         when(loanApplicationRepository.findById(appId)).thenReturn(Optional.of(app));
         when(loanApplicationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(subProgramMasterRepository.findById(subProgramId)).thenReturn(Optional.of(sp));
         when(plpBorrowerLinkSyncService.syncLinkStep(any())).thenAnswer(inv -> {
             LoanApplication a = inv.getArgument(0);
             a.setPlpSubProgramBorrowerId(UUID.randomUUID());
@@ -117,6 +107,7 @@ class PlpSanctionSyncOrchestratorTest {
 
         orchestrator.syncAfterSanction(appId);
 
+        verify(plpSubProgramSyncService).sync(eq(subProgramId), eq(true));
         verify(plpBorrowerSyncService, never()).syncBorrowerStep(any());
         verify(plpBorrowerLinkSyncService).syncLinkStep(any());
         verify(plpBorrowerProgramMappingSyncService).syncMappingStep(any());
@@ -135,22 +126,16 @@ class PlpSanctionSyncOrchestratorTest {
         app.setPlpLinkSyncStatus(PlpSyncStatus.NOT_SYNCED);
         app.setPlpMappingSyncStatus(PlpSyncStatus.NOT_SYNCED);
 
-        SubProgramMaster sp = SubProgramMaster.builder()
-                .id(subProgramId)
-                .plpSubProgramId(UUID.randomUUID())
-                .plpSubProgramSyncStatus(PlpSyncStatus.SYNC_SUCCESS)
-                .build();
-
         when(plpIntegrationClient.isEnabled()).thenReturn(true);
         when(loanApplicationRepository.findById(appId)).thenReturn(Optional.of(app));
         when(loanApplicationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(subProgramMasterRepository.findById(subProgramId)).thenReturn(Optional.of(sp));
 
         LoanApplication result = orchestrator.syncAfterSanction(appId);
 
         assertThat(result.getPlpBorrowerSyncStatus()).isEqualTo(PlpSyncStatus.SYNC_SUCCESS);
         assertThat(result.getPlpLinkSyncStatus()).isEqualTo(PlpSyncStatus.SYNC_SUCCESS);
         assertThat(result.getPlpMappingSyncStatus()).isEqualTo(PlpSyncStatus.SYNC_SUCCESS);
+        verify(plpSubProgramSyncService).sync(eq(subProgramId), eq(true));
         verify(plpBorrowerSyncService, never()).syncBorrowerStep(any());
         verify(plpBorrowerLinkSyncService, never()).syncLinkStep(any());
         verify(plpBorrowerProgramMappingSyncService, never()).syncMappingStep(any());

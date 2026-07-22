@@ -107,7 +107,8 @@ public class EquifaxBureauProvider implements IBureauProvider {
                     .replaceAll("<ns:SecurityCode>[^<]*</ns:SecurityCode>", "<ns:SecurityCode>***</ns:SecurityCode>");
             saveAuditLog("EQUIFAX", "EQUIFAX_RETAIL_INQUIRY", maskedRequest,
                     truncateForAudit(response.body()), response.statusCode() == 200 ? "SUCCESS" : "FAILED",
-                    response.statusCode(), null, transactionId, requestTime, responseTime, durationMs);
+                    response.statusCode(), null, transactionId, requestTime, responseTime, durationMs,
+                    applicationIdFrom(borrowerInfo));
 
             if (response.statusCode() == 200) {
                 return parseEquifaxResponse(response.body(), transactionId);
@@ -120,7 +121,7 @@ public class EquifaxBureauProvider implements IBureauProvider {
             log.error("[Equifax] API call failed: {}", e.getMessage(), e);
             saveAuditLog("EQUIFAX", "EQUIFAX_RETAIL_INQUIRY", requestXml,
                     null, "ERROR", null, e.getMessage(), transactionId,
-                    requestTime, Instant.now(), null);
+                    requestTime, Instant.now(), null, applicationIdFrom(borrowerInfo));
             return new BureauPullResult(false, 0, null, transactionId,
                     "Equifax API error: " + e.getMessage());
         }
@@ -381,6 +382,28 @@ public class EquifaxBureauProvider implements IBureauProvider {
 
         attachSimulatedBureauReport(borrowerInfo);
 
+        Instant now = Instant.now();
+        try {
+            saveAuditLog(
+                    "EQUIFAX",
+                    "EQUIFAX_RETAIL_INQUIRY",
+                    objectMapper.writeValueAsString(Map.of(
+                            "simulated", true,
+                            "panNumber", pan,
+                            "applicationId", String.valueOf(borrowerInfo.getOrDefault("applicationId", "")))),
+                    objectMapper.writeValueAsString(reportData),
+                    "SUCCESS",
+                    200,
+                    null,
+                    transactionId,
+                    now,
+                    now,
+                    0L,
+                    applicationIdFrom(borrowerInfo));
+        } catch (Exception e) {
+            log.warn("[Equifax] Failed to audit simulated bureau pull: {}", e.getMessage());
+        }
+
         return new BureauPullResult(true, creditScore, reportData, transactionId, null);
     }
 
@@ -459,7 +482,7 @@ public class EquifaxBureauProvider implements IBureauProvider {
 
     private void saveAuditLog(String provider, String apiName, String request, String response,
                                String status, Integer httpStatus, String errorMsg, String txnId,
-                               Instant reqTime, Instant resTime, Long durationMs) {
+                               Instant reqTime, Instant resTime, Long durationMs, UUID applicationId) {
         try {
             ApiAuditLog audit = ApiAuditLog.builder()
                     .providerName(provider)
@@ -470,6 +493,7 @@ public class EquifaxBureauProvider implements IBureauProvider {
                     .httpStatusCode(httpStatus)
                     .errorMessage(errorMsg)
                     .transactionId(txnId)
+                    .applicationId(applicationId)
                     .requestTime(reqTime)
                     .responseTime(resTime)
                     .durationMs(durationMs)
@@ -477,6 +501,17 @@ public class EquifaxBureauProvider implements IBureauProvider {
             apiAuditLogRepository.save(audit);
         } catch (Exception e) {
             log.error("[Equifax] Failed to save audit log: {}", e.getMessage());
+        }
+    }
+
+    private static UUID applicationIdFrom(Map<String, Object> borrowerInfo) {
+        if (borrowerInfo == null || borrowerInfo.get("applicationId") == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(String.valueOf(borrowerInfo.get("applicationId")));
+        } catch (Exception ignored) {
+            return null;
         }
     }
 }

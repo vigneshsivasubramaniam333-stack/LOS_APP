@@ -26,6 +26,7 @@ export interface BorrowerInvoiceItem {
   earlyPayable?: boolean
   digitalInvoiceFileName?: string | null
   digitalInvoiceContentType?: string | null
+  deletable?: boolean
 }
 
 export interface BorrowerInvoiceRepayment {
@@ -92,6 +93,15 @@ export async function uploadInvoiceDigitalCopy(invoiceId: string, file: File): P
 export async function acceptInvoice(invoiceId: string): Promise<BorrowerInvoiceDiscounting> {
   const { data } = await http.post<BorrowerInvoiceDiscounting>(
     `/borrower/invoice-discounting/invoices/${invoiceId}/accept`,
+  )
+  return data
+}
+
+export async function deleteInvoiceDiscountingInvoice(
+  invoiceId: string,
+): Promise<BorrowerInvoiceDiscounting> {
+  const { data } = await http.delete<BorrowerInvoiceDiscounting>(
+    `/borrower/invoice-discounting/invoices/${invoiceId}`,
   )
   return data
 }

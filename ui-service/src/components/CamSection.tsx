@@ -233,46 +233,69 @@ export function CamSection({
     setSaving(true)
     setError(null)
     try {
-      const patch: Record<string, unknown> = {}
-      for (const s of SECTION_ORDER) {
-        const t = (sectionDrafts[s.key] ?? '').trim()
-        if (t) {
-          patch[`${s.key}Narrative`] = t
-        }
-      }
-      const body: CamUpdateRequest = {
-        observations,
-        riskAssessment,
-        mitigants,
-        recommendedDecision: recommendedDecision || undefined,
-        creditOfficerRemarks: officerRem || undefined,
-        creditManagerRemarks: managerRem || undefined,
-        recommendedAmount: recAmt ? Number.parseFloat(recAmt) : undefined,
-        recommendedTenureMonths: recTen ? Number.parseInt(recTen, 10) : undefined,
-        recommendedRate: recRate ? Number.parseFloat(recRate) : undefined,
-        interestType: interestType || undefined,
-        conditionsPrecedent: condPre
-          ? condPre
-              .split('\n')
-              .map((x) => x.trim())
-              .filter(Boolean)
-          : undefined,
-        conditionsSubsequent: condSub
-          ? condSub
-              .split('\n')
-              .map((x) => x.trim())
-              .filter(Boolean)
-          : undefined,
-        editableSectionsPatch: Object.keys(patch).length ? patch : undefined,
-      }
-      const c = await updateCam(applicationId, body)
+      const c = await updateCam(applicationId, buildUpdateBody())
       setCam(c)
+      setPrefilledFromApplication(false)
       await onRefetch()
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Save failed')
     } finally {
       setSaving(false)
     }
+  }
+
+  function buildUpdateBody(): CamUpdateRequest {
+    const patch: Record<string, unknown> = {}
+    for (const s of SECTION_ORDER) {
+      const t = (sectionDrafts[s.key] ?? '').trim()
+      if (t) {
+        patch[`${s.key}Narrative`] = t
+      }
+    }
+    return {
+      observations,
+      riskAssessment,
+      mitigants,
+      recommendedDecision: recommendedDecision || undefined,
+      creditOfficerRemarks: officerRem || undefined,
+      creditManagerRemarks: managerRem || undefined,
+      recommendedAmount: recAmt ? Number.parseFloat(recAmt) : undefined,
+      recommendedTenureMonths: recTen ? Number.parseInt(recTen, 10) : undefined,
+      recommendedRate: recRate ? Number.parseFloat(recRate) : undefined,
+      interestType: interestType || undefined,
+      conditionsPrecedent: condPre
+        ? condPre
+            .split('\n')
+            .map((x) => x.trim())
+            .filter(Boolean)
+        : undefined,
+      conditionsSubsequent: condSub
+        ? condSub
+            .split('\n')
+            .map((x) => x.trim())
+            .filter(Boolean)
+        : undefined,
+      editableSectionsPatch: Object.keys(patch).length ? patch : undefined,
+    }
+  }
+
+  /** Client-side gate before save+submit — backend also enforces these. */
+  function validateSanctionBasisForSubmit(): string | null {
+    const amount = Number.parseFloat(recAmt)
+    const tenure = Number.parseInt(recTen, 10)
+    const rate = Number.parseFloat(recRate)
+    const missing: string[] = []
+    if (!recAmt.trim() || !Number.isFinite(amount) || amount <= 0) {
+      missing.push('Proposed amount (INR)')
+    }
+    if (!recTen.trim() || !Number.isFinite(tenure) || tenure <= 0) {
+      missing.push(`Proposed ${tenureMagnitudeLabel(app.lmsTenureUnit).toLowerCase()}`)
+    }
+    if (!recRate.trim() || !Number.isFinite(rate) || rate < 0) {
+      missing.push('Proposed rate (% p.a.)')
+    }
+    if (missing.length === 0) return null
+    return `Fill mandatory fields before submitting: ${missing.join(', ')}`
   }
 
   async function onMarkReviewed() {
@@ -293,6 +316,15 @@ export function CamSection({
     setActionBusy(true)
     setError(null)
     try {
+      const validationError = validateSanctionBasisForSubmit()
+      if (validationError) {
+        setError(validationError)
+        return
+      }
+      // Persist form fields first so submit does not drop unsaved interest/rate/tenure edits.
+      const saved = await updateCam(applicationId, buildUpdateBody())
+      setCam(saved)
+      setPrefilledFromApplication(false)
       setCam(await submitCam(applicationId))
       await onRefetch()
     } catch (e) {
@@ -505,30 +537,34 @@ export function CamSection({
             ) : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="block text-xs text-slate-600">
-                Proposed amount (INR)
+                Proposed amount (INR) <span className="text-rose-600">*</span>
                 <input
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recAmt}
                   onChange={(e) => setRecAmt(e.target.value)}
                   disabled={!fieldsEditable}
+                  required
                 />
               </label>
               <label className="block text-xs text-slate-600">
-                Proposed {tenureMagnitudeLabel(app.lmsTenureUnit).toLowerCase()}
+                Proposed {tenureMagnitudeLabel(app.lmsTenureUnit).toLowerCase()}{' '}
+                <span className="text-rose-600">*</span>
                 <input
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recTen}
                   onChange={(e) => setRecTen(e.target.value.replace(/\D/g, ''))}
                   disabled={!fieldsEditable}
+                  required
                 />
               </label>
               <label className="block text-xs text-slate-600">
-                Proposed rate (% p.a.)
+                Proposed rate (% p.a.) <span className="text-rose-600">*</span>
                 <input
                   className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"
                   value={recRate}
                   onChange={(e) => setRecRate(e.target.value)}
                   disabled={!fieldsEditable}
+                  required
                 />
               </label>
               <label className="block text-xs text-slate-600">

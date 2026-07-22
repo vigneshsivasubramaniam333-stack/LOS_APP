@@ -1,5 +1,6 @@
 package com.los.core.service.workflow;
 
+import com.los.core.audit.AdminConfigAuditSupport;
 import com.los.core.exception.BusinessRuleException;
 import com.los.core.exception.ResourceNotFoundException;
 import com.los.core.model.dto.request.WorkflowConfigRequest;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
 
     private final WorkflowConfigRepository workflowRepository;
+    private final AdminConfigAuditSupport adminConfigAuditSupport;
 
     @Override
     @Transactional
@@ -60,7 +62,9 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
 
         config = workflowRepository.save(config);
         log.info("Workflow created: {} for {}/{}/{}", config.getName(), config.getBorrowerType(), config.getLoanProduct(), config.getIntakeSegment());
-        return toResponse(config);
+        WorkflowConfigResponse saved = toResponse(config);
+        adminConfigAuditSupport.captureCreate("WORKFLOW_CONFIG", config.getId().toString(), saved, "Workflow created");
+        return saved;
     }
 
     @Override
@@ -68,6 +72,8 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
     public WorkflowConfigResponse updateWorkflow(UUID workflowId, WorkflowConfigRequest request) {
         WorkflowConfig config = workflowRepository.findById(workflowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workflow not found: " + workflowId));
+
+        WorkflowConfigResponse before = toResponse(config);
 
         config.setName(request.getName());
         if (request.getBorrowerType() != null) {
@@ -104,7 +110,9 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
 
         config = workflowRepository.save(config);
         log.info("Workflow updated: {} (v{})", config.getName(), config.getVersion());
-        return toResponse(config);
+        WorkflowConfigResponse after = toResponse(config);
+        adminConfigAuditSupport.captureUpdate("WORKFLOW_CONFIG", workflowId.toString(), before, after, "Workflow updated");
+        return after;
     }
 
     @Override
@@ -135,6 +143,7 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
         WorkflowConfig config = workflowRepository.findById(workflowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workflow not found: " + workflowId));
 
+        WorkflowConfigResponse before = toResponse(config);
         String intakeSegment = normalizeIntakeSegment(config.getIntakeSegment());
         Instant now = Instant.now();
         int deactivated = workflowRepository.deactivateOtherActiveWorkflows(
@@ -152,6 +161,13 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
         config.setUpdatedAt(now);
         workflowRepository.save(config);
         log.info("Workflow activated: {}", config.getName());
+        adminConfigAuditSupport.captureAction(
+                "WORKFLOW_CONFIG",
+                workflowId.toString(),
+                "ACTIVATE",
+                before,
+                toResponse(config),
+                "Workflow activated");
     }
 
     @Override
@@ -159,9 +175,17 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
     public void deactivateWorkflow(UUID workflowId) {
         WorkflowConfig config = workflowRepository.findById(workflowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workflow not found: " + workflowId));
+        WorkflowConfigResponse before = toResponse(config);
         config.setActive(false);
         workflowRepository.save(config);
         log.info("Workflow deactivated: {}", config.getName());
+        adminConfigAuditSupport.captureAction(
+                "WORKFLOW_CONFIG",
+                workflowId.toString(),
+                "DEACTIVATE",
+                before,
+                toResponse(config),
+                "Workflow deactivated");
     }
 
     @Override
@@ -176,8 +200,14 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
                     "DEACTIVATE_FIRST",
                     null);
         }
+        WorkflowConfigResponse before = toResponse(config);
         workflowRepository.delete(config);
         log.info("Workflow deleted: {} ({})", config.getName(), workflowId);
+        adminConfigAuditSupport.captureDelete(
+                "WORKFLOW_CONFIG",
+                workflowId.toString(),
+                before,
+                "Workflow deleted");
     }
 
     /**

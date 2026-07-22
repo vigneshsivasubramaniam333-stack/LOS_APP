@@ -57,4 +57,22 @@ final class InvoiceDiscountingFlowRules {
                 && "YES".equalsIgnoreCase(isEarlyPayAllowed)
                 && "YES".equalsIgnoreCase(showEarlyPay);
     }
+
+    /**
+     * Borrower may delete SBD/PO invoices only, before finance is requested,
+     * when the program allows invoice delete.
+     */
+    static boolean deletableByBorrower(String status, String flowType, boolean programInvoiceDeleteAllowed) {
+        if (!programInvoiceDeleteAllowed || !isSellerInitiatedFlow(flowType)) {
+            return false;
+        }
+        if (status == null || status.isBlank() || "FINANCING_REQUESTED".equalsIgnoreCase(status)) {
+            return false;
+        }
+        return "UPLOADED".equalsIgnoreCase(status)
+                || "VERIFIED".equalsIgnoreCase(status)
+                || "ELIGIBLE".equalsIgnoreCase(status)
+                || "BORROWER_ACCEPTED".equalsIgnoreCase(status)
+                || "REJECTED".equalsIgnoreCase(status);
+    }
 }

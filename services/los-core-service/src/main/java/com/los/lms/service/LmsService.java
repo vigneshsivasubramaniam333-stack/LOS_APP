@@ -9,6 +9,7 @@ import com.los.core.repository.KfsDocumentRepository;
 import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.ApplicationPartyResolver;
 import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
+import com.los.core.service.audit.IntegrationApiAuditService;
 import com.los.encore.client.api.EncoreLmsApi;
 import com.los.encore.client.api.EncoreOpenLoanParams;
 import com.los.encore.client.api.EncoreTemporaryOverrides;
@@ -65,6 +66,7 @@ public class LmsService {
     private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
     private final KfsDocumentRepository kfsDocumentRepository;
     private final KfsService kfsService;
+    private final IntegrationApiAuditService integrationApiAuditService;
 
     /**
      * Hand over a disbursed loan to LMS for servicing.
@@ -196,6 +198,36 @@ public class LmsService {
         handover.setEncoreOpenAccountResponseJson(openAccountResponseJson);
         handover.setEncoreRepaymentScheduleJson(repaymentScheduleJson);
         handoverRepository.save(handover);
+
+        Instant auditAt = Instant.now();
+        integrationApiAuditService.record(
+                "ENCORE_LMS",
+                "LMS_HANDOVER_OPEN_ACCOUNT",
+                openAccountRequestJson,
+                openAccountResponseJson,
+                "ENCORE_ERROR".equals(status) ? "FAILED" : "SUCCESS",
+                "ENCORE_ERROR".equals(status) ? 500 : 200,
+                errorMessage,
+                encoreTransactionId != null ? encoreTransactionId : encoreAccountId,
+                request.getApplicationId(),
+                auditAt,
+                auditAt,
+                null);
+        if (encoreTransactionId != null) {
+            integrationApiAuditService.record(
+                    "ENCORE_LMS",
+                    "LMS_HANDOVER_DISBURSE",
+                    "{\"encoreAccountId\":\"" + encoreAccountId + "\"}",
+                    "{\"transactionId\":\"" + encoreTransactionId + "\"}",
+                    "SUCCESS",
+                    200,
+                    null,
+                    encoreTransactionId,
+                    request.getApplicationId(),
+                    auditAt,
+                    auditAt,
+                    null);
+        }
 
         // Persist account summary (upsert — idempotent on retry)
         LmsAccountSummary summaryEntity = summaryRepository.findByApplicationNumber(request.getApplicationNumber())

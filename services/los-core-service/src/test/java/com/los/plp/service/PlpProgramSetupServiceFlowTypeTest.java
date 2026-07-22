@@ -3,6 +3,7 @@ package com.los.plp.service;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
+import com.los.core.service.audit.AuditService;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.model.dto.CreatePlpProgramRequest;
 import com.los.plp.model.entity.AnchorMaster;
@@ -43,6 +44,8 @@ class PlpProgramSetupServiceFlowTypeTest {
     ProgramApprovalService programApprovalService;
     @Mock
     LoanApplicationRepository loanApplicationRepository;
+    @Mock
+    AuditService auditService;
 
     PlpProgramSetupService service;
 
@@ -56,7 +59,8 @@ class PlpProgramSetupServiceFlowTypeTest {
                 plpSubProgramSyncService,
                 plpProperties,
                 programApprovalService,
-                loanApplicationRepository);
+                loanApplicationRepository,
+                auditService);
         when(plpProperties.isEnabled()).thenReturn(false);
         when(plpProperties.getLenderId()).thenReturn(UUID.randomUUID().toString());
     }

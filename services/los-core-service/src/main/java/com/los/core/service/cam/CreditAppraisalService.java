@@ -200,6 +200,7 @@ public class CreditAppraisalService {
                     "OPEN_CAM",
                     Map.of("camStatus", st));
         }
+        requireSanctionBasisForSubmit(cam);
         cam.setCamStatus("SUBMITTED");
         cam.setSubmittedAt(Instant.now());
         cam = camRepository.save(cam);
@@ -210,6 +211,31 @@ public class CreditAppraisalService {
             applicationRepository.save(app);
         }
         return toResponse(cam, app);
+    }
+
+    /**
+     * Proposed amount, tenure, and rate are required before CAM can be submitted to the credit manager.
+     */
+    private void requireSanctionBasisForSubmit(CreditAppraisalMemo cam) {
+        List<String> missing = new ArrayList<>();
+        if (cam.getRecommendedAmount() == null
+                || cam.getRecommendedAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            missing.add("Proposed amount (INR)");
+        }
+        if (cam.getRecommendedTenureMonths() == null || cam.getRecommendedTenureMonths() <= 0) {
+            missing.add("Proposed tenure");
+        }
+        if (cam.getRecommendedRate() == null
+                || cam.getRecommendedRate().compareTo(BigDecimal.ZERO) < 0) {
+            missing.add("Proposed rate (% p.a.)");
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessRuleException(
+                    "Fill mandatory sanctioning basis before submitting CAM: " + String.join(", ", missing),
+                    "CAM_SUBMIT_MISSING_SANCTION_BASIS",
+                    "OPEN_CAM",
+                    Map.of("missingFields", missing));
+        }
     }
 
     /**

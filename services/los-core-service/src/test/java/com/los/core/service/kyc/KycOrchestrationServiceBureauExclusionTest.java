@@ -6,6 +6,7 @@ import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.BorrowerType;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.model.enums.KycStepType;
+import com.los.core.repository.AuditEventRepository;
 import com.los.core.repository.KycStepResultRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.ManualKycReviewRepository;
@@ -50,6 +51,8 @@ class KycOrchestrationServiceBureauExclusionTest {
     private IWorkflowEngineService workflowEngine;
     @Mock
     private AuditService auditService;
+    @Mock
+    private AuditEventRepository auditEventRepository;
 
     private KycOrchestrationServiceImpl kycOrchestrationService;
 
@@ -63,8 +66,11 @@ class KycOrchestrationServiceBureauExclusionTest {
                 manualKycReviewRepository,
                 integrationRouter,
                 workflowEngine,
-                auditService
+                auditService,
+                auditEventRepository
         );
+        when(auditEventRepository.findTopByApplicationIdAndEventTypeOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Optional.empty());
     }
 
     @Test

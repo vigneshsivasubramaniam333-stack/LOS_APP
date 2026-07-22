@@ -7,6 +7,7 @@ import com.los.core.model.enums.IntakeSegment;
 import com.los.plp.model.enums.PlpSyncStatus;
 import com.los.core.model.enums.VkycCompletionMode;
 import com.los.core.model.enums.VkycStatus;
+import com.los.core.service.loan.LoanApplicationStatusHistoryListener;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "loan_applications")
+@EntityListeners(LoanApplicationStatusHistoryListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -71,6 +73,13 @@ public class LoanApplication {
     @Column(nullable = false, length = 30)
     @Builder.Default
     private ApplicationStatus status = ApplicationStatus.DRAFT;
+
+    /**
+     * Snapshot of status after load / last history write — used by
+     * {@link LoanApplicationStatusHistoryListener} to detect transitions.
+     */
+    @Transient
+    private ApplicationStatus loadedStatus;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")

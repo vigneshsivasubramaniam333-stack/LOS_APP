@@ -23,7 +23,9 @@ import { SanctionKfsSection } from '@/components/SanctionKfsSection'
 import { UnderwritingSection } from '@/components/UnderwritingSection'
 import { AnchorDueDiligenceSection } from '@/components/AnchorDueDiligenceSection'
 import { ApplicationDeletePanel } from '@/components/ApplicationDeletePanel'
+import { ApplicationHistoryPanel } from '@/components/ApplicationHistoryPanel'
 import { useApplication } from '@/hooks/useApplication'
+import { useApplicationTimeline } from '@/hooks/useApplicationTimeline'
 import { useStepExecutions } from '@/hooks/useStepExecutions'
 import { borrowerStatusPath, buildWhatsAppStatusShareUrl } from '@/lib/borrowerShare'
 import { BORROWER_INTAKE_KEY } from '@/lib/intake/collateralIntakePayload'
@@ -37,7 +39,6 @@ import { getVkycEligibility, getVkycTimeline } from '@/api/vkyc'
 import { applicationPartyLabels } from '@/lib/applicationPartyLabels'
 import { buildVkycWorkflowGate, insertVkycTab, type VkycWorkflowGate } from '@/lib/vkycWorkflowGate'
 import type { ApplicationResponse } from '@/types/application'
-import type { StepExecutionRecordView } from '@/types/stepExecution'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import { DetailField } from '@/components/ui/AdminLayout'
 import { AppSectionCard } from '@/components/ui/AppSectionCard'
@@ -89,7 +90,8 @@ export function ApplicationDetailPage() {
   const { data: app, loading: appLoading, error: appError, refetch: refetchApp } = useApplication(
     valid ? id : undefined,
   )
-  const { data: steps, loading: stepsLoading, error: stepsError, refetch: refetchSteps } = useStepExecutions(
+  const { data: steps, refetch: refetchSteps } = useStepExecutions(valid ? id : undefined)
+  const { data: timeline, loading: timelineLoading, error: timelineError } = useApplicationTimeline(
     valid ? id : undefined,
   )
   const reloadVkycWorkflowState = useCallback(async () => {
@@ -416,11 +418,9 @@ export function ApplicationDetailPage() {
               )}
               {tab === 'history' && (
                 <div>
-                  <h2 className="mb-1 text-lg font-medium text-slate-900">Verification / processing history</h2>
-                  <p className="mb-3 text-sm text-slate-600">Recent checks and system steps for this application.</p>
-                  {stepsLoading && <LoadingState label="Loading history…" />}
-                  {stepsError && <ErrorState message={stepsError} />}
-                  {steps && !stepsLoading && <StepTable rows={steps} />}
+                  {timelineLoading && <LoadingState label="Loading history…" />}
+                  {timelineError && <ErrorState message={timelineError} />}
+                  {timeline && !timelineLoading && <ApplicationHistoryPanel timeline={timeline} />}
                 </div>
               )}
             </>
@@ -656,64 +656,4 @@ function SummaryPanel({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <DetailField label={label} value={value} />
-}
-
-function formatWorkflowHistoryStepLabel(stepType: string): string {
-  if (stepType === 'VKYC_PKYC_COMPLETED') return 'VKYC fallback — Completed through Physical KYC'
-  return stepType
-}
-
-function workflowHistoryIssueCell(r: StepExecutionRecordView): string {
-  if (r.stepType === 'VKYC_PKYC_COMPLETED' && r.outputJson) {
-    try {
-      const o = JSON.parse(r.outputJson) as Record<string, unknown>
-      const pieces: string[] = []
-      if (o.message != null && String(o.message).trim()) pieces.push(String(o.message))
-      if (o.reason != null && String(o.reason).trim()) pieces.push(`Reason: ${String(o.reason)}`)
-      const by = o.verifiedByUserId != null ? String(o.verifiedByUserId).trim() : ''
-      if (by) pieces.push(`Verified by: ${by}`)
-      if (pieces.length) return pieces.join(' · ')
-    } catch {
-      /* ignore malformed JSON */
-    }
-  }
-  return r.errorMessage ?? '—'
-}
-
-function StepTable({ rows }: { rows: StepExecutionRecordView[] }) {
-  if (rows.length === 0) {
-    return <div className="bt-card bt-empty-state p-4">No records yet.</div>
-  }
-  return (
-    <div className="bt-card overflow-x-auto">
-        <table className="bt-table min-w-full">
-        <thead>
-          <tr>
-            <th>Check / process</th>
-            <th>Result</th>
-            <th>Started</th>
-            <th>Completed</th>
-            <th>Issue</th>
-          </tr>
-        </thead>
-        <tbody className="">
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td className="px-3 py-2 text-xs text-slate-900">
-                {r.stepType === 'VKYC_PKYC_COMPLETED' ? (
-                  <span>{formatWorkflowHistoryStepLabel(r.stepType)}</span>
-                ) : (
-                  <span className="font-mono">{r.stepType}</span>
-                )}
-              </td>
-              <td className="px-3 py-2 text-slate-800">{r.status}</td>
-              <td className="px-3 py-2 text-slate-600 tabular-nums">{formatInstant(r.startedAt)}</td>
-              <td className="px-3 py-2 text-slate-600 tabular-nums">{formatInstant(r.completedAt)}</td>
-              <td className="px-3 py-2 text-slate-600">{workflowHistoryIssueCell(r)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
 }

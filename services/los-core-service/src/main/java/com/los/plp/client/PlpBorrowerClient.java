@@ -153,6 +153,11 @@ public class PlpBorrowerClient {
         return parseInvoice(raw);
     }
 
+    /** Seller-initiated invoice delete (SBD/PO) before finance request. */
+    public void deleteBorrowerInvoice(UUID plpBorrowerId, UUID invoiceId) {
+        delete("/api/v1/invoices/" + invoiceId + "/borrower-delete?borrowerId=" + plpBorrowerId);
+    }
+
     /** Request invoice-discounting finance against a single invoice; returns the created PLP loan. */
     public Map<String, Object> requestFinance(UUID plpBorrowerId, UUID invoiceId, BigDecimal amount, UUID programId) {
         LinkedHashMap<String, Object> body = new LinkedHashMap<>();

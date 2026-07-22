@@ -208,6 +208,9 @@ class CreditAppraisalServiceTest {
                 .applicationId(id)
                 .camStatus("DRAFT")
                 .camJson(Map.of())
+                .recommendedAmount(new java.math.BigDecimal("100000"))
+                .recommendedTenureMonths(12)
+                .recommendedRate(new java.math.BigDecimal("12.5"))
                 .build();
         when(camRepository.findByApplicationId(id)).thenReturn(Optional.of(cam));
         when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
@@ -225,6 +228,9 @@ class CreditAppraisalServiceTest {
                 .applicationId(id)
                 .camStatus("SENT_BACK")
                 .camJson(Map.of())
+                .recommendedAmount(new java.math.BigDecimal("50000"))
+                .recommendedTenureMonths(6)
+                .recommendedRate(new java.math.BigDecimal("14"))
                 .build();
         when(camRepository.findByApplicationId(id)).thenReturn(Optional.of(cam));
         when(camRepository.save(any(CreditAppraisalMemo.class))).thenAnswer(i -> i.getArgument(0));
@@ -238,6 +244,21 @@ class CreditAppraisalServiceTest {
         ArgumentCaptor<LoanApplication> cap = ArgumentCaptor.forClass(LoanApplication.class);
         verify(applicationRepository).save(cap.capture());
         assertThat(cap.getValue().getStatus()).isEqualTo(ApplicationStatus.CAM_READY);
+    }
+
+    @Test
+    void submitCam_rejectsWhenSanctionBasisMissing() {
+        UUID id = UUID.randomUUID();
+        CreditAppraisalMemo cam = CreditAppraisalMemo.builder()
+                .applicationId(id)
+                .camStatus("DRAFT")
+                .camJson(Map.of())
+                .build();
+        when(camRepository.findByApplicationId(id)).thenReturn(Optional.of(cam));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.submitCam(id, null))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Proposed amount");
     }
 
     @Test

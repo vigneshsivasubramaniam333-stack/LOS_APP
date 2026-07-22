@@ -7,6 +7,8 @@ import com.los.core.model.entity.ManualKycReview;
 import com.los.core.model.entity.KycStepResult;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.*;
+import com.los.core.model.entity.AuditEvent;
+import com.los.core.repository.AuditEventRepository;
 import com.los.core.repository.KycStepResultRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.ManualKycReviewRepository;
@@ -23,6 +25,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -38,6 +41,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
     private final IIntegrationRouterService integrationRouter;
     private final IWorkflowEngineService workflowEngine;
     private final AuditService auditService;
+    private final AuditEventRepository auditEventRepository;
 
     @Override
     @Transactional
@@ -85,6 +89,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
                     Map.of("stepType", stepType.name(), "outcome", stepResult.getOutcome().name(),
                             "provider", stepResult.getProvider().name(), "pkycBypass", true),
                     "KYC step executed (PKYC bypass)");
+            auditKycOutcomeIfChanged(applicationId);
             return toResponse(stepResult);
         }
 
@@ -134,6 +139,8 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
                         "provider", stepResult.getProvider().name()),
                 "KYC step executed");
 
+        auditKycOutcomeIfChanged(applicationId);
+
         return toResponse(stepResult);
     }
 
@@ -166,6 +173,8 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
                 overrideBy, Map.of("outcome", "FAILURE"),
                 Map.of("overridden", true, "reason", reason),
                 "KYC step manually overridden: " + reason);
+
+        auditKycOutcomeIfChanged(stepResult.getApplicationId());
 
         return toResponse(stepResult);
     }
@@ -231,6 +240,8 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
             app.setStatus(ApplicationStatus.KYC_FAILED);
             loanApplicationRepository.save(app);
         }
+
+        auditKycOutcomeIfChanged(applicationId);
 
         return results;
     }
@@ -390,17 +401,45 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
 
         String computed = anyFail ? "FAIL" : (anyIncomplete ? "INCOMPLETE" : "PASS");
 
-        auditService.logEvent(applicationId, "KYC_OUTCOME_COMPUTED", "KYC_OUTCOME_COMPUTED",
-                null,
-                null,
-                Map.of("outcome", computed, "steps", summary),
-                "KYC outcome computed: " + computed);
+        // Do not audit here — computeKycOutcome is called on reads and unrelated flows.
+        // Mutations call auditKycOutcomeIfChanged() so only real outcome transitions are logged.
 
         return Map.of(
                 "applicationId", applicationId,
                 "outcome", computed,
                 "stepSummary", summary
         );
+    }
+
+    /**
+     * Persists a KYC_OUTCOME_COMPUTED audit only when the computed outcome differs from the last logged one.
+     */
+    private void auditKycOutcomeIfChanged(UUID applicationId) {
+        Map<String, Object> outcome = computeKycOutcome(applicationId);
+        String computed = String.valueOf(outcome.getOrDefault("outcome", "INCOMPLETE"));
+        String previous = lastLoggedKycOutcome(applicationId);
+        if (computed.equals(previous)) {
+            return;
+        }
+        Object stepSummary = outcome.getOrDefault("stepSummary", List.of());
+        auditService.logEvent(
+                applicationId,
+                "KYC_OUTCOME_COMPUTED",
+                "KYC_OUTCOME_COMPUTED",
+                null,
+                previous == null ? null : Map.of("outcome", previous),
+                Map.of("outcome", computed, "steps", stepSummary),
+                "KYC outcome computed: " + computed);
+    }
+
+    private String lastLoggedKycOutcome(UUID applicationId) {
+        Optional<AuditEvent> last = auditEventRepository
+                .findTopByApplicationIdAndEventTypeOrderByCreatedAtDesc(applicationId, "KYC_OUTCOME_COMPUTED");
+        if (last.isEmpty() || last.get().getNewState() == null) {
+            return null;
+        }
+        Object o = last.get().getNewState().get("outcome");
+        return o == null ? null : String.valueOf(o);
     }
 
     private static String stepNameFromMap(Map<String, Object> step) {

@@ -57,6 +57,7 @@ import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
 import { PlpProgramsPage } from '@/pages/plp/PlpProgramsPage'
 import { PlpProgramDetailPage } from '@/pages/plp/PlpProgramDetailPage'
 import { ApplicationDeletionsPage } from '@/pages/ApplicationDeletionsPage'
+import { AuditTrailPage } from '@/pages/AuditTrailPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 
 export default function App() {
@@ -227,6 +228,14 @@ export default function App() {
           element={
             <AdminConfigGate>
               <ApplicationDeletionsPage />
+            </AdminConfigGate>
+          }
+        />
+        <Route
+          path="audit"
+          element={
+            <AdminConfigGate>
+              <AuditTrailPage />
             </AdminConfigGate>
           }
         />

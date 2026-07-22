@@ -148,6 +148,27 @@ public class BorrowerInvoiceDiscountingService {
         }
     }
 
+    /** Delete an SBD/PO invoice before finance request when the program allows it. */
+    public BorrowerInvoiceDiscountingResponse deleteInvoice(UUID borrowerUserId, UUID invoiceId) {
+        UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Invoice discounting is not set up for your account yet."));
+        Map<String, Object> invoice = findInvoice(plpBorrowerId, invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invoice not found for your account."));
+        String status = asString(invoice.get("status"));
+        String flowType = asString(invoice.get("flowType"));
+        boolean allowed = resolveInvoiceDeleteAllowed(asUuid(invoice.get("programId")));
+        if (!InvoiceDiscountingFlowRules.deletableByBorrower(status, flowType, allowed)) {
+            throw new BusinessRuleException("This invoice cannot be deleted right now.");
+        }
+        try {
+            plpBorrowerClient.deleteBorrowerInvoice(plpBorrowerId, invoiceId);
+        } catch (PlpIntegrationException e) {
+            throw new BusinessRuleException("Could not delete invoice: " + e.getMessage());
+        }
+        return overview(borrowerUserId, flowType);
+    }
+
     /** Repayment history for an invoice-discounting loan owned by the borrower. */
     public List<BorrowerInvoiceRepaymentItemResponse> listRepayments(UUID borrowerUserId, UUID loanId) {
         UUID plpBorrowerId = resolvePlpBorrowerId(borrowerUserId)
@@ -403,6 +424,8 @@ public class BorrowerInvoiceDiscountingService {
         String showEarlyPay = asString(inv.get("showEarlyPay"));
         boolean earlyPayable = InvoiceDiscountingFlowRules.earlyPayable(
                 status, flowType, isEarlyPayAllowed, showEarlyPay);
+        boolean invoiceDeleteAllowed = resolveInvoiceDeleteAllowed(asUuid(inv.get("programId")));
+        boolean deletable = InvoiceDiscountingFlowRules.deletableByBorrower(status, flowType, invoiceDeleteAllowed);
         return BorrowerInvoiceItemResponse.builder()
                 .invoiceId(asString(inv.get("id")))
                 .invoiceNumber(asString(inv.get("invoiceNumber")))
@@ -429,7 +452,30 @@ public class BorrowerInvoiceDiscountingService {
                 .earlyPayable(earlyPayable)
                 .digitalInvoiceFileName(asString(inv.get("digitalInvoiceFileName")))
                 .digitalInvoiceContentType(asString(inv.get("digitalInvoiceContentType")))
+                .deletable(deletable)
                 .build();
+    }
+
+    private boolean resolveInvoiceDeleteAllowed(UUID programId) {
+        if (programId == null) {
+            return false;
+        }
+        try {
+            Map<String, Object> program = plpBorrowerClient.getProgram(programId);
+            Object params = program.get("parameters");
+            if (!(params instanceof Map<?, ?> map)) {
+                return false;
+            }
+            Object raw = map.get("invoiceDelete");
+            if (raw == null) {
+                return false;
+            }
+            String s = raw.toString().trim();
+            return "true".equalsIgnoreCase(s) || "yes".equalsIgnoreCase(s) || "y".equalsIgnoreCase(s);
+        } catch (Exception e) {
+            log.debug("Could not resolve invoiceDelete for program {}: {}", programId, e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -501,6 +547,7 @@ public class BorrowerInvoiceDiscountingService {
                 .earlyPayable(inv.isEarlyPayable())
                 .digitalInvoiceFileName(inv.getDigitalInvoiceFileName())
                 .digitalInvoiceContentType(inv.getDigitalInvoiceContentType())
+                .deletable(inv.isDeletable())
                 .build();
     }
 

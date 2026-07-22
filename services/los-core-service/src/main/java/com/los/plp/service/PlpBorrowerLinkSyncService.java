@@ -2,6 +2,8 @@ package com.los.plp.service;
 
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.LoanApplicationRepository;
+import com.los.core.service.audit.AuditService;
+import com.los.plp.client.PlpApiAuditContext;
 import com.los.plp.client.PlpIntegrationClient;
 import com.los.plp.client.PlpIntegrationException;
 import com.los.plp.dto.PlpApiResponse;
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -29,6 +33,7 @@ public class PlpBorrowerLinkSyncService {
     private final LoanApplicationRepository loanApplicationRepository;
     private final SubProgramMasterRepository subProgramMasterRepository;
     private final PlpIntegrationClient plpIntegrationClient;
+    private final AuditService auditService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public LoanApplication syncLinkStep(LoanApplication app) {
@@ -67,7 +72,8 @@ public class PlpBorrowerLinkSyncService {
                     .availableLimit(limit)
                     .build();
             PlpApiResponse<PlpSubProgramBorrowerLinkData> response =
-                    plpIntegrationClient.syncSubProgramBorrowerLink(request);
+                    PlpApiAuditContext.callWithApplication(app.getId(), () ->
+                            plpIntegrationClient.syncSubProgramBorrowerLink(request));
             PlpSubProgramBorrowerLinkData data = response.getData();
             UUID linkId = PlpSyncSupport.parseUuid(data.getPlpSubProgramBorrowerId());
             if ("ACTIVE".equalsIgnoreCase(data.getStatus())
@@ -84,9 +90,14 @@ public class PlpBorrowerLinkSyncService {
             app.setPlpLinkSyncedAt(PlpSyncSupport.now());
             log.info("PLP borrower link success: app={}, linkId={}, status={}",
                     app.getId(), data.getPlpSubProgramBorrowerId(), data.getStatus());
+            auditLink(app.getId(), "BORROWER_LINK_SYNCED", Map.of(
+                    "plpSubProgramBorrowerId", String.valueOf(data.getPlpSubProgramBorrowerId()),
+                    "status", String.valueOf(data.getStatus())), "Borrower linked to PLP sub-program");
         } catch (PlpIntegrationException e) {
             markLinkFailed(app, e.getMessage());
             log.error("PLP borrower link failed for app {}: {}", app.getId(), e.getMessage());
+            auditLink(app.getId(), "BORROWER_LINK_SYNC_FAILED", Map.of(
+                    "error", PlpSyncSupport.truncateError(e.getMessage())), "Borrower link to PLP failed");
         }
         return loanApplicationRepository.save(app);
     }
@@ -95,5 +106,13 @@ public class PlpBorrowerLinkSyncService {
         app.setPlpLinkSyncStatus(PlpSyncStatus.SYNC_FAILED);
         app.setPlpProgramSyncStatus(PlpSyncStatus.SYNC_FAILED);
         app.setPlpProgramSyncError(PlpSyncSupport.truncateError(message));
+    }
+
+    private void auditLink(UUID applicationId, String action, Map<String, Object> details, String description) {
+        if (applicationId == null) {
+            return;
+        }
+        Map<String, Object> state = new LinkedHashMap<>(details);
+        auditService.logEvent(applicationId, "PLP_SYNC", action, null, null, state, description);
     }
 }

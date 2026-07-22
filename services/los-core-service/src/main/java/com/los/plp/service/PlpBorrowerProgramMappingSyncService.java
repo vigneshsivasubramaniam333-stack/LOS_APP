@@ -2,6 +2,8 @@ package com.los.plp.service;
 
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.LoanApplicationRepository;
+import com.los.core.service.audit.AuditService;
+import com.los.plp.client.PlpApiAuditContext;
 import com.los.plp.client.PlpIntegrationClient;
 import com.los.plp.client.PlpIntegrationException;
 import com.los.plp.dto.PlpApiResponse;
@@ -23,6 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -35,6 +40,7 @@ public class PlpBorrowerProgramMappingSyncService {
     private final SubProgramMasterRepository subProgramMasterRepository;
     private final ProgramMasterRepository programMasterRepository;
     private final PlpIntegrationClient plpIntegrationClient;
+    private final AuditService auditService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public LoanApplication syncMappingStep(LoanApplication app) {
@@ -83,7 +89,8 @@ public class PlpBorrowerProgramMappingSyncService {
                     .validTo(validTo.format(DATE_FMT))
                     .build();
             PlpApiResponse<PlpBorrowerProgramMappingData> response =
-                    plpIntegrationClient.syncBorrowerProgramMapping(request);
+                    PlpApiAuditContext.callWithApplication(app.getId(), () ->
+                            plpIntegrationClient.syncBorrowerProgramMapping(request));
             PlpBorrowerProgramMappingData data = response.getData();
             if (!"PENDING_APPROVAL".equalsIgnoreCase(data.getMappingStatus())
                     && data.getMappingStatus() != null) {
@@ -96,9 +103,14 @@ public class PlpBorrowerProgramMappingSyncService {
             app.setPlpProgramSyncError(null);
             app.setPlpProgramSyncedAt(PlpSyncSupport.now());
             log.info("PLP mapping success: app={}, mappingId={}", app.getId(), data.getPlpBorrowerProgramMappingId());
+            auditMapping(app.getId(), "BORROWER_MAPPING_SYNCED", Map.of(
+                    "plpBorrowerProgramMappingId", String.valueOf(data.getPlpBorrowerProgramMappingId()),
+                    "mappingStatus", String.valueOf(data.getMappingStatus())), "Borrower program mapping synced to PLP");
         } catch (PlpIntegrationException e) {
             markMappingFailed(app, e.getMessage());
             log.error("PLP mapping failed for app {}: {}", app.getId(), e.getMessage());
+            auditMapping(app.getId(), "BORROWER_MAPPING_SYNC_FAILED", Map.of(
+                    "error", PlpSyncSupport.truncateError(e.getMessage())), "Borrower program mapping sync failed");
         }
         return loanApplicationRepository.save(app);
     }
@@ -107,5 +119,13 @@ public class PlpBorrowerProgramMappingSyncService {
         app.setPlpMappingSyncStatus(PlpSyncStatus.SYNC_FAILED);
         app.setPlpProgramSyncStatus(PlpSyncStatus.SYNC_FAILED);
         app.setPlpProgramSyncError(PlpSyncSupport.truncateError(message));
+    }
+
+    private void auditMapping(UUID applicationId, String action, Map<String, Object> details, String description) {
+        if (applicationId == null) {
+            return;
+        }
+        Map<String, Object> state = new LinkedHashMap<>(details);
+        auditService.logEvent(applicationId, "PLP_SYNC", action, null, null, state, description);
     }
 }

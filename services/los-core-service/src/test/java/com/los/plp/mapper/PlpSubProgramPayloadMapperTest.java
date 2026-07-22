@@ -49,5 +49,34 @@ class PlpSubProgramPayloadMapperTest {
         assertThat(request.getPlpProgramId()).isEqualTo(plpProgramId.toString());
         assertThat(request.getInterestRate()).isEqualByComparingTo("11.50");
         assertThat(request.getMaxTenureDays()).isEqualTo(60);
+        assertThat(request.getPreApproved()).isFalse();
+    }
+
+    @Test
+    void toRequest_preApproved_setsFlagForBorrowerSanction() {
+        UUID subId = UUID.randomUUID();
+        ProgramMaster program = ProgramMaster.builder()
+                .id(UUID.randomUUID())
+                .plpProgramId(UUID.randomUUID())
+                .plpLenderId(UUID.randomUUID())
+                .interestRate(new BigDecimal("10"))
+                .tenureDays(30)
+                .build();
+        SubProgramMaster subProgram = SubProgramMaster.builder()
+                .id(subId)
+                .programId(program.getId())
+                .subProgramCode("SP-002")
+                .name("Borrower flow")
+                .flowType("PURCHASE_BILL_DISCOUNTING")
+                .subProgramLimit(new BigDecimal("100000"))
+                .build();
+        AnchorMaster anchor = AnchorMaster.builder()
+                .id(UUID.randomUUID())
+                .plpAnchorId(UUID.randomUUID())
+                .build();
+
+        PlpSubProgramSyncRequest request = PlpSubProgramPayloadMapper.toRequest(subProgram, program, anchor, true);
+
+        assertThat(request.getPreApproved()).isTrue();
     }
 }

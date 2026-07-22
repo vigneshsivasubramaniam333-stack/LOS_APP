@@ -71,6 +71,17 @@ public class BorrowerInvoiceDiscountingController {
         return ResponseEntity.ok(service.acceptInvoice(uid, invoiceId));
     }
 
+    @DeleteMapping("/invoices/{invoiceId}")
+    @Operation(summary = "Delete an SBD/PO invoice before finance request (when program allows)")
+    public ResponseEntity<BorrowerInvoiceDiscountingResponse> deleteInvoice(
+            @PathVariable UUID invoiceId,
+            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
+        UUID uid = UUID.fromString(userId);
+        service.requireBorrower(role);
+        return ResponseEntity.ok(service.deleteInvoice(uid, invoiceId));
+    }
+
     @GetMapping("/invoices/{invoiceId}/digital-invoice")
     @Operation(summary = "Download digital invoice copy (proxied from PLP)")
     public ResponseEntity<byte[]> downloadDigitalInvoice(

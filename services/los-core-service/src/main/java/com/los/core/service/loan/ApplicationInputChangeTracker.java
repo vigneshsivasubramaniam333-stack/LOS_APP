@@ -64,6 +64,18 @@ public class ApplicationInputChangeTracker {
             new FieldSpec("Anchor relationship vintage (months)", "businessInfo", "anchorRelationshipVintageMonths")
     );
 
+    public Map<String, Object> fullFingerprint(LoanApplication app) {
+        Map<String, Object> out = new LinkedHashMap<>(fingerprintIntake(app));
+        return out;
+    }
+
+    public List<String> diffSnapshots(Map<String, Object> before, Map<String, Object> after) {
+        List<FieldSpec> all = new ArrayList<>();
+        all.addAll(KYC_FIELDS);
+        all.addAll(INTAKE_FIELDS);
+        return diffFingerprints(before == null ? Map.of() : before, after == null ? Map.of() : after, all);
+    }
+
     public void recordKycVerifiedSnapshot(LoanApplication app) {
         Map<String, Object> tracking = tracking(app);
         tracking.put("kycVerifiedInputs", fingerprintKyc(app));

@@ -2,6 +2,7 @@ package com.los.plp.client;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.los.core.service.audit.IntegrationApiAuditService;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.dto.PlpApiResponse;
 import com.los.plp.dto.PlpLoginResponse;
@@ -33,8 +34,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -72,6 +76,7 @@ public class PlpIntegrationClient {
     private final RestClient plpRestClient;
     private final PlpProperties plpProperties;
     private final ObjectMapper objectMapper;
+    private final IntegrationApiAuditService integrationApiAuditService;
 
     private volatile String cachedAccessToken;
     private volatile long accessTokenExpiryEpochMillis;
@@ -169,6 +174,8 @@ public class PlpIntegrationClient {
         log.info("[PLP][REQUEST] GET {} — headers: {}", path, summarizeHeadersForLog(logHeaders));
 
         String bearer = "Bearer " + accessToken;
+        Instant requestTime = Instant.now();
+        String requestPayload = "GET " + path;
 
         try {
             ResponseEntity<String> entity = plpRestClient.get()
@@ -178,6 +185,8 @@ public class PlpIntegrationClient {
                     .toEntity(String.class);
             log.info("[PLP][RESPONSE] Status: {}, Body: {}", entity.getStatusCode(), truncateForLog(entity.getBody()));
             String raw = entity.getBody();
+            recordPlpApiAudit("GET", path, requestPayload, raw,
+                    entity.getStatusCode().value(), null, requestTime);
             PlpApiResponse<T> response = objectMapper.readValue(raw, type);
             if (response == null || !"SUCCESS".equalsIgnoreCase(response.getStatus())) {
                 String msg = response != null && response.getMessage() != null
@@ -191,6 +200,8 @@ public class PlpIntegrationClient {
         } catch (RestClientResponseException e) {
             log.info("[PLP][RESPONSE] Status: {}, Body: {}", e.getStatusCode(),
                     truncateForLog(e.getResponseBodyAsString()));
+            recordPlpApiAudit("GET", path, requestPayload, e.getResponseBodyAsString(),
+                    e.getStatusCode().value(), e.getMessage(), requestTime);
             if (shouldRetryUnauthorized(e, retried401AfterRefresh)) {
                 clearCachedAccessToken();
                 return getAuthenticated(path, type, true, unavailableRetries);
@@ -205,6 +216,7 @@ public class PlpIntegrationClient {
                     "PLP HTTP " + e.getStatusCode() + ": " + safeBody(e.getResponseBodyAsString()));
         } catch (Exception e) {
             log.error("PLP call failed for {}: {}", path, e.getMessage());
+            recordPlpApiAudit("GET", path, requestPayload, null, null, e.getMessage(), requestTime);
             throw new PlpIntegrationException(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
     }
@@ -232,6 +244,7 @@ public class PlpIntegrationClient {
         log.info("[PLP][REQUEST] Body: {}", truncateForLog(bodyJson));
 
         String bearer = "Bearer " + accessToken;
+        Instant requestTime = Instant.now();
 
         try {
             ResponseEntity<String> entity = plpRestClient.post()
@@ -243,6 +256,8 @@ public class PlpIntegrationClient {
                     .toEntity(String.class);
             log.info("[PLP][RESPONSE] Status: {}, Body: {}", entity.getStatusCode(), truncateForLog(entity.getBody()));
             String raw = entity.getBody();
+            recordPlpApiAudit("POST", path, bodyJson, raw,
+                    entity.getStatusCode().value(), null, requestTime);
             PlpApiResponse<T> response = objectMapper.readValue(raw, type);
             if (response == null || !"SUCCESS".equalsIgnoreCase(response.getStatus())) {
                 String msg = response != null && response.getMessage() != null
@@ -256,6 +271,8 @@ public class PlpIntegrationClient {
         } catch (RestClientResponseException e) {
             log.info("[PLP][RESPONSE] Status: {}, Body: {}", e.getStatusCode(),
                     truncateForLog(e.getResponseBodyAsString()));
+            recordPlpApiAudit("POST", path, bodyJson, e.getResponseBodyAsString(),
+                    e.getStatusCode().value(), e.getMessage(), requestTime);
             if (shouldRetryUnauthorized(e, retried401AfterRefresh)) {
                 clearCachedAccessToken();
                 return postAuthenticated(path, body, type, true, unavailableRetries);
@@ -270,6 +287,7 @@ public class PlpIntegrationClient {
                     "PLP HTTP " + e.getStatusCode() + ": " + safeBody(e.getResponseBodyAsString()));
         } catch (Exception e) {
             log.error("PLP call failed for {}: {}", path, e.getMessage());
+            recordPlpApiAudit("POST", path, bodyJson, null, null, e.getMessage(), requestTime);
             throw new PlpIntegrationException(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
     }
@@ -372,6 +390,8 @@ public class PlpIntegrationClient {
                 truncateForLog("{\"email\":\"" + email.trim() + "\",\"password\":\"***\"}"));
 
         String raw;
+        Instant requestTime = Instant.now();
+        String maskedLoginBody = "{\"email\":\"" + email.trim() + "\",\"password\":\"***\"}";
         try {
             ResponseEntity<String> entity = plpRestClient.post()
                     .uri(PATH_LOGIN)
@@ -381,9 +401,13 @@ public class PlpIntegrationClient {
                     .toEntity(String.class);
             log.info("[PLP][RESPONSE] Status: {}, Body: {}", entity.getStatusCode(), truncateForLog(entity.getBody()));
             raw = entity.getBody();
+            recordPlpApiAudit("POST", PATH_LOGIN, maskedLoginBody, maskLoginResponse(raw),
+                    entity.getStatusCode().value(), null, requestTime);
         } catch (RestClientResponseException e) {
             log.info("[PLP][RESPONSE] Status: {}, Body: {}", e.getStatusCode(),
                     truncateForLog(e.getResponseBodyAsString()));
+            recordPlpApiAudit("POST", PATH_LOGIN, maskedLoginBody, e.getResponseBodyAsString(),
+                    e.getStatusCode().value(), e.getMessage(), requestTime);
             throw new PlpIntegrationException(
                     "PLP IAM login failed: HTTP " + e.getStatusCode() + ": " + safeBody(e.getResponseBodyAsString()));
         } catch (Exception e) {
@@ -392,6 +416,7 @@ public class PlpIntegrationClient {
             // SYNC_FAILED, instead of letting the raw exception escape (e.g. into TransactionSynchronization
             // afterCommit hooks where it surfaces as an unhandled error).
             log.error("PLP IAM login transport error: {}", e.getMessage());
+            recordPlpApiAudit("POST", PATH_LOGIN, maskedLoginBody, null, null, e.getMessage(), requestTime);
             throw new PlpIntegrationException(
                     "PLP IAM login failed: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
         }
@@ -414,6 +439,61 @@ public class PlpIntegrationClient {
         } catch (Exception e) {
             throw new PlpIntegrationException("PLP IAM login: failed to parse response: " + e.getMessage());
         }
+    }
+
+    private void recordPlpApiAudit(
+            String method,
+            String path,
+            String requestPayload,
+            String responsePayload,
+            Integer httpStatus,
+            String errorMessage,
+            Instant requestTime) {
+        Instant responseTime = Instant.now();
+        UUID applicationId = PlpApiAuditContext.getApplicationId();
+        if (applicationId == null) {
+            applicationId = IntegrationApiAuditService.applicationIdFromJson(requestPayload);
+        }
+        String status;
+        if (errorMessage != null && !errorMessage.isBlank()) {
+            status = "ERROR";
+        } else if (httpStatus != null && httpStatus >= 200 && httpStatus < 300) {
+            status = "SUCCESS";
+        } else {
+            status = "FAILED";
+        }
+        String apiName = method + " " + shortenPath(path);
+        integrationApiAuditService.record(
+                "PLP",
+                apiName,
+                requestPayload,
+                responsePayload,
+                status,
+                httpStatus,
+                errorMessage,
+                null,
+                applicationId,
+                requestTime,
+                responseTime,
+                Duration.between(requestTime, responseTime).toMillis());
+    }
+
+    private static String shortenPath(String path) {
+        if (path == null) {
+            return "";
+        }
+        int q = path.indexOf('?');
+        return q >= 0 ? path.substring(0, q) : path;
+    }
+
+    private static String maskLoginResponse(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return raw;
+        }
+        // Keep structure for support, but redact tokens.
+        return raw
+                .replaceAll("(?i)\"accessToken\"\\s*:\\s*\"[^\"]*\"", "\"accessToken\":\"***\"")
+                .replaceAll("(?i)\"refreshToken\"\\s*:\\s*\"[^\"]*\"", "\"refreshToken\":\"***\"");
     }
 
     private static String truncateForLog(String s) {

@@ -3,6 +3,7 @@ package com.los.plp.service;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
+import com.los.core.service.audit.AuditService;
 import com.los.plp.config.PlpProperties;
 import com.los.plp.model.dto.CreatePlpProgramRequest;
 import com.los.plp.model.dto.PlpProgramSetupResponse;
@@ -19,7 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -35,6 +38,7 @@ public class PlpProgramSetupService {
     private final PlpProperties plpProperties;
     private final ProgramApprovalService programApprovalService;
     private final LoanApplicationRepository loanApplicationRepository;
+    private final AuditService auditService;
 
     @Transactional
     public PlpProgramSetupResponse createProgramForAnchor(CreatePlpProgramRequest request) {
@@ -79,10 +83,13 @@ public class PlpProgramSetupService {
                 .dependencyVintagePercent(request.getDependencyVintagePercent())
                 .anchorRelationshipVintageMonths(request.getAnchorRelationshipVintageMonths())
                 .plpLenderId(parseLenderId())
+                .anchorApplicationId(anchor.getSourceAnchorApplicationId())
                 .plpProgramSyncStatus(PlpSyncStatus.NOT_SYNCED)
                 .build();
         programApprovalService.initDraftFromPlp(program);
         program = programMasterRepository.save(program);
+        auditProgramLifecycle(program, anchor, "PROGRAM_CREATED",
+                "Invoice-discounting program created and queued for PLP review");
 
         String subName = request.getSubProgramName() != null && !request.getSubProgramName().isBlank()
                 ? request.getSubProgramName()
@@ -206,7 +213,12 @@ public class PlpProgramSetupService {
         program.setApprovalStatus(ProgramApprovalStatus.DRAFT);
         program.setPlpOperationalStatus("DRAFT");
         program.setApprovalNotes(null);
+        if (program.getAnchorApplicationId() == null && anchor.getSourceAnchorApplicationId() != null) {
+            program.setAnchorApplicationId(anchor.getSourceAnchorApplicationId());
+        }
         program = programMasterRepository.save(program);
+        auditProgramLifecycle(program, anchor, "PROGRAM_RESUBMITTED",
+                "Program commercial details resubmitted for PLP review");
 
         if (request.getSubProgramLimit() != null) {
             existingSub.setSubProgramLimit(request.getSubProgramLimit());
@@ -406,6 +418,24 @@ public class PlpProgramSetupService {
             return null;
         }
         return raw.trim();
+    }
+
+    private void auditProgramLifecycle(ProgramMaster program, AnchorMaster anchor, String action, String description) {
+        UUID applicationId = program.getAnchorApplicationId();
+        if (applicationId == null && anchor != null) {
+            applicationId = anchor.getSourceAnchorApplicationId();
+        }
+        if (applicationId == null) {
+            return;
+        }
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("programId", program.getId() != null ? program.getId().toString() : "");
+        state.put("programCode", program.getProgramCode() != null ? program.getProgramCode() : "");
+        state.put("programName", program.getProgramName() != null ? program.getProgramName() : "");
+        state.put("productType", program.getProductType() != null ? program.getProductType() : "");
+        state.put("approvalStatus", program.getApprovalStatus() != null ? program.getApprovalStatus().name() : "");
+        state.put("plpOperationalStatus", program.getPlpOperationalStatus() != null ? program.getPlpOperationalStatus() : "");
+        auditService.logEvent(applicationId, "PLP_PROGRAM", action, null, null, state, description);
     }
 
     private record SubProgramRoles(String flowType, String anchorRole, String borrowerRole) {

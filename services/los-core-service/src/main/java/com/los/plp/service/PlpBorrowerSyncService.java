@@ -2,6 +2,8 @@ package com.los.plp.service;
 
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.LoanApplicationRepository;
+import com.los.core.service.audit.AuditService;
+import com.los.plp.client.PlpApiAuditContext;
 import com.los.plp.client.PlpIntegrationClient;
 import com.los.plp.client.PlpIntegrationException;
 import com.los.plp.dto.PlpApiResponse;
@@ -21,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +37,7 @@ public class PlpBorrowerSyncService {
     private final ProgramMasterRepository programMasterRepository;
     private final AnchorMasterRepository anchorMasterRepository;
     private final PlpIntegrationClient plpIntegrationClient;
+    private final AuditService auditService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public LoanApplication syncForCustomer(UUID customerId, UUID applicationId) {
@@ -52,15 +57,21 @@ public class PlpBorrowerSyncService {
             return loanApplicationRepository.save(app);
         }
         try {
-            PlpApiResponse<PlpBorrowerSyncData> response = plpIntegrationClient.syncBorrower(
-                    PlpBorrowerPayloadMapper.toRequest(app, ctx.program, ctx.anchor));
+            PlpApiResponse<PlpBorrowerSyncData> response = PlpApiAuditContext.callWithApplication(app.getId(), () ->
+                    plpIntegrationClient.syncBorrower(
+                            PlpBorrowerPayloadMapper.toRequest(app, ctx.program, ctx.anchor)));
             app.setPlpBorrowerId(PlpSyncSupport.parseUuid(response.getData().getPlpBorrowerId()));
             app.setPlpBorrowerSyncStatus(PlpSyncStatus.SYNC_SUCCESS);
             app.setPlpBorrowerSyncedAt(PlpSyncSupport.now());
             log.info("PLP borrower sync success: app={}, plpBorrowerId={}", app.getId(), response.getData().getPlpBorrowerId());
+            auditBorrower(app.getId(), "BORROWER_SYNCED", Map.of(
+                    "plpBorrowerId", String.valueOf(response.getData().getPlpBorrowerId()),
+                    "status", PlpSyncStatus.SYNC_SUCCESS.name()), "Borrower synced to PLP");
         } catch (PlpIntegrationException e) {
             markBorrowerFailed(app, e.getMessage());
             log.error("PLP borrower sync failed for app {}: {}", app.getId(), e.getMessage());
+            auditBorrower(app.getId(), "BORROWER_SYNC_FAILED", Map.of(
+                    "error", PlpSyncSupport.truncateError(e.getMessage())), "Borrower sync to PLP failed");
         }
         return loanApplicationRepository.save(app);
     }
@@ -85,5 +96,13 @@ public class PlpBorrowerSyncService {
     }
 
     private record SubProgramContext(SubProgramMaster subProgram, ProgramMaster program, AnchorMaster anchor) {
+    }
+
+    private void auditBorrower(UUID applicationId, String action, Map<String, Object> details, String description) {
+        if (applicationId == null) {
+            return;
+        }
+        Map<String, Object> state = new LinkedHashMap<>(details);
+        auditService.logEvent(applicationId, "PLP_SYNC", action, null, null, state, description);
     }
 }

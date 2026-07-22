@@ -14,6 +14,17 @@ public final class PlpSubProgramPayloadMapper {
             SubProgramMaster subProgram,
             ProgramMaster program,
             AnchorMaster anchor) {
+        return toRequest(subProgram, program, anchor, false);
+    }
+
+    /**
+     * @param preApproved when true, PLP creates/activates the sub-program as ACTIVE (used for borrower sanction sync)
+     */
+    public static PlpSubProgramSyncRequest toRequest(
+            SubProgramMaster subProgram,
+            ProgramMaster program,
+            AnchorMaster anchor,
+            boolean preApproved) {
         return PlpSubProgramSyncRequest.builder()
                 .losSubProgramId(subProgram.getId().toString())
                 .plpProgramId(program.getPlpProgramId().toString())
@@ -27,7 +38,7 @@ public final class PlpSubProgramPayloadMapper {
                 .subProgramLimit(subProgram.getSubProgramLimit())
                 .interestRate(program.getInterestRate())
                 .maxTenureDays(program.getTenureDays())
-                .preApproved(false)
+                .preApproved(preApproved)
                 .build();
     }
 }
