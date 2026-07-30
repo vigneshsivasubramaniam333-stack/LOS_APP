@@ -16,6 +16,11 @@ export interface IndiaStateCityPincodeFieldsProps {
   cityDisabledUntilState?: boolean
   /** When true, state/city labels show * (borrower address step). */
   stateCityRequired?: boolean
+  /**
+   * When non-empty, only these state names appear in the dropdown
+   * (workflow locationRules.allowedStates). Current saved values outside the list remain selectable.
+   */
+  allowedStateNames?: string[] | null
 }
 
 function matchStateName(states: readonly GeoStateRow[], stateValue: string): GeoStateRow | undefined {
@@ -37,6 +42,7 @@ export function IndiaStateCityPincodeFields({
   onPincodeChange,
   cityDisabledUntilState = true,
   stateCityRequired = false,
+  allowedStateNames = null,
 }: IndiaStateCityPincodeFieldsProps) {
   const [geoStates, setGeoStates] = useState<GeoStateRow[]>([])
   const [statesLoadErr, setStatesLoadErr] = useState<string | null>(null)
@@ -66,9 +72,22 @@ export function IndiaStateCityPincodeFields({
 
   const matchedMasterState = useMemo(() => matchStateName(geoStates, stateValue), [geoStates, stateValue])
 
+  const filteredStates = useMemo(() => {
+    if (!allowedStateNames || allowedStateNames.length === 0) return geoStates
+    const allow = new Set(allowedStateNames.map((s) => s.trim().toLowerCase()).filter(Boolean))
+    return geoStates.filter((r) => allow.has(r.stateName.toLowerCase()))
+  }, [geoStates, allowedStateNames])
+
   const stateTrim = stateValue.trim()
-  const canonicalNames = geoStates.map((r) => r.stateName)
-  const stateUnknown = Boolean(stateTrim && !matchedMasterState)
+  const canonicalNames = filteredStates.map((r) => r.stateName)
+  const stateUnknown = Boolean(stateTrim && !matchStateName(filteredStates, stateValue) && !matchStateName(geoStates, stateValue))
+  const stateOutsideAllowed = Boolean(
+    stateTrim &&
+      matchStateName(geoStates, stateValue) &&
+      allowedStateNames &&
+      allowedStateNames.length > 0 &&
+      !matchStateName(filteredStates, stateValue),
+  )
 
   useEffect(() => {
     let cancel = false
@@ -114,16 +133,19 @@ export function IndiaStateCityPincodeFields({
         <span className="mb-1 block text-xs font-medium text-slate-500">State{stateCityRequired ? ' *' : ''}</span>
         <select
           className={SELECT_CLASS}
-          value={stateUnknown ? stateTrim : stateValue}
+          value={stateUnknown || stateOutsideAllowed ? stateTrim : stateValue}
           onChange={(e) => onStateChange(e.target.value)}
           disabled={loadingStates}
           aria-label="State"
           aria-busy={loadingStates}
         >
           <option value="">{loadingStates ? 'Loading states…' : 'Select state'}</option>
-          {stateUnknown ? (
+          {stateUnknown || stateOutsideAllowed ? (
             <option value={stateTrim}>
-              {stateTrim} (saved value — pick a standard state to update)
+              {stateTrim}
+              {stateOutsideAllowed
+                ? ' (saved — not in workflow-allowed states)'
+                : ' (saved value — pick a standard state to update)'}
             </option>
           ) : null}
           {canonicalNames.map((s) => (
@@ -132,6 +154,9 @@ export function IndiaStateCityPincodeFields({
             </option>
           ))}
         </select>
+        {allowedStateNames && allowedStateNames.length > 0 ? (
+          <p className="mt-0.5 text-xs text-slate-500">Showing states allowed by this workflow.</p>
+        ) : null}
       </label>
       <label className="block text-sm text-slate-700">
         <span className="mb-1 block text-xs font-medium text-slate-500">City{stateCityRequired ? ' *' : ''}</span>

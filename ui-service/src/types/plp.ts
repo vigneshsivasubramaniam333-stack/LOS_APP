@@ -32,6 +32,10 @@ export interface PlpProgramSummary {
   approvalNotes?: string | null
   dependencyVintagePercent?: number | null
   anchorRelationshipVintageMonths?: number | null
+  interestPayment?: string | null
+  maxInvoiceVintageDays?: number | null
+  maxCmr?: number | null
+  minCibil?: number | null
 }
 
 export interface PlpProgramSetupResponse {
@@ -60,6 +64,10 @@ export interface PlpProgramSetupResponse {
   assignedL2UserId?: string | null
   dependencyVintagePercent?: number | null
   anchorRelationshipVintageMonths?: number | null
+  interestPayment?: string | null
+  maxInvoiceVintageDays?: number | null
+  maxCmr?: number | null
+  minCibil?: number | null
 }
 
 export interface CreatePlpProgramRequest {
@@ -80,6 +88,10 @@ export interface CreatePlpProgramRequest {
   encoreProductCode?: string
   dependencyVintagePercent?: number
   anchorRelationshipVintageMonths?: number
+  interestPayment?: string
+  maxInvoiceVintageDays?: number
+  maxCmr?: number
+  minCibil?: number
 }
 
 export interface PlpLinkedSubProgramSummary {

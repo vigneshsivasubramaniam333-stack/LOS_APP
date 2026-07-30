@@ -620,6 +620,8 @@ export function WorkflowsPage() {
                     intakeConfig={intakeConfig}
                     onChange={setIntakeConfig}
                     visualSteps={visualSteps}
+                    hideCoApplicant={intakeSegment === 'ANCHOR' || loanProduct === 'BUSINESS_WC_INVOICE_DISCOUNTING'}
+                    showContacts={intakeSegment === 'ANCHOR'}
                   />
                 </DetailSection>
                 ) : null}

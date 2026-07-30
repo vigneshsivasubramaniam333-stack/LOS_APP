@@ -11,6 +11,7 @@ const LOS_STATUS_LABEL: Record<ProgramApprovalStatus, string> = {
   DRAFT: 'Pending PLP approval',
   PENDING_L2: 'Pending L2 in PLP',
   SENT_BACK: 'Sent back in PLP',
+  APPROVED_PENDING_DOCS: 'Approved — pending document verification',
   APPROVED: 'Approved (mirrored from PLP)',
   REJECTED: 'Not active in PLP',
 }

@@ -31,6 +31,11 @@ export interface WorkflowTenureRules {
   options?: WorkflowTenureOption[]
 }
 
+/** When allowedStates is non-empty, intake state dropdowns are limited to those names. */
+export interface WorkflowLocationRules {
+  allowedStates?: string[]
+}
+
 /** Allowed intake dropdown value — scores live only on underwriting scorecards. */
 export interface WorkflowCodedOption {
   value: string
@@ -59,6 +64,41 @@ export interface WorkflowStepDocumentRequired {
   required?: boolean
 }
 
+/** Aligns with backend `intakeConfig.coApplicant` (nested JSON) — co-applicant / joint borrower rules. */
+export interface WorkflowCoApplicantConfig {
+  enabled?: boolean
+  maxCoApplicants?: number
+  minCoApplicants?: number
+  captureAtRmCreate?: boolean
+  notifyAllOnInvite?: boolean
+  /** Optional override; when empty, primary uses main workflow KYC steps. */
+  primaryKycSteps?: string[]
+  coApplicantKycSteps?: string[]
+  requireAllEsignBeforeDisbursement?: boolean
+  underwritingParty?: 'PRIMARY'
+  /**
+   * Co-applicant-only intake rules (mirrors primary workflow-level params).
+   * Primary continues to use top-level intakeConfig fields.
+   */
+  personalFields?: {
+    dateOfBirth?: WorkflowPersonalFieldConfig
+    gender?: WorkflowPersonalFieldConfig
+    occupation?: WorkflowPersonalFieldConfig
+    loanPurpose?: WorkflowPersonalFieldConfig
+  }
+  ageRules?: WorkflowAgeRules
+  occupationRules?: WorkflowCodedFieldRules
+  mandatoryFieldGroups?: WorkflowMandatoryFieldGroup[]
+  standaloneDocuments?: WorkflowStandaloneDocument[]
+}
+
+/** Anchor intake contacts/users capture (enabled on ANCHOR workflows only). */
+export interface WorkflowContactsConfig {
+  enabled?: boolean
+  /** Max users that can be captured during anchor create (including the primary). */
+  maxUsers?: number
+}
+
 export interface WorkflowIntakeConfig {
   policy?: WorkflowIntakePolicy
   personalFields?: {
@@ -69,10 +109,13 @@ export interface WorkflowIntakeConfig {
   }
   ageRules?: WorkflowAgeRules
   tenureRules?: WorkflowTenureRules
+  locationRules?: WorkflowLocationRules
   occupationRules?: WorkflowCodedFieldRules
   loanPurposeRules?: WorkflowCodedFieldRules
   mandatoryFieldGroups?: WorkflowMandatoryFieldGroup[]
   standaloneDocuments?: WorkflowStandaloneDocument[]
+  coApplicant?: WorkflowCoApplicantConfig
+  contacts?: WorkflowContactsConfig
 }
 
 export interface WorkflowConfigResponse {

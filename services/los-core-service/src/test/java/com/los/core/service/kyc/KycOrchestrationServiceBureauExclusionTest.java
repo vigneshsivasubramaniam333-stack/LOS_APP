@@ -53,6 +53,8 @@ class KycOrchestrationServiceBureauExclusionTest {
     private AuditService auditService;
     @Mock
     private AuditEventRepository auditEventRepository;
+    @Mock
+    private com.los.core.service.loan.ApplicationPartyService applicationPartyService;
 
     private KycOrchestrationServiceImpl kycOrchestrationService;
 
@@ -67,7 +69,8 @@ class KycOrchestrationServiceBureauExclusionTest {
                 integrationRouter,
                 workflowEngine,
                 auditService,
-                auditEventRepository
+                auditEventRepository,
+                applicationPartyService
         );
         when(auditEventRepository.findTopByApplicationIdAndEventTypeOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(Optional.empty());

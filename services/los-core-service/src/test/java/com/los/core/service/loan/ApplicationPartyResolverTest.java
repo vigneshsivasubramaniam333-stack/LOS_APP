@@ -49,6 +49,59 @@ class ApplicationPartyResolverTest {
     }
 
     @Test
+    void anchorPortalEmailUsesCorporateNotPartialSigningContact() {
+        LoanApplication app = LoanApplication.builder()
+                .intakeSegment(IntakeSegment.ANCHOR)
+                .businessInfo(Map.of(
+                        "corporateName", "Acme Corp",
+                        "email", "corporate@acme.example",
+                        "mobile", "9000000099",
+                        "contacts", java.util.List.of(
+                                Map.of(
+                                        "name", "Partial",
+                                        "email", "t",
+                                        "mobile", "9",
+                                        "isSigningAuthority", true,
+                                        "signingOrder", 1))))
+                .build();
+
+        assertEquals("corporate@acme.example", ApplicationPartyResolver.resolveEmail(app));
+        assertEquals("9000000099", ApplicationPartyResolver.resolveMobile(app));
+        // Invalid signing email must not be used for e-sign either — fall back to corporate.
+        assertEquals("corporate@acme.example", ApplicationPartyResolver.resolveEsignEmail(app));
+    }
+
+    @Test
+    void anchorEsignPrefersValidFirstSigningAuthority() {
+        LoanApplication app = LoanApplication.builder()
+                .intakeSegment(IntakeSegment.ANCHOR)
+                .businessInfo(Map.of(
+                        "corporateName", "Acme Corp",
+                        "email", "corporate@acme.example",
+                        "contacts", java.util.List.of(
+                                Map.of(
+                                        "name", "Second Signer",
+                                        "email", "second@acme.example",
+                                        "mobile", "9000000002",
+                                        "isSigningAuthority", true,
+                                        "signingOrder", 2),
+                                Map.of(
+                                        "name", "First Signer",
+                                        "email", "first@acme.example",
+                                        "mobile", "9000000001",
+                                        "isSigningAuthority", true,
+                                        "signingOrder", 1))))
+                .build();
+
+        assertEquals("corporate@acme.example", ApplicationPartyResolver.resolveEmail(app));
+        assertEquals("first@acme.example", ApplicationPartyResolver.resolveEsignEmail(app));
+        assertEquals("9000000001", ApplicationPartyResolver.resolveEsignMobile(app));
+        Map<String, Object> signer = ApplicationPartyResolver.enrichEsignSignerInfo(app, Map.of());
+        assertEquals("first@acme.example", signer.get("borrowerEmail"));
+        assertEquals("First Signer", signer.get("name"));
+    }
+
+    @Test
     void borrowerDisplayNameUnchanged() {
         LoanApplication app = LoanApplication.builder()
                 .intakeSegment(IntakeSegment.BORROWER)

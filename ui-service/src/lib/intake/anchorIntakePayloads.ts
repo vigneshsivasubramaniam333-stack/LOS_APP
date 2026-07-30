@@ -3,6 +3,7 @@ import type { UpdateApplicationRequest } from '@/types/updateApplication'
 import type { SessionUser } from '@/auth/types'
 import type { IntakeMode } from './intakeTypes'
 import type { AnchorFormState } from './anchorIntakeTypes'
+import { contactsToBusinessInfoPayload } from './anchorContacts'
 
 function parseTenure(s: string): number | null {
   const t = s.trim()
@@ -10,6 +11,11 @@ function parseTenure(s: string): number | null {
   const n = Number.parseInt(t, 10)
   if (Number.isNaN(n) || n <= 0) return null
   return n
+}
+
+function contactsPayload(s: AnchorFormState): Record<string, unknown>[] | undefined {
+  if (!s.contacts?.length) return undefined
+  return contactsToBusinessInfoPayload(s.contacts)
 }
 
 export function buildAnchorCreateRequest(
@@ -35,6 +41,7 @@ export function buildAnchorCreateRequest(
     personalInfo.createdByName = staff.name
     personalInfo.createdByUserId = staff.userId
   }
+  const contacts = contactsPayload(s)
   const businessInfo: Record<string, unknown> = {
     corporateName: s.corporateName.trim(),
     email: s.email.trim(),
@@ -45,6 +52,7 @@ export function buildAnchorCreateRequest(
     state: s.state.trim(),
     country: s.country.trim(),
     pincode: s.pincode.replace(/\D/g, '').slice(0, 6),
+    ...(contacts ? { contacts } : {}),
   }
   return {
     borrowerType: s.borrowerType,
@@ -67,6 +75,17 @@ export function buildAnchorIdentityUpdate(s: AnchorFormState): UpdateApplication
     accountHolderName: s.accountHolderName.trim(),
   }
   return { businessInfo: bi }
+}
+
+export function buildAnchorContactsUpdate(s: AnchorFormState): UpdateApplicationRequest {
+  const contacts = contactsPayload(s) ?? []
+  // Persist contacts only — do not overwrite corporate businessInfo.email/mobile
+  // (portal invite / PLP IAM provision must keep using the corporate contact).
+  return {
+    businessInfo: {
+      contacts,
+    },
+  }
 }
 
 export function buildAnchorConsentUpdate(s: AnchorFormState, staff: SessionUser | null): UpdateApplicationRequest {
@@ -92,6 +111,7 @@ export function buildAnchorFullUpdate(
   const tenure = parseTenure(s.tenureMonths)
   const identity = buildAnchorIdentityUpdate(s)
   const consent = buildAnchorConsentUpdate(s, staff)
+  const contacts = contactsPayload(s)
   return {
     requestedAmount: Number.isFinite(amount) && amount > 0 ? amount : undefined,
     tenureMonths: tenure ?? undefined,
@@ -111,6 +131,7 @@ export function buildAnchorFullUpdate(
       country: s.country.trim(),
       pincode: s.pincode.replace(/\D/g, '').slice(0, 6),
       ...(identity.businessInfo ?? {}),
+      ...(contacts ? { contacts } : {}),
     },
     financialInfo: consent.financialInfo,
   }

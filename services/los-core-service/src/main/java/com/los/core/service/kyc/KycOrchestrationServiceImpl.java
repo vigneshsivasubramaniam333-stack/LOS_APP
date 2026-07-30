@@ -15,6 +15,9 @@ import com.los.core.repository.ManualKycReviewRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.service.integration.IIntegrationRouterService;
 import com.los.core.service.loan.ApplicantIdentityResolver;
+import com.los.core.service.loan.ApplicationPartyService;
+import com.los.core.model.entity.ApplicationParty;
+import com.los.core.model.enums.ApplicationPartyRole;
 import com.los.core.service.workflow.IWorkflowEngineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +45,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
     private final IWorkflowEngineService workflowEngine;
     private final AuditService auditService;
     private final AuditEventRepository auditEventRepository;
+    private final ApplicationPartyService applicationPartyService;
 
     @Override
     @Transactional
@@ -57,9 +61,21 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
             throw new BusinessRuleException("Application must be in KYC_IN_PROGRESS or KYC_FAILED status. Current: " + app.getStatus());
         }
 
-        // Determine attempt number
-        int attemptNumber = kycStepResultRepository
-                .findTopByApplicationIdAndStepTypeOrderByCreatedAtDesc(applicationId, stepType)
+        UUID partyId = extractPartyId(payload);
+        ApplicationParty party = null;
+        if (partyId != null) {
+            party = applicationPartyService.requireParty(applicationId, partyId);
+            if (party.getRole() == ApplicationPartyRole.CO_APPLICANT
+                    && stepType == KycStepType.BUREAU_PULL) {
+                throw new BusinessRuleException("Bureau pull is only allowed for the primary borrower");
+            }
+        }
+
+        // Determine attempt number (party-scoped when partyId present).
+        int attemptNumber = (partyId != null
+                ? kycStepResultRepository.findTopByApplicationIdAndPartyIdAndStepTypeOrderByCreatedAtDesc(
+                        applicationId, partyId, stepType)
+                : kycStepResultRepository.findTopByApplicationIdAndStepTypeOrderByCreatedAtDesc(applicationId, stepType))
                 .map(r -> r.getAttemptNumber() + 1)
                 .orElse(1);
 
@@ -70,6 +86,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
                     "VIDEO_KYC KYC sub-step skipped — application completed through Physical KYC");
             KycStepResult stepResult = KycStepResult.builder()
                     .applicationId(applicationId)
+                    .partyId(partyId)
                     .stepType(stepType)
                     .provider(ProviderType.HYPERVERGE)
                     .outcome(StepOutcome.SUCCESS)
@@ -96,15 +113,28 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
         // Create pending step result
         KycStepResult stepResult = KycStepResult.builder()
                 .applicationId(applicationId)
+                .partyId(partyId)
                 .stepType(stepType)
                 .provider(ProviderType.KARZA) // default, will be updated by router
                 .outcome(StepOutcome.PENDING)
                 .attemptNumber(attemptNumber)
                 .build();
 
+        Map<String, Object> partyPayload = new HashMap<>();
+        if (party != null) {
+            partyPayload.putAll(ApplicationPartyService.partyIdentityMap(party));
+        }
+        if (payload != null) {
+            partyPayload.putAll(payload);
+        }
+        Map<String, Object> enrichedPayload = ApplicantIdentityResolver.enrichKycPayload(app, partyPayload);
+        if (party != null) {
+            applicationPartyService.markPartyKycStatus(party, PartyKycStatus.IN_PROGRESS);
+        }
+
         // Route to provider
         IIntegrationRouterService.KycRouteResult routeResult = integrationRouter.routeKycRequest(
-                applicationId, stepType, payload, workflowPreferredProvider);
+                applicationId, stepType, enrichedPayload, workflowPreferredProvider);
 
         if (routeResult.success()) {
             @SuppressWarnings("unchecked")
@@ -129,6 +159,13 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
 
         stepResult.setCompletedAt(Instant.now());
         stepResult = kycStepResultRepository.save(stepResult);
+
+        if (party != null) {
+            applicationPartyService.markPartyKycStatus(party,
+                    stepResult.getOutcome() == StepOutcome.SUCCESS
+                            ? PartyKycStatus.IN_PROGRESS
+                            : PartyKycStatus.FAILED);
+        }
 
         log.info("KYC step {} for application {} completed with outcome: {}",
                 stepType, applicationId, stepResult.getOutcome());
@@ -191,13 +228,51 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
 
         List<Map<String, Object>> steps = workflowConfig.getSteps();
         List<KycStepResultResponse> results = new java.util.ArrayList<>();
-        Map<String, Object> mergedPayload = ApplicantIdentityResolver.enrichKycPayload(app, payload);
+        UUID partyId = extractPartyId(payload);
+        ApplicationParty party = null;
+        Map<String, Object> partyInfo = null;
+        if (partyId != null) {
+            party = applicationPartyService.requireParty(applicationId, partyId);
+            partyInfo = ApplicationPartyService.partyIdentityMap(party);
+        }
+        Map<String, Object> partyPayload = new HashMap<>();
+        if (partyInfo != null) {
+            partyPayload.putAll(partyInfo);
+        }
+        if (payload != null) {
+            if (party != null && party.getRole() == ApplicationPartyRole.CO_APPLICANT) {
+                // Co-applicant identity comes from party personalInfo — do not let primary UI fields overwrite.
+                Object pid = payload.get("partyId");
+                if (pid != null) {
+                    partyPayload.put("partyId", pid);
+                }
+            } else {
+                partyPayload.putAll(payload);
+            }
+        }
+        Map<String, Object> mergedPayload = ApplicantIdentityResolver.enrichKycPayload(app, partyPayload);
+        if (partyId != null) {
+            mergedPayload = new HashMap<>(mergedPayload);
+            mergedPayload.put("partyId", partyId.toString());
+        }
         Map<String, Object> intakeConfig = workflowConfig.getIntakeConfig();
+        Set<String> coApplicantAllowedSteps = null;
+        if (party != null && party.getRole() == ApplicationPartyRole.CO_APPLICANT) {
+            var settings = applicationPartyService.resolveSettings(app);
+            if (!settings.coApplicantKycSteps().isEmpty()) {
+                coApplicantAllowedSteps = settings.coApplicantKycSteps().stream().collect(Collectors.toSet());
+            }
+        }
 
         for (Map<String, Object> step : steps) {
             String stepName = (String) step.get("step");
             if (!KycIdentityWorkflow.isKycIdentitySubStepName(stepName)) {
                 log.debug("Skipping non-KYC-identity step {} in KYC sub-workflow (bureau / eSign run as separate flow steps)", stepName);
+                continue;
+            }
+            if (coApplicantAllowedSteps != null && !coApplicantAllowedSteps.contains(stepName)) {
+                log.info("Skipping KYC step {} for co-applicant party {} — not in coApplicantKycSteps",
+                        stepName, partyId);
                 continue;
             }
             if (KycMandatoryGroupEvaluator.shouldSkipForMissingPayload(stepName, intakeConfig, mergedPayload)) {
@@ -401,6 +476,53 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
 
         String computed = anyFail ? "FAIL" : (anyIncomplete ? "INCOMPLETE" : "PASS");
 
+        // Multi-party applications: overall KYC must pass for every applicant party.
+        if (applicationPartyService.isMultiPartyEnabled(app)) {
+            List<ApplicationParty> parties = applicationPartyService.listPartyEntities(applicationId);
+            boolean hasCoApplicant = parties.stream()
+                    .anyMatch(p -> p.getRole() == ApplicationPartyRole.CO_APPLICANT);
+            if (hasCoApplicant) {
+                boolean partyFail = false;
+                boolean partyIncomplete = false;
+                java.util.List<Map<String, Object>> partySummary = new java.util.ArrayList<>();
+                for (ApplicationParty party : parties) {
+                    PartyKycStatus ks = party.getKycStatus() != null ? party.getKycStatus() : PartyKycStatus.NOT_STARTED;
+                    String partyOutcome = switch (ks) {
+                        case COMPLETE -> "PASS";
+                        case FAILED -> "FAIL";
+                        default -> "INCOMPLETE";
+                    };
+                    if (ks == PartyKycStatus.FAILED) {
+                        partyFail = true;
+                    } else if (ks != PartyKycStatus.COMPLETE) {
+                        partyIncomplete = true;
+                    }
+                    partySummary.add(Map.of(
+                            "partyId", party.getId().toString(),
+                            "role", party.getRole() != null ? party.getRole().name() : "",
+                            "kycStatus", ks.name(),
+                            "outcome", partyOutcome
+                    ));
+                }
+                if (partyFail) {
+                    computed = "FAIL";
+                } else if (partyIncomplete || !"PASS".equals(computed)) {
+                    // Keep FAIL from primary step aggregation; otherwise require all parties complete.
+                    if (!"FAIL".equals(computed)) {
+                        computed = partyIncomplete ? "INCOMPLETE" : computed;
+                    }
+                } else {
+                    computed = "PASS";
+                }
+                Map<String, Object> multi = new HashMap<>();
+                multi.put("applicationId", applicationId);
+                multi.put("outcome", computed);
+                multi.put("stepSummary", summary);
+                multi.put("partySummary", partySummary);
+                return multi;
+            }
+        }
+
         // Do not audit here — computeKycOutcome is called on reads and unrelated flows.
         // Mutations call auditKycOutcomeIfChanged() so only real outcome transitions are logged.
 
@@ -442,6 +564,24 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
         return o == null ? null : String.valueOf(o);
     }
 
+    private static UUID extractPartyId(Map<String, Object> payload) {
+        if (payload == null) {
+            return null;
+        }
+        Object raw = payload.get("partyId");
+        if (raw == null) {
+            raw = payload.get("party_id");
+        }
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(String.valueOf(raw).trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static String stepNameFromMap(Map<String, Object> step) {
         Object v = step.get("step");
         return v == null ? "" : String.valueOf(v).trim();
@@ -459,6 +599,7 @@ public class KycOrchestrationServiceImpl implements IKycOrchestrationService {
         return KycStepResultResponse.builder()
                 .id(result.getId())
                 .applicationId(result.getApplicationId())
+                .partyId(result.getPartyId())
                 .stepType(result.getStepType())
                 .provider(result.getProvider())
                 .outcome(result.getOutcome())

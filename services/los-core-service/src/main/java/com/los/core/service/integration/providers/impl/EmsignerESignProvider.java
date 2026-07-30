@@ -7,12 +7,15 @@ import com.los.core.config.EmsignerProperties;
 import com.los.core.config.IntegrationProperties;
 import com.los.core.model.entity.ApiAuditLog;
 import com.los.core.model.entity.schema.los2.AggregatorProviderConfig;
+import com.los.core.model.entity.Document;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.repository.ApiAuditLogRepository;
+import com.los.core.repository.DocumentRepository;
 import com.los.core.repository.KfsDocumentRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.schema.los2.AggregatorProviderConfigRepository;
+import com.los.core.service.document.storage.DocumentBlobStore;
 import com.los.core.service.integration.providers.IESignProvider;
 import com.los.core.service.kfs.KfsPdfGenerationService;
 import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
@@ -24,6 +27,7 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -53,6 +57,11 @@ public class EmsignerESignProvider implements IESignProvider {
     private final KfsDocumentRepository kfsDocumentRepository;
     private final LoanApplicationRepository applicationRepository;
     private final KfsPdfGenerationService kfsPdfGenerationService;
+    private final DocumentRepository documentRepository;
+    private final DocumentBlobStore documentBlobStore;
+
+    /** {@code documentKey} values resolved from the KFS/program-terms document rather than an uploaded file. */
+    private static final Set<String> DEFAULT_ESIGN_DOCUMENT_KEYS = Set.of("KFS_AGREEMENT", "ANCHOR_PROGRAM_TERMS");
 
     @Override
     public String getProviderName() {
@@ -400,6 +409,16 @@ public class EmsignerESignProvider implements IESignProvider {
         if (applicationId == null) {
             throw new IllegalStateException("applicationId is required to load KFS PDF");
         }
+        if (documentKey != null && !documentKey.isBlank() && !DEFAULT_ESIGN_DOCUMENT_KEYS.contains(documentKey.trim().toUpperCase(Locale.ROOT))) {
+            Optional<byte[]> additional = loadAdditionalDocumentBytes(applicationId, documentKey.trim());
+            if (additional.isPresent()) {
+                log.info("[Emsigner] Using uploaded document bytes for documentType={} applicationId={}",
+                        documentKey, applicationId);
+                return additional.get();
+            }
+            log.warn("[Emsigner] No uploaded document found for documentType={} applicationId={} — "
+                    + "falling back to KFS/program terms document", documentKey, applicationId);
+        }
         Optional<KfsDocument> kfsOpt = kfsDocumentRepository.findFirstByApplicationIdOrderByCreatedAtDesc(applicationId);
         if (kfsOpt.isPresent()) {
             byte[] pdf = kfsPdfGenerationService.generateKfsPdf(kfsOpt.get());
@@ -415,6 +434,30 @@ public class EmsignerESignProvider implements IESignProvider {
         }
         throw new IllegalStateException("No KFS document for application " + applicationId
                 + " — generate KFS before eSign or pass fileBase64 in signerInfo.");
+    }
+
+    /**
+     * Loads the latest uploaded {@link Document} bytes for an additional signing document
+     * (e.g. {@code BOARD_RESOLUTION}) configured via {@code esignDocuments.additional} on the
+     * {@code ESIGN_AGREEMENT} workflow step. Returns empty when nothing was uploaded so the caller
+     * can fall back to the KFS/program-terms document instead of failing the whole eSign step.
+     */
+    private Optional<byte[]> loadAdditionalDocumentBytes(UUID applicationId, String documentType) {
+        try {
+            List<Document> docs = documentRepository.findByApplicationIdAndDocumentTypeOrderByVersionNumberDesc(
+                    applicationId, documentType.toUpperCase(Locale.ROOT));
+            if (docs.isEmpty()) {
+                return Optional.empty();
+            }
+            Document latest = docs.get(0);
+            try (InputStream in = documentBlobStore.getObject(latest.getStorageKey())) {
+                return Optional.of(in.readAllBytes());
+            }
+        } catch (Exception e) {
+            log.warn("[Emsigner] Failed to load uploaded document bytes for documentType={} applicationId={}: {}",
+                    documentType, applicationId, e.getMessage());
+            return Optional.empty();
+        }
     }
 
     private static int countPdfPages(byte[] pdfBytes) {

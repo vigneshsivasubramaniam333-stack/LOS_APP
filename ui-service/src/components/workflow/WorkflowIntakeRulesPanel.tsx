@@ -1,8 +1,124 @@
-import type { WorkflowCodedOption, WorkflowIntakeConfig, WorkflowMandatoryFieldGroup, WorkflowStandaloneDocument } from '@/types/workflow'
+import { useEffect, useMemo, useState } from 'react'
+import type {
+  WorkflowCoApplicantConfig,
+  WorkflowCodedOption,
+  WorkflowContactsConfig,
+  WorkflowIntakeConfig,
+  WorkflowMandatoryFieldGroup,
+  WorkflowStandaloneDocument,
+} from '@/types/workflow'
 import type { VisualWorkflowStep } from '@/lib/workflowVisual'
 import { KYC_IDENTITY_WORKFLOW_STEPS } from '@/lib/workflowVisual'
 import { DEFAULT_LOAN_PURPOSE_OPTIONS, DEFAULT_OCCUPATION_OPTIONS } from '@/lib/intake/intakeOptionCatalogs'
 import { defaultWorkflowDrivenIntakeConfig, newMandatoryGroup, newStandaloneDocument } from '@/lib/workflow/workflowIntakeRules'
+import { ensureGeoStatesLoaded } from '@/lib/intake/masterGeoClientCache'
+import type { GeoStateRow } from '@/api/geoMaster'
+
+function AllowedStatesCheckboxSection({
+  selected,
+  onChange,
+}: {
+  selected: string[]
+  onChange: (next: string[]) => void
+}) {
+  const [states, setStates] = useState<GeoStateRow[]>([])
+  const [loadErr, setLoadErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setLoadErr(null)
+    ensureGeoStatesLoaded()
+      .then((rows) => {
+        if (!cancelled) setStates([...rows].sort((a, b) => a.stateName.localeCompare(b.stateName)))
+      })
+      .catch(() => {
+        if (!cancelled) setLoadErr('Unable to load states from geo master.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const selectedSet = useMemo(
+    () => new Set(selected.map((s) => s.trim().toLowerCase()).filter(Boolean)),
+    [selected],
+  )
+  const allSelected = states.length > 0 && states.every((s) => selectedSet.has(s.stateName.toLowerCase()))
+
+  function toggle(stateName: string, checked: boolean) {
+    const key = stateName.toLowerCase()
+    const without = selected.filter((s) => s.trim().toLowerCase() !== key)
+    onChange(checked ? [...without, stateName].sort((a, b) => a.localeCompare(b)) : without)
+  }
+
+  function selectAll() {
+    onChange(states.map((s) => s.stateName))
+  }
+
+  function clearAll() {
+    onChange([])
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs disabled:opacity-50"
+          disabled={loading || states.length === 0}
+          onClick={selectAll}
+        >
+          Select all states
+        </button>
+        <button
+          type="button"
+          className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs disabled:opacity-50"
+          disabled={loading || selected.length === 0}
+          onClick={clearAll}
+        >
+          Clear selection
+        </button>
+        <span className="text-xs text-slate-500">
+          {loading
+            ? 'Loading states…'
+            : allSelected
+              ? 'All states selected'
+              : selected.length === 0
+                ? 'None selected (all states allowed at intake)'
+                : `${selected.length} of ${states.length} selected`}
+        </span>
+      </div>
+      {loadErr ? <p className="text-xs text-amber-800">{loadErr}</p> : null}
+      <div className="max-h-56 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+        <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+          {states.map((s) => {
+            const checked = selectedSet.has(s.stateName.toLowerCase())
+            return (
+              <label
+                key={s.id}
+                className="flex items-center gap-2 rounded px-1.5 py-1 text-xs text-slate-800 hover:bg-slate-50"
+              >
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300"
+                  checked={checked}
+                  disabled={loading}
+                  onChange={(e) => toggle(s.stateName, e.target.checked)}
+                />
+                <span>{s.stateName}</span>
+              </label>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function CodedOptionsEditor({
   title,
@@ -85,6 +201,9 @@ function intakeSummary(config: WorkflowIntakeConfig): string {
   if (config.tenureRules?.inputMode === 'dropdown') {
     parts.push('Tenure: dropdown')
   }
+  if ((config.locationRules?.allowedStates?.length ?? 0) > 0) {
+    parts.push(`States: ${config.locationRules!.allowedStates!.length} allowed`)
+  }
   if ((config.mandatoryFieldGroups?.length ?? 0) > 0) {
     parts.push(`${config.mandatoryFieldGroups?.length} OR group(s)`)
   }
@@ -95,10 +214,15 @@ export function WorkflowIntakeRulesPanel({
   intakeConfig,
   onChange,
   visualSteps,
+  hideCoApplicant = false,
+  showContacts = false,
 }: {
   intakeConfig: WorkflowIntakeConfig
   onChange: (next: WorkflowIntakeConfig) => void
   visualSteps: VisualWorkflowStep[]
+  hideCoApplicant?: boolean
+  /** When true (ANCHOR workflows), show contacts/users capture config. */
+  showContacts?: boolean
 }) {
   const configuredSteps = visualSteps.map((s) => s.step)
 
@@ -379,6 +503,25 @@ export function WorkflowIntakeRulesPanel({
             )}
           </section>
 
+          <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <h3 className="text-sm font-medium text-slate-800">Allowed states (optional)</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              When any states are checked, intake state dropdowns only show those. Leave none checked to allow all
+              states.
+            </p>
+            <AllowedStatesCheckboxSection
+              selected={intakeConfig.locationRules?.allowedStates ?? []}
+              onChange={(allowedStates) =>
+                patch({
+                  locationRules: {
+                    ...intakeConfig.locationRules,
+                    allowedStates,
+                  },
+                })
+              }
+            />
+          </section>
+
           <CodedOptionsEditor
             title="Occupation options"
             description="Allowed dropdown values for occupation at intake. Scores are configured on underwriting scorecards."
@@ -460,9 +603,416 @@ export function WorkflowIntakeRulesPanel({
               />
             ))}
           </section>
+          {!hideCoApplicant ? (
+            <CoApplicantSection
+              config={intakeConfig.coApplicant ?? {}}
+              configuredSteps={configuredSteps}
+              primaryIntake={intakeConfig}
+              onChange={(coApplicant) =>
+                patch({
+                  coApplicant: {
+                    ...(intakeConfig.coApplicant ?? {}),
+                    ...coApplicant,
+                  },
+                })
+              }
+            />
+          ) : null}
+          {showContacts ? (
+            <ContactsSection
+              config={intakeConfig.contacts ?? {}}
+              onChange={(contacts) =>
+                patch({
+                  contacts: {
+                    ...(intakeConfig.contacts ?? {}),
+                    ...contacts,
+                  },
+                })
+              }
+            />
+          ) : null}
         </>
       )}
     </div>
+  )
+}
+
+function ContactsSection({
+  config,
+  onChange,
+}: {
+  config: WorkflowContactsConfig
+  onChange: (next: WorkflowContactsConfig) => void
+}) {
+  const enabled = config.enabled === true
+  const maxUsers = Math.max(1, Number(config.maxUsers ?? 5) || 5)
+  return (
+    <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-medium text-slate-800">Contacts / users</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            When enabled, anchor intake shows a Users step before review to capture portal users and signing
+            authorities.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-slate-700">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => onChange({ ...config, enabled: e.target.checked })}
+          />
+          Enable users section
+        </label>
+      </div>
+      {enabled ? (
+        <label className="mt-3 block text-xs text-slate-600">
+          Max users allowed
+          <input
+            type="number"
+            min={1}
+            max={50}
+            className="mt-0.5 block w-28 rounded border border-slate-300 px-2 py-1 text-sm"
+            value={maxUsers}
+            onChange={(e) =>
+              onChange({
+                ...config,
+                enabled: true,
+                maxUsers: Math.max(1, Number.parseInt(e.target.value, 10) || 1),
+              })
+            }
+          />
+          <span className="mt-0.5 block text-[11px] text-slate-500">
+            Includes the primary corporate contact. Signing authority emails are used for e-sign invitations.
+          </span>
+        </label>
+      ) : null}
+    </section>
+  )
+}
+
+function CoApplicantSection({
+  config,
+  configuredSteps,
+  primaryIntake,
+  onChange,
+}: {
+  config: WorkflowCoApplicantConfig
+  configuredSteps: string[]
+  primaryIntake: WorkflowIntakeConfig
+  onChange: (next: WorkflowCoApplicantConfig) => void
+}) {
+  const patch = (partial: Partial<WorkflowCoApplicantConfig>) => onChange({ ...config, ...partial })
+  const personal = config.personalFields ?? {}
+  const steps = [
+    ...new Set(
+      [...KYC_IDENTITY_WORKFLOW_STEPS, ...configuredSteps]
+        .map((step) => (typeof step === 'string' ? step.trim() : ''))
+        .filter(Boolean),
+    ),
+  ]
+  const selectedKycSteps = Array.isArray(config.coApplicantKycSteps)
+    ? config.coApplicantKycSteps.filter((step): step is string => typeof step === 'string' && step.length > 0)
+    : []
+  const enabled = config.enabled === true
+  const selectedKycCount = selectedKycSteps.length
+  const docCount = config.standaloneDocuments?.length ?? 0
+  const groupCount = config.mandatoryFieldGroups?.length ?? 0
+
+  function toggleKycStep(step: string) {
+    const selected = selectedKycSteps.includes(step)
+    patch({
+      coApplicantKycSteps: selected
+        ? selectedKycSteps.filter((value) => value !== step)
+        : [...selectedKycSteps, step],
+    })
+  }
+
+  const copyFromPrimary = () =>
+    patch({
+      personalFields: {
+        dateOfBirth: { ...(primaryIntake.personalFields?.dateOfBirth ?? { collect: true, required: true }) },
+        gender: { ...(primaryIntake.personalFields?.gender ?? { collect: true, required: false }) },
+        occupation: { ...(primaryIntake.personalFields?.occupation ?? { collect: false, required: false }) },
+      },
+      ageRules: { ...(primaryIntake.ageRules ?? { enabled: false, minAge: 18, maxAge: 70 }) },
+      coApplicantKycSteps: [...(configuredSteps.length ? configuredSteps : KYC_IDENTITY_WORKFLOW_STEPS)],
+      mandatoryFieldGroups: (primaryIntake.mandatoryFieldGroups ?? []).map((group) => ({
+        ...group,
+        steps: [...group.steps],
+      })),
+      standaloneDocuments: (primaryIntake.standaloneDocuments ?? []).map((doc) => ({ ...doc })),
+    })
+
+  const updatePersonal = (key: 'dateOfBirth' | 'gender' | 'occupation', collect: boolean) =>
+    patch({
+      personalFields: {
+        ...personal,
+        [key]: {
+          ...(personal[key] ?? {}),
+          collect,
+          required: collect && personal[key]?.required === true,
+        },
+      },
+    })
+
+  const personalFieldCards: {
+    key: 'dateOfBirth' | 'gender' | 'occupation'
+    label: string
+    hint: string
+  }[] = [
+    { key: 'dateOfBirth', label: 'Date of birth', hint: 'Collect DOB on co-applicant intake' },
+    { key: 'gender', label: 'Gender', hint: 'Show gender on co-applicant forms' },
+    { key: 'occupation', label: 'Occupation', hint: 'Show occupation dropdown for co-applicants' },
+  ]
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-4 py-3.5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">Co-applicants</h3>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                enabled
+                  ? 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200'
+                  : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
+              }`}
+            >
+              {enabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+            Primary applicants use the intake rules above. When enabled, co-applicants get their own personal-field,
+            KYC, and document settings for joint applications.
+          </p>
+          {enabled ? (
+            <p className="mt-2 text-[11px] text-slate-500">
+              Limits {config.minCoApplicants ?? 0}–{config.maxCoApplicants ?? 3}
+              {' · '}
+              {selectedKycCount} KYC step{selectedKycCount === 1 ? '' : 's'}
+              {' · '}
+              {groupCount} any-one group{groupCount === 1 ? '' : 's'}
+              {' · '}
+              {docCount} document{docCount === 1 ? '' : 's'}
+            </p>
+          ) : null}
+        </div>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+            checked={enabled}
+            onChange={(e) => patch({ enabled: e.target.checked })}
+          />
+          <span className="font-medium">Enable co-applicants</span>
+        </label>
+      </div>
+
+      {enabled ? (
+        <div className="space-y-4 p-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Applicant limits</h4>
+                <p className="mt-0.5 text-xs text-slate-500">Minimum and maximum co-applicants allowed on create.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+                onClick={copyFromPrimary}
+              >
+                Copy rules from primary
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="block rounded-md border border-slate-200 bg-white px-3 py-2">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Minimum</span>
+                <input
+                  className="mt-1 block w-full rounded border border-slate-300 px-2 py-1.5 text-sm tabular-nums"
+                  type="number"
+                  min={0}
+                  value={config.minCoApplicants ?? 0}
+                  onChange={(e) => patch({ minCoApplicants: Number(e.target.value) || 0 })}
+                />
+              </label>
+              <label className="block rounded-md border border-slate-200 bg-white px-3 py-2">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Maximum</span>
+                <input
+                  className="mt-1 block w-full rounded border border-slate-300 px-2 py-1.5 text-sm tabular-nums"
+                  type="number"
+                  min={0}
+                  value={config.maxCoApplicants ?? 3}
+                  onChange={(e) => patch({ maxCoApplicants: Number(e.target.value) || 0 })}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Personal fields to collect</h4>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Choose which fields appear on co-applicant intake (portal invite or staff fill).
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {personalFieldCards.map((field) => {
+                const checked = personal[field.key]?.collect !== false
+                return (
+                  <label
+                    key={field.key}
+                    className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition ${
+                      checked
+                        ? 'border-slate-300 bg-white shadow-sm ring-1 ring-slate-200'
+                        : 'border-dashed border-slate-200 bg-white/70'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                        checked={checked}
+                        onChange={(e) => updatePersonal(field.key, e.target.checked)}
+                      />
+                      {field.label}
+                    </span>
+                    <span className="pl-5 text-[11px] leading-snug text-slate-500">{field.hint}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Co-applicant KYC steps</h4>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Identity checks run for each co-applicant when KYC is executed. Leave empty to use all identity steps.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {steps.map((step) => {
+                const selected = selectedKycSteps.includes(step)
+                return (
+                  <button
+                    key={step}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`inline-flex items-center rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
+                      selected
+                        ? 'border-slate-800 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                    onClick={() => toggleKycStep(step)}
+                  >
+                    {step.replace(/_/g, ' ')}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Co-applicant KYC groups (any-one)
+                </h4>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Optional groups where any one selected step can satisfy the requirement.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+                onClick={() =>
+                  patch({
+                    mandatoryFieldGroups: [...(config.mandatoryFieldGroups ?? []), newMandatoryGroup()],
+                  })
+                }
+              >
+                Add group
+              </button>
+            </div>
+            {(config.mandatoryFieldGroups ?? []).length === 0 ? (
+              <p className="mt-3 rounded-md border border-dashed border-slate-200 bg-white/80 px-3 py-3 text-xs text-slate-500">
+                No any-one groups configured for co-applicants.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {(config.mandatoryFieldGroups ?? []).map((group, index) => (
+                  <MandatoryGroupRow
+                    key={`co-group-${index}`}
+                    group={group}
+                    configuredSteps={steps}
+                    onChange={(next) => {
+                      const groups = [...(config.mandatoryFieldGroups ?? [])]
+                      groups[index] = next
+                      patch({ mandatoryFieldGroups: groups })
+                    }}
+                    onRemove={() =>
+                      patch({
+                        mandatoryFieldGroups: (config.mandatoryFieldGroups ?? []).filter((_, i) => i !== index),
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Co-applicant documents</h4>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Document checklist shown on co-applicant portal / staff-fill intake.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+                onClick={() =>
+                  patch({
+                    standaloneDocuments: [...(config.standaloneDocuments ?? []), newStandaloneDocument()],
+                  })
+                }
+              >
+                Add document
+              </button>
+            </div>
+            {(config.standaloneDocuments ?? []).length === 0 ? (
+              <p className="mt-3 rounded-md border border-dashed border-slate-200 bg-white/80 px-3 py-3 text-xs text-slate-500">
+                No co-applicant documents configured yet.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {(config.standaloneDocuments ?? []).map((doc, index) => (
+                  <StandaloneDocRow
+                    key={`${doc.documentType}-${index}`}
+                    doc={doc}
+                    onChange={(next) => {
+                      const documents = [...(config.standaloneDocuments ?? [])]
+                      documents[index] = next
+                      patch({ standaloneDocuments: documents })
+                    }}
+                    onRemove={() =>
+                      patch({
+                        standaloneDocuments: (config.standaloneDocuments ?? []).filter((_, i) => i !== index),
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 py-5">
+          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Co-applicants are turned off for this workflow. Enable to configure limits, personal fields, KYC steps, and
+            documents for joint applicants.
+          </p>
+        </div>
+      )}
+    </section>
   )
 }
 

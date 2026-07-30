@@ -59,6 +59,30 @@ export interface WorkflowStepDocumentRequired {
   required: boolean
 }
 
+/** One additional signing document configured on the `ESIGN_AGREEMENT` step (Phase 5 — multi-doc eSign). */
+export interface EsignAdditionalDocument {
+  documentType: string
+  label: string
+  required: boolean
+}
+
+/** `esignDocuments` on the `ESIGN_AGREEMENT` step — default KFS/program-terms doc plus optional extra signing files. */
+export interface EsignDocumentsUiConfig {
+  defaultDocumentKey: string
+  additional: EsignAdditionalDocument[]
+}
+
+/** Small catalogue of common additional signing document types (anchor board/authorization docs, etc.). */
+export const ESIGN_ADDITIONAL_DOCUMENT_CATALOG: { documentType: string; label: string }[] = [
+  { documentType: 'BOARD_RESOLUTION', label: 'Board resolution' },
+  { documentType: 'AUTHORIZATION_LETTER', label: 'Authorization letter' },
+  { documentType: 'POWER_OF_ATTORNEY', label: 'Power of attorney' },
+  { documentType: 'PARTNERSHIP_DEED', label: 'Partnership deed' },
+  { documentType: 'GST_RETURN', label: 'GST return / GSTR' },
+  { documentType: 'BUSINESS_PROOF', label: 'Business proof' },
+  { documentType: 'OTHER', label: 'Other supporting document' },
+]
+
 const KNOWN_KEYS = new Set([
   'step',
   'name',
@@ -71,6 +95,7 @@ const KNOWN_KEYS = new Set([
   'fieldRequiredAtIntake',
   'documentRequired',
   'documentsRequired',
+  'esignDocuments',
 ])
 
 export interface StepNotificationConfig {
@@ -101,6 +126,8 @@ export interface VisualWorkflowStep {
   /** Require default document upload(s) for this step at intake. */
   documentRequired: boolean
   documentsRequired: WorkflowStepDocumentRequired[]
+  /** `ESIGN_AGREEMENT` only — default document key plus additional signing documents (Phase 5). */
+  esignDocuments: EsignDocumentsUiConfig | null
   /** Unrecognized fields preserved for power users (merged into each step object on save) */
   extra: Record<string, unknown>
 }
@@ -145,6 +172,26 @@ function parseDocumentsRequired(raw: unknown): WorkflowStepDocumentRequired[] {
     .filter((x): x is WorkflowStepDocumentRequired => x != null)
 }
 
+function parseEsignDocuments(raw: unknown): EsignDocumentsUiConfig | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const m = raw as Record<string, unknown>
+  const defaultDocumentKey = String(m.defaultDocumentKey ?? '').trim().toUpperCase() || 'KFS_AGREEMENT'
+  const additionalRaw = Array.isArray(m.additional) ? m.additional : []
+  const additional: EsignAdditionalDocument[] = additionalRaw
+    .map((item) => {
+      const im = item && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : {}
+      const documentType = String(im.documentType ?? '').trim().toUpperCase()
+      if (!documentType) return null
+      return {
+        documentType,
+        label: String(im.label ?? '').trim() || documentType,
+        required: im.required !== false,
+      }
+    })
+    .filter((x): x is EsignAdditionalDocument => x != null)
+  return { defaultDocumentKey, additional }
+}
+
 export function parseWorkflowStepsFromJson(steps: Record<string, unknown>[]): VisualWorkflowStep[] {
   return steps.map((raw, i) => {
     const m = raw as Record<string, unknown>
@@ -169,6 +216,7 @@ export function parseWorkflowStepsFromJson(steps: Record<string, unknown>[]): Vi
       fieldRequiredAtIntake: fieldReqExplicit === undefined ? m.mandatory !== false : fieldReqExplicit === true,
       documentRequired: docReq === true,
       documentsRequired: parseDocumentsRequired(m.documentsRequired),
+      esignDocuments: parseEsignDocuments(m.esignDocuments),
       extra: extraFromMap(m),
     }
   })
@@ -215,6 +263,18 @@ export function visualStepsToJsonArray(visual: VisualWorkflowStep[]): Record<str
         required: d.required,
       }))
     }
+    if (s.esignDocuments) {
+      o.esignDocuments = {
+        defaultDocumentKey: s.esignDocuments.defaultDocumentKey.trim().toUpperCase() || 'KFS_AGREEMENT',
+        additional: s.esignDocuments.additional
+          .filter((d) => d.documentType.trim())
+          .map((d) => ({
+            documentType: d.documentType.trim().toUpperCase(),
+            label: d.label.trim() || d.documentType.trim().toUpperCase(),
+            required: d.required,
+          })),
+      }
+    }
     return o
   })
 }
@@ -233,6 +293,7 @@ export function createEmptyVisualStep(): VisualWorkflowStep {
     fieldRequiredAtIntake: true,
     documentRequired: false,
     documentsRequired: [],
+    esignDocuments: null,
     extra: {},
   }
 }

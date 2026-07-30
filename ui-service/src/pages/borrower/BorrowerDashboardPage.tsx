@@ -101,12 +101,18 @@ export function BorrowerDashboardPage() {
               {data.recentApplications.map((a) => (
                 <li key={a.applicationId} className="flex flex-wrap items-center justify-between gap-4 py-3">
                   <span className="text-sm text-[var(--bt-gray-700)]">
-                    {a.applicationNumber} · {a.friendlyStatus}
+                    {a.applicationNumber} · {a.viewerFriendlyStatus ?? a.friendlyStatus}
+                    {a.partyRole === 'CO_APPLICANT' ? (
+                      <span className="ml-1 text-xs text-[var(--bt-gray-500)]">(co-applicant)</span>
+                    ) : null}
                   </span>
                   <span className="flex flex-wrap items-center gap-3">
                     <BorrowerContinueIntakeLink
                       applicationId={a.applicationId}
                       status={a.status}
+                      partyId={a.partyId}
+                      partyRole={a.partyRole}
+                      canResumeMyIntake={a.canResumeMyIntake}
                       label="Continue"
                       className="text-sm text-[var(--bt-orange)] hover:underline"
                     />

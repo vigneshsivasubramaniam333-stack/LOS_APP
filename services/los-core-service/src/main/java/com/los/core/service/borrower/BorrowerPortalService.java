@@ -21,13 +21,17 @@ import com.los.lms.dto.RepaymentScheduleEntry;
 import com.los.lms.dto.RepaymentScheduleResponse;
 import com.los.lms.service.LmsService;
 import com.los.core.model.dto.response.DocumentResponse;
+import com.los.core.model.entity.ApplicationParty;
 import com.los.core.model.entity.Document;
 import com.los.core.model.entity.KfsDocument;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.entity.SanctionRecord;
 import com.los.core.model.entity.LosUser;
 import com.los.core.model.entity.schema.los2.EsignRequest;
+import com.los.core.model.enums.ApplicationPartyRole;
 import com.los.core.model.enums.ApplicationStatus;
+import com.los.core.model.enums.PartyIntakeStatus;
+import com.los.core.repository.ApplicationPartyRepository;
 import com.los.core.repository.DocumentRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.LosUserRepository;
@@ -64,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -75,6 +80,7 @@ public class BorrowerPortalService {
 
     private final LoanApplicationRepository applicationRepository;
     private final LosUserRepository losUserRepository;
+    private final ApplicationPartyRepository applicationPartyRepository;
     private final BorrowerApplicationStatusService statusService;
     private final BorrowerLifecycleTimelineService timelineService;
     private final IDocumentService documentService;
@@ -99,16 +105,17 @@ public class BorrowerPortalService {
 
     public BorrowerDashboardResponse dashboard(UUID borrowerUserId) {
         ownershipService.reconcileCustomerId(borrowerUserId);
+        ownershipService.reconcilePartyUserLinks(borrowerUserId);
         LosUser u = losUserRepository.findById(borrowerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        Page<LoanApplication> page = applicationRepository.findByCustomerId(
+        Page<LoanApplication> page = applicationRepository.findAccessibleByBorrowerUserId(
                 borrowerUserId, PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "updatedAt")));
         List<BorrowerApplicationSummaryResponse> recent = new ArrayList<>();
         int disbursed = 0;
         int open = 0;
         UUID firstDisbursed = null;
         for (LoanApplication a : page.getContent()) {
-            recent.add(toSummary(a));
+            recent.add(toSummary(a, borrowerUserId));
             if (a.getStatus() == ApplicationStatus.DISBURSED
                     && !InvoiceDiscountingApplicationRules.isBorrowerFlow(a)) {
                 disbursed++;
@@ -148,7 +155,8 @@ public class BorrowerPortalService {
                 && s != ApplicationStatus.DISBURSED;
     }
 
-    private BorrowerApplicationSummaryResponse toSummary(LoanApplication a) {
+    private BorrowerApplicationSummaryResponse toSummary(LoanApplication a, UUID borrowerUserId) {
+        ViewerIntakeContext viewer = viewerIntakeContext(a, borrowerUserId);
         return BorrowerApplicationSummaryResponse.builder()
                 .applicationId(a.getId())
                 .applicationNumber(a.getApplicationNumber())
@@ -157,11 +165,20 @@ public class BorrowerPortalService {
                 .friendlyStatus(BorrowerFriendlyLabels.applicationSummaryStatus(a.getStatus()))
                 .createdAt(a.getCreatedAt())
                 .updatedAt(a.getUpdatedAt())
+                .partyRole(viewer.partyRole())
+                .partyId(viewer.partyId())
+                .partyIntakeStatus(viewer.partyIntakeStatus())
+                .canResumeMyIntake(viewer.canResumeMyIntake())
+                .pendingCoApplicantCount(viewer.pendingCoApplicantCount())
+                .viewerFriendlyStatus(viewer.viewerFriendlyStatus())
                 .build();
     }
 
     public Page<BorrowerApplicationSummaryResponse> listApplications(UUID borrowerUserId, org.springframework.data.domain.Pageable p) {
-        return applicationRepository.findByCustomerId(borrowerUserId, p).map(this::toSummary);
+        ownershipService.reconcileCustomerId(borrowerUserId);
+        ownershipService.reconcilePartyUserLinks(borrowerUserId);
+        return applicationRepository.findAccessibleByBorrowerUserId(borrowerUserId, p)
+                .map(a -> toSummary(a, borrowerUserId));
     }
 
     /**
@@ -176,6 +193,9 @@ public class BorrowerPortalService {
         if (!ownershipService.ownsApplication(borrowerUserId, app)) {
             throw new ForbiddenException("You can only delete your own applications.");
         }
+        if (!borrowerUserId.equals(app.getCustomerId())) {
+            throw new ForbiddenException("Only the primary borrower can delete this application.");
+        }
         ApplicationStatus st = app.getStatus();
         if (st != ApplicationStatus.DRAFT && st != ApplicationStatus.CONSENT_PENDING) {
             throw new BusinessRuleException(
@@ -186,8 +206,11 @@ public class BorrowerPortalService {
 
     public BorrowerApplicationDetailResponse applicationDetail(
             UUID borrowerUserId, UUID applicationId, boolean includeTimeline) {
+        ownershipService.reconcileCustomerId(borrowerUserId);
+        ownershipService.reconcilePartyUserLinks(borrowerUserId);
         LoanApplication app = loadOwned(borrowerUserId, applicationId);
         boolean invoiceDiscountingBorrower = invoiceDiscountingLosLoanGuard.skipsLosTermLoanCreation(app);
+        ViewerIntakeContext viewer = viewerIntakeContext(app, borrowerUserId);
         int docCount = documentService.getDocuments(applicationId).size();
         boolean checklist = documentService.isDocumentChecklistComplete(applicationId);
         var base = statusService.build(app, checklist, docCount);
@@ -257,7 +280,91 @@ public class BorrowerPortalService {
                 .interestRate(interestRate)
                 .tenureMonths(tenureMonths)
                 .termsDocumentAvailable(termsDocumentAvailable)
+                .canResumeMyIntake(viewer.canResumeMyIntake())
+                .partyRole(viewer.partyRole())
+                .partyId(viewer.partyId())
+                .partyIntakeStatus(viewer.partyIntakeStatus())
+                .pendingCoApplicantCount(viewer.pendingCoApplicantCount())
                 .build();
+    }
+
+    private ViewerIntakeContext viewerIntakeContext(LoanApplication app, UUID borrowerUserId) {
+        List<ApplicationParty> parties = applicationPartyRepository.findByApplicationIdOrderBySequenceNoAsc(app.getId());
+        ApplicationParty primary = parties.stream()
+                .filter(p -> p.getRole() == ApplicationPartyRole.PRIMARY)
+                .findFirst()
+                .orElse(null);
+        ApplicationParty viewerParty = borrowerUserId == null ? null : parties.stream()
+                .filter(p -> borrowerUserId.equals(p.getUserId()))
+                .findFirst()
+                .orElse(null);
+        if (viewerParty == null && borrowerUserId != null && borrowerUserId.equals(app.getCustomerId())) {
+            viewerParty = primary;
+        }
+
+        int pendingCoApplicants = (int) parties.stream()
+                .filter(p -> p.getRole() == ApplicationPartyRole.CO_APPLICANT)
+                .filter(p -> !isCoApplicantComplete(p.getIntakeStatus()))
+                .count();
+        String partyRole = viewerParty != null && viewerParty.getRole() != null
+                ? viewerParty.getRole().name()
+                : borrowerUserId != null && borrowerUserId.equals(app.getCustomerId())
+                        ? ApplicationPartyRole.PRIMARY.name()
+                        : null;
+        String partyIntakeStatus = viewerParty != null && viewerParty.getIntakeStatus() != null
+                ? viewerParty.getIntakeStatus().name()
+                : null;
+        boolean appResumable = Set.of(
+                ApplicationStatus.DRAFT, ApplicationStatus.CONSENT_PENDING, ApplicationStatus.BORROWER_SENT_BACK)
+                .contains(app.getStatus());
+        boolean canResume = false;
+        if (appResumable) {
+            if (ApplicationPartyRole.CO_APPLICANT.name().equals(partyRole)) {
+                canResume = viewerParty != null && isPartyIntakeIncomplete(viewerParty.getIntakeStatus());
+            } else if (ApplicationPartyRole.PRIMARY.name().equals(partyRole)) {
+                // Primary finishes their own intake even while co-applicants are still pending
+                // (app stays CONSENT_PENDING). Do not offer Continue once primary party is submitted.
+                canResume = viewerParty == null
+                        ? pendingCoApplicants == 0
+                        : isPartyIntakeIncomplete(viewerParty.getIntakeStatus());
+            }
+        }
+        String viewerFriendlyStatus = app.getStatus() == ApplicationStatus.CONSENT_PENDING
+                && primary != null
+                && !isPartyIntakeIncomplete(primary.getIntakeStatus())
+                && pendingCoApplicants > 0
+                ? "Waiting for co-applicant(s)"
+                : null;
+        return new ViewerIntakeContext(
+                partyRole,
+                viewerParty != null ? viewerParty.getId() : null,
+                partyIntakeStatus,
+                canResume,
+                pendingCoApplicants,
+                viewerFriendlyStatus);
+    }
+
+    private static boolean isPartyIntakeIncomplete(PartyIntakeStatus status) {
+        return status == PartyIntakeStatus.DRAFT
+                || status == PartyIntakeStatus.INVITED
+                || status == PartyIntakeStatus.IN_PROGRESS
+                || status == PartyIntakeStatus.SENT_BACK;
+    }
+
+    private static boolean isCoApplicantComplete(PartyIntakeStatus status) {
+        return status == PartyIntakeStatus.SUBMITTED
+                || status == PartyIntakeStatus.KYC_COMPLETE
+                || status == PartyIntakeStatus.ESIGN_PENDING
+                || status == PartyIntakeStatus.ESIGN_COMPLETE;
+    }
+
+    private record ViewerIntakeContext(
+            String partyRole,
+            UUID partyId,
+            String partyIntakeStatus,
+            boolean canResumeMyIntake,
+            int pendingCoApplicantCount,
+            String viewerFriendlyStatus) {
     }
 
     public byte[] invoiceDiscountingTermsPdf(UUID borrowerUserId, UUID applicationId) {
@@ -516,7 +623,7 @@ public class BorrowerPortalService {
     }
 
     public List<BorrowerNotificationItemResponse> notifications(UUID borrowerUserId) {
-        Page<LoanApplication> page = applicationRepository.findByCustomerId(
+        Page<LoanApplication> page = applicationRepository.findAccessibleByBorrowerUserId(
                 borrowerUserId, PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "updatedAt")));
         List<BorrowerNotificationItemResponse> out = new ArrayList<>();
         int n = 0;

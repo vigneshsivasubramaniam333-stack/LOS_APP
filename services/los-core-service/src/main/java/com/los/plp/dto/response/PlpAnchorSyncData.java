@@ -10,4 +10,8 @@ public class PlpAnchorSyncData {
     private String anchorCode;
     private Boolean created;
     private Boolean updated;
+    private String temporaryPassword;
+    private String userId;
+    private Boolean passwordResetRequired;
+    private String onboardingStatus;
 }

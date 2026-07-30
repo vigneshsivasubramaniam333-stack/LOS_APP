@@ -121,7 +121,13 @@ export function BorrowerApplicationDetailPage() {
         </p>
         <p className="mt-4 text-sm leading-relaxed text-slate-800">{data.currentStageMessage}</p>
         <div className="mt-4">
-          <BorrowerContinueIntakeLink applicationId={data.applicationId} status={data.status} />
+          <BorrowerContinueIntakeLink
+            applicationId={data.applicationId}
+            status={data.status}
+            partyId={data.partyId}
+            partyRole={data.partyRole}
+            canResumeMyIntake={data.canResumeMyIntake}
+          />
         </div>
         {data.estimatedProcessingHint ? (
           <p className="mt-2 text-xs text-slate-500">{data.estimatedProcessingHint}</p>

@@ -31,6 +31,10 @@ public class ManualKycReview {
     @Column(name = "application_id", nullable = false)
     private UUID applicationId;
 
+    /** Null = legacy / primary party. */
+    @Column(name = "party_id")
+    private UUID partyId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "step_type", nullable = false, length = 50)
     private KycStepType stepType;

@@ -14,6 +14,8 @@ import com.los.core.model.dto.request.DeleteApplicationRequest;
 import com.los.core.model.dto.response.ApplicationDeletionPreviewResponse;
 import com.los.core.service.loan.ApplicationReviewService;
 import com.los.core.service.borrower.BorrowerIntakeDelegationService;
+import com.los.core.service.anchor.AnchorDocumentVerificationService;
+import com.los.core.service.anchor.AnchorIntakeDelegationService;
 import com.los.core.service.loan.ApplicationDeletionService;
 import com.los.core.service.loan.ILoanApplicationService;
 import com.los.core.model.dto.request.ReviewNotesRequest;
@@ -42,6 +44,8 @@ public class LoanApplicationController {
     private final AiLosIntegrationService aiLosIntegrationService;
     private final ApplicationDeletionService applicationDeletionService;
     private final BorrowerIntakeDelegationService borrowerIntakeDelegationService;
+    private final AnchorIntakeDelegationService anchorIntakeDelegationService;
+    private final AnchorDocumentVerificationService anchorDocumentVerificationService;
     private final ApplicationReviewService applicationReviewService;
     private final WorkflowRoleGuard workflowRoleGuard;
 
@@ -242,6 +246,49 @@ public class LoanApplicationController {
         return ResponseEntity.ok(loanApplicationService.getApplication(applicationId));
     }
 
+    @PostMapping("/{applicationId}/notify-anchor")
+    @Operation(summary = "Save draft and invite anchor to complete intake on PLP portal")
+    public ResponseEntity<ApplicationResponse> notifyAnchor(
+            @PathVariable UUID applicationId,
+            @RequestParam(defaultValue = "1") int completedStep,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        workflowRoleGuard.requireIntakeRole(userRole);
+        anchorIntakeDelegationService.saveDraftAndNotifyAnchor(applicationId, completedStep);
+        return ResponseEntity.ok(loanApplicationService.getApplication(applicationId));
+    }
+
+    @PostMapping("/{applicationId}/review/send-back-to-anchor")
+    @Operation(summary = "Send delegated anchor application back for corrections")
+    public ResponseEntity<ApplicationResponse> sendBackToAnchor(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) ReviewNotesRequest body,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        workflowRoleGuard.requireIntakeRole(userRole);
+        String notes = body != null ? body.getNotes() : null;
+        anchorIntakeDelegationService.sendBackToAnchor(applicationId, notes);
+        return ResponseEntity.ok(loanApplicationService.getApplication(applicationId));
+    }
+
+    @PostMapping("/{applicationId}/doc-verification/approve")
+    @Operation(summary = "Operations approve post-eSign document verification (anchor)")
+    public ResponseEntity<ApplicationResponse> approveDocumentVerification(
+            @PathVariable UUID applicationId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        anchorDocumentVerificationService.approveDocumentVerification(applicationId, userRole);
+        return ResponseEntity.ok(loanApplicationService.getApplication(applicationId));
+    }
+
+    @PostMapping("/{applicationId}/doc-verification/send-back")
+    @Operation(summary = "Operations send documents back to anchor after eSign")
+    public ResponseEntity<ApplicationResponse> sendBackDocumentVerification(
+            @PathVariable UUID applicationId,
+            @RequestBody(required = false) ReviewNotesRequest body,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        String notes = body != null ? body.getNotes() : null;
+        anchorDocumentVerificationService.sendBackDocumentVerification(applicationId, notes, userRole);
+        return ResponseEntity.ok(loanApplicationService.getApplication(applicationId));
+    }
+
     @PostMapping("/{applicationId}/review/accept")
     @Operation(summary = "Accept application for KYC processing (CO from PENDING_CREDIT_OFFICER; Admin may accept from BORROWER_SUBMITTED)")
     public ResponseEntity<ApplicationResponse> acceptBorrowerSubmission(
@@ -257,7 +304,12 @@ public class LoanApplicationController {
             @RequestBody(required = false) ReviewNotesRequest body,
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         String notes = body != null ? body.getNotes() : null;
-        return ResponseEntity.ok(applicationReviewService.sendBackToBorrower(applicationId, notes, userRole));
+        return ResponseEntity.ok(applicationReviewService.sendBackToBorrower(
+                applicationId,
+                notes,
+                userRole,
+                body != null ? body.getPartyIds() : null,
+                body != null ? body.getSendBackMode() : null));
     }
 
     @PostMapping("/{applicationId}/review/hand-off-to-co")

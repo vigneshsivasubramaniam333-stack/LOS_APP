@@ -24,6 +24,10 @@ public class Document {
     @Column(nullable = false)
     private UUID applicationId;
 
+    /** Null = legacy / primary party. */
+    @Column(name = "party_id")
+    private UUID partyId;
+
     @Column(nullable = false, length = 50)
     private String documentType;
 

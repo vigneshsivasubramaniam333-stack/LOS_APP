@@ -41,6 +41,10 @@ import com.los.plp.model.enums.ProgramApprovalStatus;
 import com.los.core.service.sanction.SanctionApprovedNotifier;
 import com.los.core.service.notification.AnchorKfsSignedNotifier;
 import com.los.core.service.notification.WelcomeOnboardingNotifier;
+import com.los.core.service.anchor.AnchorDocumentVerificationService;
+import com.los.core.service.esign.EsignDocumentsConfig;
+import com.los.core.service.esign.EsignRequestStatuses;
+import com.los.core.service.esign.EsignRequestTrackingService;
 import com.los.core.service.esign.EsignSignedApplicationDocumentService;
 import com.los.core.service.kyc.IKycOrchestrationService;
 import com.los.core.service.vkyc.VkycWorkflowService;
@@ -101,7 +105,11 @@ public class LoanApplicationFlowService {
     private final WorkflowRoleGuard workflowRoleGuard;
     private final AnchorKfsSignedNotifier anchorKfsSignedNotifier;
     private final WelcomeOnboardingNotifier welcomeOnboardingNotifier;
+    private final AnchorDocumentVerificationService anchorDocumentVerificationService;
     private final EsignSignedApplicationDocumentService esignSignedApplicationDocumentService;
+    private final EsignRequestTrackingService esignRequestTrackingService;
+    private final ApplicationPartyService applicationPartyService;
+    private final com.los.core.repository.schema.los2.EsignRequestRepository esignRequestRepository;
     /**
      * VKYC governance guard — blocks downstream flow steps (CAM review, sanction, eSign,
      * disbursement) until VKYC is auditor-approved when VKYC is configured and applicable
@@ -845,7 +853,8 @@ public class LoanApplicationFlowService {
                             "PROGRAM_REQUIRED",
                             "ANCHOR_SANCTION",
                             null));
-            if (program.getApprovalStatus() != ProgramApprovalStatus.APPROVED) {
+            if (program.getApprovalStatus() != ProgramApprovalStatus.APPROVED
+                    && program.getApprovalStatus() != ProgramApprovalStatus.APPROVED_PENDING_DOCS) {
                 throw new BusinessRuleException(
                         "Program must be approved in PLP before anchor sanction. Approve in PLP workbench "
                                 + "(CREDIT_ANALYST → CREDIT_MANAGER), then refresh PLP status on LOS. Current: "
@@ -1134,7 +1143,33 @@ public class LoanApplicationFlowService {
             );
         }
 
-        app.setStatus(anchorFlow ? ApplicationStatus.SANCTIONED : ApplicationStatus.ESIGN_COMPLETED);
+        markPartyEsignCompleteFromTransaction(applicationId, esignTransactionId);
+        boolean multiParty = applicationPartyService.isMultiPartyEnabled(app)
+                && applicationPartyService.partiesRequiredForDisbursement(applicationId).size() > 1;
+        if (multiParty && !applicationPartyService.allRequiredPartiesEsigned(applicationId)) {
+            app.setUpdatedAt(Instant.now());
+            app = applicationRepository.save(app);
+            auditService.logEvent(applicationId, "FLOW", "ESIGN_PARTY_COMPLETE",
+                    null, Map.of("status", "ESIGN_PENDING"),
+                    Map.of("status", "ESIGN_PENDING",
+                            "esignTransactionId", esignTransactionId != null ? esignTransactionId : "",
+                            "allPartiesSigned", false),
+                    "One applicant completed eSign; waiting for remaining required signers");
+            return toResponse(app);
+        }
+        if (!allRequiredEsignDocumentsSigned(app)) {
+            app.setUpdatedAt(Instant.now());
+            app = applicationRepository.save(app);
+            auditService.logEvent(applicationId, "FLOW", "ESIGN_DOCUMENT_COMPLETE",
+                    null, Map.of("status", "ESIGN_PENDING"),
+                    Map.of("status", "ESIGN_PENDING",
+                            "esignTransactionId", esignTransactionId != null ? esignTransactionId : "",
+                            "allDocumentsSigned", false),
+                    "One document eSign completed; waiting for remaining required documents");
+            return toResponse(app);
+        }
+
+        app.setStatus(anchorFlow ? ApplicationStatus.DOC_VERIFICATION_PENDING : ApplicationStatus.ESIGN_COMPLETED);
         if (esignTransactionId != null) {
             app.setEsignTransactionId(esignTransactionId);
         }
@@ -1155,11 +1190,10 @@ public class LoanApplicationFlowService {
                 log.error("[PLP-ANCHOR-SANCTION] after eSign failed for {}: {}",
                         app.getApplicationNumber(), e.getMessage(), e);
             }
-            // Welcome replaces the overlapping post-esign sanction email for anchors.
             try {
-                welcomeOnboardingNotifier.sendWelcomeAfterEsignComplete(app, true, false);
+                anchorDocumentVerificationService.notifyEsignCompletePendingVerification(app);
             } catch (Exception e) {
-                log.error("[WELCOME_EMAIL] anchor failed: {}", e.getMessage());
+                log.error("[ANCHOR_DOC_VERIFY_EMAIL] failed: {}", e.getMessage());
             }
         } else if (idBorrowerFlow) {
             try {
@@ -1185,13 +1219,53 @@ public class LoanApplicationFlowService {
                 Map.of("status", app.getStatus().name(), "esignTransactionId",
                         esignTransactionId != null ? esignTransactionId : ""),
                 anchorFlow
-                        ? "Anchor program terms signed — onboarding complete (SANCTIONED)"
+                        ? "Anchor program terms signed — awaiting Operations document verification"
                         : (idBorrowerFlow
                                 ? "Invoice discounting borrower terms signed — program onboarding complete"
                                 : "eSign completed — ready for disbursement"));
 
         log.info("eSign completed for {} — status: {}", app.getApplicationNumber(), app.getStatus());
         return toResponse(app);
+    }
+
+    private void markPartyEsignCompleteFromTransaction(UUID applicationId, String esignTransactionId) {
+        try {
+            applicationPartyService.ensurePrimaryParty(findOrThrow(applicationId));
+            UUID partyId = null;
+            if (esignTransactionId != null && !esignTransactionId.isBlank()) {
+                partyId = esignRequestRepository
+                        .findTopByApplicationIdAndProviderRequestIdOrderByCreatedAtDesc(applicationId, esignTransactionId)
+                        .map(com.los.core.model.entity.schema.los2.EsignRequest::getPartyId)
+                        .orElse(null);
+            }
+            applicationPartyService.markPartyEsignComplete(partyId != null
+                    ? applicationPartyService.requireParty(applicationId, partyId)
+                    : applicationPartyService.requirePrimary(applicationId));
+        } catch (Exception e) {
+            log.warn("Failed to mark party eSign complete for {}: {}", applicationId, e.getMessage());
+        }
+    }
+
+    private boolean allRequiredEsignDocumentsSigned(LoanApplication app) {
+        EsignDocumentsConfig.Settings docs = activeWorkflowConfigService.findActiveForApplication(app)
+                .map(wf -> EsignDocumentsConfig.fromWorkflowSteps(wf.getSteps()))
+                .orElseGet(EsignDocumentsConfig.Settings::singleDefault);
+        if (docs.additional().isEmpty()) {
+            return true;
+        }
+        List<String> requiredKeys = new ArrayList<>();
+        requiredKeys.add(docs.defaultDocumentKey());
+        requiredKeys.addAll(docs.requiredAdditionalTypes());
+        var views = esignRequestTrackingService.listForApplication(app.getId());
+        for (String key : requiredKeys) {
+            boolean signed = views.stream().anyMatch(v ->
+                    key.equalsIgnoreCase(v.getDocumentType())
+                            && EsignRequestStatuses.SIGNED.equalsIgnoreCase(v.getStatus()));
+            if (!signed) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Map<String, Object> buildAnchorProgramMeta(LoanApplication app) {
@@ -1551,6 +1625,12 @@ public class LoanApplicationFlowService {
                 .customerId(app.getCustomerId())
                 .borrowerType(app.getBorrowerType())
                 .loanProduct(app.getLoanProduct())
+                .intakeSegment(app.getIntakeSegment())
+                .intakeOwner(app.getIntakeOwner())
+                .intakeCompletedStep(app.getIntakeCompletedStep())
+                .borrowerSentBackNotes(app.getBorrowerSentBackNotes())
+                .anchorSentBackNotes(app.getAnchorSentBackNotes())
+                .docVerificationNotes(app.getDocVerificationNotes())
                 .requestedAmount(app.getRequestedAmount())
                 .interestRate(app.getInterestRate())
                 .tenureMonths(app.getTenureMonths())

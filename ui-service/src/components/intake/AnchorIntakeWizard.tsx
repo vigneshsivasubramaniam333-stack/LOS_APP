@@ -5,23 +5,28 @@ import { createApplication, getApplication, updateApplication } from '@/api/appl
 import { listDocuments, uploadDocument } from '@/api/documents'
 import { listWorkflows } from '@/api/workflows'
 import { submitApplicationForKyc } from '@/api/flow'
+import { notifyAnchorToComplete } from '@/api/workflow'
 import { ApiError } from '@/api/http'
 import { ErrorState } from '@/components/ErrorState'
 import { PageHeader } from '@/components/PageHeader'
 import { consentHelper } from '@/lib/intake/intakeLabels'
 import {
-  documentSlotsForAnchorIntake,
   missingAnchorDocumentTypes,
 } from '@/lib/intake/intakeDocumentSlots'
 import { createEmptyIntakeFormState, type IntakeFormState, type IntakeMode } from '@/lib/intake/intakeTypes'
 import { allConsentsChecked, validateConsentStep } from '@/lib/intake/intakeValidation'
 import {
   buildAnchorConsentUpdate,
+  buildAnchorContactsUpdate,
   buildAnchorCreateRequest,
   buildAnchorFullUpdate,
   buildAnchorIdentityUpdate,
 } from '@/lib/intake/anchorIntakePayloads'
 import { createEmptyAnchorFormState, type AnchorFormState } from '@/lib/intake/anchorIntakeTypes'
+import {
+  primaryContactFromCorporate,
+  validateAnchorContacts,
+} from '@/lib/intake/anchorContacts'
 import { hydrateAnchorFormFromApplication } from '@/lib/intake/hydrateAnchorFormFromApplication'
 import { staffCanContinueIntake } from '@/lib/intake/intakeResume'
 import { clearAnchorDraft, loadAnchorDraft, saveAnchorDraft } from '@/lib/anchorWizardDraft'
@@ -37,85 +42,38 @@ import {
   intakeStepSectionClass,
 } from '@/lib/intake/intakeStepLayout'
 import { IndiaStateCityPincodeFields } from '@/components/intake/IndiaStateCityPincodeFields'
+import { IntakeTenureField } from '@/components/intake/IntakeTenureField'
+import { AnchorContactsUsersSection } from '@/components/intake/AnchorContactsUsersSection'
+import {
+  isWorkflowDrivenIntake,
+  resolveAllowedStates,
+  resolveAnchorDocumentSlots,
+  resolveContactsConfig,
+  validateWorkflowTenure,
+} from '@/lib/workflow/workflowIntakeRules'
 import { BORROWER_TYPE_LABELS } from '@/catalog/borrowerTypes'
 import { ANCHOR_BORROWER_TYPE } from '@/lib/intake/anchorIntakeConstants'
+import {
+  resolveAnchorIdentityFields,
+  type AnchorIdentityFieldDef,
+} from '@/lib/intake/anchorIdentityFromWorkflow'
 import { ensureCitiesLoadedForStateName, ensureGeoStatesLoaded } from '@/lib/intake/masterGeoClientCache'
 import { validateIntakeLocation } from '@/lib/intake/intakeValidation'
 import { workflowLoanProductDisplayName, productsForIntakeSegment } from '@/utils/workflowProducts'
 import type { WorkflowConfigResponse } from '@/types/workflow'
-import type { BorrowerType } from '@/types/createApplication'
 import type { ApplicationStatus } from '@/types/application'
 
-const STEP_LABELS = ['Product & request', 'Corporate', 'Documents', 'Identity', 'Consent', 'Review'] as const
+const BASE_STEP_LABELS = ['Product & request', 'Corporate', 'Documents', 'Identity', 'Consent', 'Review'] as const
 
-const IDENTITY_KEYS = new Set([
-  'entityPan',
-  'gstin',
-  'cin',
-  'bankAccountNumber',
-  'ifscCode',
-  'accountHolderName',
-])
-
-export type IdentityFieldDef = {
-  key: keyof Pick<
-    AnchorFormState,
-    'entityPan' | 'gstin' | 'cin' | 'bankAccountNumber' | 'ifscCode' | 'accountHolderName'
-  >
-  label: string
-  required: boolean
-  maxLength?: number
-}
-
-function defaultIdentityFields(borrowerType: BorrowerType): IdentityFieldDef[] {
-  const base: IdentityFieldDef[] = [
-    { key: 'entityPan', label: 'Entity PAN', required: true, maxLength: 10 },
-    { key: 'gstin', label: 'GSTIN', required: false, maxLength: 15 },
-  ]
-  if (borrowerType === 'COMPANY') {
-    base.push({ key: 'cin', label: 'CIN (Corporate Identification Number)', required: true, maxLength: 21 })
-  } else {
-    base.push({ key: 'cin', label: 'CIN (if applicable)', required: false, maxLength: 21 })
-  }
-  base.push(
-    { key: 'bankAccountNumber', label: 'Bank account number', required: true },
-    { key: 'ifscCode', label: 'IFSC', required: true, maxLength: 11 },
-    { key: 'accountHolderName', label: 'Account holder name', required: true },
-  )
-  return base
-}
-
-function parseIdentitySchema(
-  workflow: WorkflowConfigResponse | null,
-  borrowerType: BorrowerType,
-): IdentityFieldDef[] {
-  const raw = workflow?.intakeIdentitySchema
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return defaultIdentityFields(borrowerType)
-  }
-  const out: IdentityFieldDef[] = []
-  for (const row of raw) {
-    if (!row || typeof row !== 'object') continue
-    const m = row as Record<string, unknown>
-    const key = String(m.key ?? '')
-    if (!IDENTITY_KEYS.has(key)) continue
-    out.push({
-      key: key as IdentityFieldDef['key'],
-      label: String(m.label ?? key),
-      required: Boolean(m.required),
-      maxLength: typeof m.maxLength === 'number' ? m.maxLength : undefined,
-    })
-  }
-  return out.length ? out : defaultIdentityFields(borrowerType)
-}
+export type IdentityFieldDef = AnchorIdentityFieldDef
 
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/i
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i
 
-function Stepper({ step }: { step: number }) {
+function Stepper({ step, labels }: { step: number; labels: readonly string[] }) {
   return (
     <ol className="mb-8 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-4 text-sm">
-      {STEP_LABELS.map((label, i) => (
+      {labels.map((label, i) => (
         <li key={label} className="flex items-center gap-2">
           <span
             className={[
@@ -127,7 +85,7 @@ function Stepper({ step }: { step: number }) {
             {i + 1}
           </span>
           <span className={i === step ? 'font-medium text-slate-900' : 'text-slate-600'}>{label}</span>
-          {i < STEP_LABELS.length - 1 ? <span className="hidden sm:inline text-slate-300">·</span> : null}
+          {i < labels.length - 1 ? <span className="hidden sm:inline text-slate-300">·</span> : null}
         </li>
       ))}
     </ol>
@@ -178,6 +136,10 @@ export function AnchorIntakeWizard({
   const [resumeError, setResumeError] = useState<string | null>(null)
   const [resumeLoaded, setResumeLoaded] = useState(false)
   const [resumedAppStatus, setResumedAppStatus] = useState<ApplicationStatus | null>(null)
+  /** New create only: notify portal vs staff fills all. */
+  const [completionPath, setCompletionPath] = useState<'notify' | 'staff_fill' | null>(
+    editApplicationId ? 'staff_fill' : null,
+  )
 
   const anchorProducts = useMemo(
     () => productsForIntakeSegment(activeWorkflows, 'ANCHOR', ANCHOR_BORROWER_TYPE),
@@ -188,9 +150,71 @@ export function AnchorIntakeWizard({
     [anchorProducts, form.loanProduct],
   )
   const identityFields = useMemo(
-    () => parseIdentitySchema(selectedWorkflow, ANCHOR_BORROWER_TYPE),
+    () => resolveAnchorIdentityFields(selectedWorkflow, ANCHOR_BORROWER_TYPE),
     [selectedWorkflow],
   )
+  const allowedStateNames = useMemo(() => resolveAllowedStates(selectedWorkflow), [selectedWorkflow])
+  const docSlots = useMemo(
+    () => resolveAnchorDocumentSlots(selectedWorkflow, form.borrowerType),
+    [selectedWorkflow, form.borrowerType],
+  )
+  const contactsCfg = useMemo(() => resolveContactsConfig(selectedWorkflow), [selectedWorkflow])
+  const contactsEnabled = contactsCfg.enabled
+  const stepLabels = useMemo(
+    () =>
+      contactsEnabled
+        ? (['Product & request', 'Corporate', 'Documents', 'Identity', 'Consent', 'Users', 'Review'] as const)
+        : BASE_STEP_LABELS,
+    [contactsEnabled],
+  )
+  const reviewStep = contactsEnabled ? 6 : 5
+  const usersStep = contactsEnabled ? 5 : -1
+
+  useEffect(() => {
+    if (!contactsEnabled) return
+    setForm((f) => {
+      const corpName = (f.accountHolderName || f.corporateName).trim()
+      const corpEmail = f.email.trim()
+      const corpMobile = f.mobile.replace(/\D/g, '').slice(0, 12)
+      if (f.contacts.length === 0) {
+        if (!corpEmail && !corpMobile) return f
+        return {
+          ...f,
+          contacts: [
+            primaryContactFromCorporate({
+              name: corpName,
+              email: corpEmail,
+              mobile: corpMobile,
+            }),
+          ],
+        }
+      }
+      // Keep row 0 aligned with corporate while the corporate email is still being typed
+      // (seed must not freeze a partial value like "t" forever).
+      const primary = f.contacts[0]!
+      const primaryEmail = primary.email.trim()
+      const emailStale =
+        !!corpEmail &&
+        (!primaryEmail ||
+          (corpEmail.toLowerCase().startsWith(primaryEmail.toLowerCase()) &&
+            primaryEmail.toLowerCase() !== corpEmail.toLowerCase()))
+      const mobileStale =
+        !!corpMobile &&
+        (!primary.mobile.trim() ||
+          (corpMobile.startsWith(primary.mobile.replace(/\D/g, '')) &&
+            primary.mobile.replace(/\D/g, '') !== corpMobile))
+      const nameStale = !!corpName && !primary.name.trim()
+      if (!emailStale && !mobileStale && !nameStale) return f
+      const next = f.contacts.slice()
+      next[0] = {
+        ...primary,
+        name: nameStale || emailStale ? corpName || primary.name : primary.name,
+        email: emailStale ? corpEmail : primary.email,
+        mobile: mobileStale ? corpMobile : primary.mobile,
+      }
+      return { ...f, contacts: next }
+    })
+  }, [contactsEnabled, form.email, form.mobile, form.corporateName, form.accountHolderName])
 
   const loadWorkflows = useCallback(async () => {
     setWorkflowsState('loading')
@@ -287,7 +311,13 @@ export function AnchorIntakeWizard({
     }
     const d = loadAnchorDraft()
     if (d?.form) {
-      setForm({ ...d.form, borrowerType: ANCHOR_BORROWER_TYPE, purpose: '' })
+      setForm({
+        ...createEmptyAnchorFormState(),
+        ...d.form,
+        borrowerType: ANCHOR_BORROWER_TYPE,
+        purpose: '',
+        contacts: Array.isArray(d.form.contacts) ? d.form.contacts : [],
+      })
       setStep(d.step)
       setApplicationId(d.applicationId)
     }
@@ -325,14 +355,20 @@ export function AnchorIntakeWizard({
     if (!anchorProducts.length) {
       return 'No active anchor workflow for corporate invoice discounting. Ask an admin to activate anchor invoice-discounting workflows.'
     }
+    const tenureErr = validateWorkflowTenure(
+      { ...createEmptyIntakeFormState(), tenureMonths: form.tenureMonths } as IntakeFormState,
+      selectedWorkflow,
+    )
+    if (tenureErr) return tenureErr
     return null
   }
 
-  function validateStep1(): string | null {
+  function validateStep1(notifyBasicsOnly = false): string | null {
     if (!form.corporateName.trim()) return 'Corporate name is required.'
     if (!form.email.trim()) return 'Email is required.'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Enter a valid email.'
     if (!form.mobile.trim() || form.mobile.replace(/\D/g, '').length < 10) return 'Enter a valid mobile number.'
+    if (notifyBasicsOnly) return null
     if (!form.dateOfIncorporation.trim()) return 'Date of incorporation is required.'
     if (!form.addressLine.trim()) return 'Address is required.'
     return validateIntakeLocation(form.state, form.city, form.pincode, 'staff_basic')
@@ -391,19 +427,26 @@ export function AnchorIntakeWizard({
         setError(err instanceof Error ? err.message : 'Could not load location master data. Try again.')
         return
       }
-      const v = validateStep1()
+      const notifyOnly = !editApplicationId && completionPath === 'notify'
+      const v = validateStep1(notifyOnly)
       if (v) {
         setError(v)
         return
       }
+      if (!editApplicationId && !completionPath) {
+        setError('Choose how to complete onboarding: notify the anchor, or fill all details yourself.')
+        return
+      }
       setBusy(true)
       try {
-        if (!applicationId) {
+        let id = applicationId
+        if (!id) {
           const req = buildAnchorCreateRequest(form, user, staffIntakeMode)
           const res = await createApplication(req)
-          setApplicationId(res.id)
+          id = res.id
+          setApplicationId(id)
         } else {
-          await updateApplication(applicationId, {
+          await updateApplication(id, {
             businessInfo: {
               corporateName: form.corporateName.trim(),
               email: form.email.trim(),
@@ -417,6 +460,14 @@ export function AnchorIntakeWizard({
             } as Record<string, unknown>,
           })
         }
+        if (notifyOnly && id) {
+          await notifyAnchorToComplete(id, 1)
+          if (variant === 'standalone') {
+            clearAnchorDraft()
+          }
+          void navigate(`/applications/${id}`, { replace: true })
+          return
+        }
         setStep(2)
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not save corporate details.')
@@ -426,9 +477,17 @@ export function AnchorIntakeWizard({
       return
     }
     if (step === 2) {
-      const miss = missingAnchorDocumentTypes(form.borrowerType, form.documentUploaded)
+      const miss = isWorkflowDrivenIntake(selectedWorkflow)
+        ? docSlots
+            .filter((s) => s.required && !form.documentUploaded[s.documentType])
+            .map((s) => s.documentType)
+        : missingAnchorDocumentTypes(form.borrowerType, form.documentUploaded)
       if (miss.length) {
-        setDocWarning(`Recommended uploads still missing: ${miss.join(', ')}. You can continue or go back to upload.`)
+        setDocWarning(
+          isWorkflowDrivenIntake(selectedWorkflow)
+            ? `Required uploads still missing: ${miss.join(', ')}. You can continue or go back to upload.`
+            : `Recommended uploads still missing: ${miss.join(', ')}. You can continue or go back to upload.`,
+        )
       }
       setStep(3)
       return
@@ -465,9 +524,53 @@ export function AnchorIntakeWizard({
       setBusy(true)
       try {
         await updateApplication(applicationId, buildAnchorConsentUpdate(form, user))
-        setStep(5)
+        if (contactsEnabled) {
+          setForm((f) => {
+            if (f.contacts.length > 0) return f
+            return {
+              ...f,
+              contacts: [
+                primaryContactFromCorporate({
+                  name: f.accountHolderName || f.corporateName,
+                  email: f.email,
+                  mobile: f.mobile,
+                }),
+              ],
+            }
+          })
+          setStep(usersStep)
+        } else {
+          setStep(reviewStep)
+        }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not save consents.')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+    if (contactsEnabled && step === usersStep) {
+      const msg = validateAnchorContacts(form.contacts, contactsCfg.maxUsers)
+      if (msg) {
+        setError(msg)
+        return
+      }
+      if (!applicationId) return
+      setBusy(true)
+      try {
+        await updateApplication(applicationId, buildAnchorContactsUpdate(form))
+        // Keep top-level email/mobile in sync with primary contact for existing flows.
+        const primary = form.contacts[0]
+        if (primary) {
+          setForm((f) => ({
+            ...f,
+            email: primary.email.trim() || f.email,
+            mobile: primary.mobile.replace(/\D/g, '').slice(0, 12) || f.mobile,
+          }))
+        }
+        setStep(reviewStep)
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Could not save users.')
       } finally {
         setBusy(false)
       }
@@ -506,7 +609,7 @@ export function AnchorIntakeWizard({
     }
   }
 
-  const docSlots = documentSlotsForAnchorIntake(form.borrowerType)
+  const lmsTenureUnit = selectedWorkflow?.lmsTenureUnit?.trim() || 'Month'
   const editingExisting = Boolean(editApplicationId)
   const saveOnly = editingExisting && isAnchorPostSubmitEditStatus(resumedAppStatus)
 
@@ -581,7 +684,7 @@ export function AnchorIntakeWizard({
       {workflowsState === 'loading' ? <p className="text-sm text-slate-600">Loading workflows…</p> : null}
       {workflowsState === 'err' && workflowsError ? <ErrorState message={workflowsError} /> : null}
 
-      <Stepper step={step} />
+      <Stepper step={step} labels={stepLabels} />
 
       {error ? (
         <div className="mb-4">
@@ -626,15 +729,12 @@ export function AnchorIntakeWizard({
                 inputMode="decimal"
               />
             </label>
-            <label className={intakeFieldLabelClass}>
-              <span className={intakeFieldCaptionClass}>Tenure (months)</span>
-              <input
-                className={intakeFieldInputClass}
-                value={form.tenureMonths}
-                onChange={(e) => setForm((f) => ({ ...f, tenureMonths: e.target.value }))}
-                inputMode="numeric"
-              />
-            </label>
+            <IntakeTenureField
+              workflow={selectedWorkflow}
+              value={form.tenureMonths}
+              lmsTenureUnit={lmsTenureUnit}
+              onChange={(v) => setForm((f) => ({ ...f, tenureMonths: v }))}
+            />
           </div>
         </section>
       ) : null}
@@ -669,6 +769,42 @@ export function AnchorIntakeWizard({
               />
             </label>
           </div>
+          {!editApplicationId ? (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-medium text-slate-900">How should onboarding be completed?</p>
+              <p className="mt-1 text-xs text-slate-600">
+                Notify sends portal login credentials so the anchor can finish intake. Or fill all details yourself.
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md border px-3 py-2 text-left text-sm',
+                    completionPath === 'notify'
+                      ? 'border-[var(--bt-orange)] bg-white font-semibold text-slate-900'
+                      : 'border-slate-200 bg-white text-slate-700',
+                  ].join(' ')}
+                  onClick={() => setCompletionPath('notify')}
+                >
+                  Notify anchor (name / email / mobile)
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    'rounded-md border px-3 py-2 text-left text-sm',
+                    completionPath === 'staff_fill'
+                      ? 'border-[var(--bt-orange)] bg-white font-semibold text-slate-900'
+                      : 'border-slate-200 bg-white text-slate-700',
+                  ].join(' ')}
+                  onClick={() => setCompletionPath('staff_fill')}
+                >
+                  I will fill all details
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {completionPath !== 'notify' || editApplicationId ? (
+            <>
           <label className={intakeFieldLabelClass}>
             <span className={intakeFieldCaptionClass}>Date of incorporation</span>
             <input
@@ -693,6 +829,7 @@ export function AnchorIntakeWizard({
             onStateChange={(v) => setForm((f) => ({ ...f, state: v, city: '' }))}
             onCityChange={(v) => setForm((f) => ({ ...f, city: v }))}
             onPincodeChange={(v) => setForm((f) => ({ ...f, pincode: v }))}
+            allowedStateNames={allowedStateNames}
           />
           <label className={intakeFieldLabelClass}>
             <span className={intakeFieldCaptionClass}>Country</span>
@@ -702,6 +839,8 @@ export function AnchorIntakeWizard({
               onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
             />
           </label>
+            </>
+          ) : null}
         </section>
       ) : null}
 
@@ -712,7 +851,10 @@ export function AnchorIntakeWizard({
           <ul className="space-y-4">
             {docSlots.map((slot) => (
               <li key={slot.documentType} className="rounded-md border border-slate-100 bg-slate-50/80 p-4">
-                <div className="mb-2 text-sm font-medium text-slate-900">{slot.label}</div>
+                <div className="mb-2 text-sm font-medium text-slate-900">
+                  {slot.label}
+                  {slot.required ? <span className="text-red-500"> *</span> : null}
+                </div>
                 <p className="mb-2 text-xs text-slate-600">{slot.reason}</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <input
@@ -742,8 +884,11 @@ export function AnchorIntakeWizard({
         <section className={intakeStepSectionClass}>
           <h2 className="bt-card-title">Identity &amp; bank</h2>
           <p className="text-xs text-slate-600">
-            Fields follow the active anchor workflow
-            {selectedWorkflow?.intakeIdentitySchema?.length ? ' configuration' : ' defaults'}.
+            Fields follow the active anchor workflow KYC / identity configuration
+            {selectedWorkflow?.intakeIdentitySchema?.length || (selectedWorkflow?.steps?.length ?? 0) > 0
+              ? ''
+              : ' defaults'}
+            .
           </p>
           <div className={intakeStepFieldGridClass}>
             {identityFields.map((fld) => (
@@ -811,7 +956,17 @@ export function AnchorIntakeWizard({
         </section>
       ) : null}
 
-      {step === 5 && applicationId ? (
+      {contactsEnabled && step === usersStep ? (
+        <div className={intakeStepSectionClass}>
+          <AnchorContactsUsersSection
+            contacts={form.contacts}
+            maxUsers={contactsCfg.maxUsers}
+            onChange={(contacts) => setForm((f) => ({ ...f, contacts }))}
+          />
+        </div>
+      ) : null}
+
+      {step === reviewStep && applicationId ? (
         <section className={intakeStepSectionClass}>
           <h2 className="bt-card-title">Review &amp; submit</h2>
           <div className="grid gap-3 text-sm sm:grid-cols-2">
@@ -827,6 +982,21 @@ export function AnchorIntakeWizard({
                 {form.email} · {form.mobile}
               </p>
             </div>
+            {contactsEnabled && form.contacts.length > 0 ? (
+              <div className="rounded border border-slate-100 p-3 sm:col-span-2">
+                <h3 className="text-xs font-semibold uppercase text-slate-500">Users</h3>
+                <ul className="mt-1 space-y-1 text-slate-800">
+                  {form.contacts.map((c) => (
+                    <li key={c.id}>
+                      {c.name} · {c.email} · {c.role.replace('_', ' ')}
+                      {c.isSigningAuthority
+                        ? ` · signing${form.contacts.filter((x) => x.isSigningAuthority).length > 1 ? ` #${c.signingOrder}` : ''}`
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <div className="rounded border border-slate-100 p-3 sm:col-span-2">
               <h3 className="text-xs font-semibold uppercase text-slate-500">Intake</h3>
               <p className="mt-1 text-slate-900">Anchor (invoice discounting)</p>
@@ -842,14 +1012,18 @@ export function AnchorIntakeWizard({
             Back
           </button>
         ) : null}
-        {step < 5 ? (
+        {step < reviewStep ? (
           <button
             type="button"
             className={intakePrimaryButtonClass}
             onClick={() => void handleNext()}
             disabled={busy || (step === 2 && !applicationId)}
           >
-            {busy ? 'Saving…' : 'Continue'}
+            {busy
+              ? 'Saving…'
+              : !editApplicationId && completionPath === 'notify' && step === 1
+                ? 'Save draft & notify anchor'
+                : 'Continue'}
           </button>
         ) : (
           <button type="button" className={intakePrimaryButtonClass} onClick={() => void onSubmitFinal()} disabled={busy}>

@@ -5,6 +5,9 @@ export type ApplicationStatus =
   | 'DRAFT'
   | 'CONSENT_PENDING'
   | 'BORROWER_SUBMITTED'
+  | 'ANCHOR_CONSENT_PENDING'
+  | 'ANCHOR_SUBMITTED'
+  | 'ANCHOR_SENT_BACK'
   | 'PENDING_CREDIT_OFFICER'
   | 'SENT_BACK_TO_RM'
   | 'BORROWER_SENT_BACK'
@@ -23,6 +26,8 @@ export type ApplicationStatus =
   | 'SANCTION_ISSUED'
   | 'ESIGN_PENDING'
   | 'ESIGN_COMPLETED'
+  | 'DOC_VERIFICATION_PENDING'
+  | 'DOC_VERIFICATION_SENT_BACK'
   | 'READY_FOR_DISBURSEMENT'
   | 'DISBURSEMENT_PENDING'
   | 'DISBURSED'
@@ -30,6 +35,44 @@ export type ApplicationStatus =
   | 'ON_HOLD'
 
 export type ApplicationIntakeSegment = 'BORROWER' | 'ANCHOR'
+
+/**
+ * Aligns with backend `ApplicationPartyRole` / `PartyIntakeStatus` / `PartyKycStatus` / `PartyEsignStatus`
+ * and `ApplicationPartyResponse` — co-applicant support (`GET/PUT /api/v1/applications/{id}/parties`).
+ */
+export type ApplicationPartyRole = 'PRIMARY' | 'CO_APPLICANT'
+
+export type PartyIntakeStatus =
+  | 'DRAFT'
+  | 'INVITED'
+  | 'IN_PROGRESS'
+  | 'SENT_BACK'
+  | 'SUBMITTED'
+  | 'KYC_COMPLETE'
+  | 'ESIGN_PENDING'
+  | 'ESIGN_COMPLETE'
+
+export type PartyKycStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETE' | 'FAILED'
+
+export type PartyEsignStatus = 'NOT_STARTED' | 'PENDING' | 'COMPLETE' | 'FAILED'
+
+export interface ApplicationPartyResponse {
+  id: string
+  applicationId: string
+  role: ApplicationPartyRole
+  sequenceNo: number
+  userId?: string | null
+  personalInfo?: Record<string, unknown> | null
+  intakeStatus?: PartyIntakeStatus | null
+  kycStatus?: PartyKycStatus | null
+  esignStatus?: PartyEsignStatus | null
+  requiredForDisbursement: boolean
+  createdAt?: string | null
+  updatedAt?: string | null
+  displayName?: string | null
+  email?: string | null
+  mobile?: string | null
+}
 
 export interface ApplicationResponse {
   id: string
@@ -39,9 +82,11 @@ export interface ApplicationResponse {
   loanProduct: string
   /** Omitted in older rows — borrower loan origination. */
   intakeSegment?: ApplicationIntakeSegment | null
-  intakeOwner?: 'STAFF' | 'BORROWER' | null
+  intakeOwner?: 'STAFF' | 'BORROWER' | 'ANCHOR' | null
   intakeCompletedStep?: number | null
   borrowerSentBackNotes?: string | null
+  anchorSentBackNotes?: string | null
+  docVerificationNotes?: string | null
   requestedAmount: number | null
   interestRate: number | null
   tenureMonths: number | null
@@ -132,4 +177,6 @@ export interface ApplicationResponse {
   creditControlView?: Record<string, unknown> | null
   latestUnderwritingEvaluation?: Record<string, unknown> | null
   camStatus?: 'DRAFT' | 'SUBMITTED' | 'SENT_BACK' | 'REJECTED' | 'APPROVED' | null
+  /** Primary + co-applicants (when the workflow's `intakeConfig.coApplicant` is enabled). */
+  parties?: ApplicationPartyResponse[] | null
 }

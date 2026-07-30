@@ -9,18 +9,26 @@ import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.SanctionRecordRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.config.EsignNotificationProperties;
+import com.los.core.service.esign.EsignDocumentsConfig;
 import com.los.core.service.esign.EsignSigningLinkNotifier;
 import com.los.core.service.esign.EsignRequestTrackingService;
 import com.los.core.service.integration.IIntegrationRouterService;
 import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.ApplicationPartyResolver;
+import com.los.core.service.loan.ApplicationPartyService;
 import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
+import com.los.core.service.workflow.ActiveWorkflowConfigService;
+import com.los.core.model.entity.ApplicationParty;
+import com.los.core.model.entity.Document;
+import com.los.core.model.enums.ApplicationPartyRole;
+import com.los.core.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +52,9 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
     private final EsignRequestTrackingService esignRequestTrackingService;
     private final EsignSigningLinkNotifier esignSigningLinkNotifier;
     private final EsignNotificationProperties esignNotificationProperties;
+    private final ApplicationPartyService applicationPartyService;
+    private final ActiveWorkflowConfigService activeWorkflowConfigService;
+    private final DocumentRepository documentRepository;
 
     @Override
     public boolean supports(String stepType) {
@@ -75,7 +86,143 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
         Map<String, Object> signerInfo = (context != null && context.get("signerInfo") != null)
                 ? (Map<String, Object>) context.get("signerInfo")
                 : Map.of();
+        applicationPartyService.ensurePrimaryParty(app);
+        boolean multiParty = applicationPartyService.isMultiPartyEnabled(app)
+                && applicationPartyService.partiesRequiredForDisbursement(applicationId).size() > 1;
+
+        if (multiParty) {
+            return initiateForAllRequiredParties(applicationId, app, signerInfo);
+        }
+
         Map<String, Object> signerForRoute = ApplicationPartyResolver.enrichEsignSignerInfo(app, signerInfo);
+        EsignDocumentsConfig.Settings docs = resolveEsignDocuments(app);
+        assertRequiredAdditionalDocuments(applicationId, docs);
+        if (docs.additional().isEmpty()) {
+            return initiateForSingleSigner(applicationId, app, signerForRoute, null, docs.defaultDocumentKey());
+        }
+        return initiateMultiDocument(applicationId, app, signerForRoute, docs);
+    }
+
+    private StepResult initiateMultiDocument(
+            UUID applicationId,
+            LoanApplication app,
+            Map<String, Object> signerForRoute,
+            EsignDocumentsConfig.Settings docs) {
+        List<Map<String, Object>> docResults = new ArrayList<>();
+        boolean anyFail = false;
+        String primaryTxn = null;
+        String primaryUrl = "";
+
+        List<String> keys = new ArrayList<>();
+        keys.add(docs.defaultDocumentKey());
+        for (EsignDocumentsConfig.AdditionalDoc d : docs.additional()) {
+            if (d.required()) {
+                keys.add(d.documentType());
+            }
+        }
+        for (String documentKey : keys) {
+            StepResult one = initiateForSingleSigner(applicationId, app, signerForRoute, null, documentKey);
+            Map<String, Object> out = one.output() != null ? new HashMap<>(one.output()) : new HashMap<>();
+            out.put("documentKey", documentKey);
+            docResults.add(out);
+            boolean ok = Boolean.TRUE.equals(out.get("esignSuccess"))
+                    || "true".equalsIgnoreCase(String.valueOf(out.get("esignSuccess")));
+            if (!ok) {
+                anyFail = true;
+            } else if (primaryTxn == null || primaryTxn.isBlank()) {
+                primaryTxn = String.valueOf(out.getOrDefault("transactionId", ""));
+                primaryUrl = String.valueOf(out.getOrDefault("signingUrl", ""));
+            }
+        }
+        app = applicationRepository.findById(applicationId).orElse(app);
+        Map<String, Object> aggregate = new HashMap<>();
+        aggregate.put("applicationId", applicationId);
+        aggregate.put("applicationNumber", app.getApplicationNumber());
+        aggregate.put("status", app.getStatus().name());
+        aggregate.put("esignSuccess", !anyFail);
+        aggregate.put("transactionId", primaryTxn != null ? primaryTxn : "");
+        aggregate.put("signingUrl", primaryUrl);
+        aggregate.put("errorMessage", anyFail ? "One or more document eSign initiations failed" : "");
+        aggregate.put("documentResults", docResults);
+        aggregate.put("multiDocument", true);
+        return anyFail ? StepResult.fail(aggregate) : StepResult.ok(aggregate);
+    }
+
+    private EsignDocumentsConfig.Settings resolveEsignDocuments(LoanApplication app) {
+        try {
+            return activeWorkflowConfigService.findActiveForApplication(app)
+                    .map(wf -> EsignDocumentsConfig.fromWorkflowSteps(wf.getSteps()))
+                    .orElseGet(EsignDocumentsConfig.Settings::singleDefault);
+        } catch (Exception e) {
+            log.warn("Could not resolve esignDocuments from workflow for {}: {}", app.getId(), e.getMessage());
+            return EsignDocumentsConfig.Settings.singleDefault();
+        }
+    }
+
+    private void assertRequiredAdditionalDocuments(UUID applicationId, EsignDocumentsConfig.Settings docs) {
+        List<String> missing = new ArrayList<>();
+        for (String type : docs.requiredAdditionalTypes()) {
+            List<Document> found = documentRepository
+                    .findByApplicationIdAndDocumentTypeOrderByVersionNumberDesc(applicationId, type);
+            if (found == null || found.isEmpty()) {
+                missing.add(type);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessRuleException(
+                    "Cannot initiate eSign — missing required documents for signing: " + String.join(", ", missing),
+                    "ESIGN_DOCUMENTS_MISSING",
+                    "ESIGN_INITIATE",
+                    Map.of("missingDocumentTypes", missing));
+        }
+    }
+
+    private StepResult initiateForAllRequiredParties(
+            UUID applicationId, LoanApplication app, Map<String, Object> baseSignerInfo) {
+        List<ApplicationParty> parties = applicationPartyService.partiesRequiredForDisbursement(applicationId);
+        List<Map<String, Object>> partyResults = new ArrayList<>();
+        boolean anyFail = false;
+        String primaryTxn = null;
+        String primaryUrl = "";
+
+        for (ApplicationParty party : parties) {
+            Map<String, Object> signerForRoute = ApplicationPartyResolver.enrichEsignSignerInfoFromParty(
+                    party, baseSignerInfo);
+            StepResult one = initiateForSingleSigner(applicationId, app, signerForRoute, party, "KFS_AGREEMENT");
+            Map<String, Object> out = one.output() != null ? new HashMap<>(one.output()) : new HashMap<>();
+            out.put("partyId", party.getId().toString());
+            out.put("partyRole", party.getRole().name());
+            partyResults.add(out);
+            boolean ok = Boolean.TRUE.equals(out.get("esignSuccess"))
+                    || "true".equalsIgnoreCase(String.valueOf(out.get("esignSuccess")));
+            if (!ok) {
+                anyFail = true;
+            } else if (party.getRole() == ApplicationPartyRole.PRIMARY) {
+                primaryTxn = String.valueOf(out.getOrDefault("transactionId", ""));
+                primaryUrl = String.valueOf(out.getOrDefault("signingUrl", ""));
+            }
+        }
+
+        app = applicationRepository.findById(applicationId).orElse(app);
+        Map<String, Object> aggregate = new HashMap<>();
+        aggregate.put("applicationId", applicationId);
+        aggregate.put("applicationNumber", app.getApplicationNumber());
+        aggregate.put("status", app.getStatus().name());
+        aggregate.put("esignSuccess", !anyFail);
+        aggregate.put("transactionId", primaryTxn != null ? primaryTxn : "");
+        aggregate.put("signingUrl", primaryUrl);
+        aggregate.put("errorMessage", anyFail ? "One or more party eSign initiations failed" : "");
+        aggregate.put("partyResults", partyResults);
+        aggregate.put("multiParty", true);
+        return anyFail ? StepResult.fail(aggregate) : StepResult.ok(aggregate);
+    }
+
+    private StepResult initiateForSingleSigner(
+            UUID applicationId,
+            LoanApplication app,
+            Map<String, Object> signerForRoute,
+            ApplicationParty party,
+            String documentKey) {
         Object email = signerForRoute.get("email");
         Object borrowerEmail = signerForRoute.get("borrowerEmail");
         if ((borrowerEmail == null || borrowerEmail.toString().isBlank())
@@ -84,10 +231,14 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
             signerForRoute.put("borrowerEmail", email.toString().trim());
         }
 
+        String docKey = documentKey != null && !documentKey.isBlank() ? documentKey : "KFS_AGREEMENT";
         Map<String, Object> esignPayload = new HashMap<>();
-        esignPayload.put("documentKey", "KFS_AGREEMENT");
+        esignPayload.put("documentKey", docKey);
         esignPayload.put("signerInfo", signerForRoute);
         esignPayload.put("esignStepType", "ESIGN_AGREEMENT");
+        if (party != null && party.getId() != null) {
+            esignPayload.put("partyId", party.getId().toString());
+        }
         IIntegrationRouterService.ESignRouteResult result = integrationRouter.routeESignRequest(applicationId, esignPayload);
 
         Map<String, Object> meta = result.providerMetadata();
@@ -95,28 +246,39 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
 
         if (result.success()) {
             app.setStatus(ApplicationStatus.ESIGN_PENDING);
-            app.setEsignTransactionId(result.transactionId());
+            if (party == null || party.getRole() == ApplicationPartyRole.PRIMARY) {
+                if ("KFS_AGREEMENT".equalsIgnoreCase(docKey)
+                        || "ANCHOR_PROGRAM_TERMS".equalsIgnoreCase(docKey)
+                        || app.getEsignTransactionId() == null) {
+                    app.setEsignTransactionId(result.transactionId());
+                }
+            }
             app.setCurrentStepStartedAt(Instant.now());
             app = applicationRepository.save(app);
 
             auditService.logEvent(applicationId, "FLOW", "ESIGN_INITIATED",
                     null, Map.of("status", app.getStatus().name()),
-                    Map.of("status", "ESIGN_PENDING", "esignTransactionId", result.transactionId()),
+                    Map.of("status", "ESIGN_PENDING",
+                            "esignTransactionId", result.transactionId(),
+                            "documentKey", docKey,
+                            "partyId", party != null && party.getId() != null ? party.getId().toString() : ""),
                     "eSign initiated");
 
-            log.info("eSign initiated for {} — txnId: {}, signingUrl: {}, reusedSigningUrl: {}",
-                    app.getApplicationNumber(), result.transactionId(), result.signingUrl(), reusedSigningUrl);
+            log.info("eSign initiated for {} — txnId: {}, documentKey: {}, signingUrl: {}, reusedSigningUrl: {}, partyId: {}",
+                    app.getApplicationNumber(), result.transactionId(), docKey, result.signingUrl(), reusedSigningUrl,
+                    party != null ? party.getId() : null);
             if (!reusedSigningUrl) {
                 try {
                     esignRequestTrackingService.recordInitiationSuccess(
                             applicationId,
-                            "KFS_AGREEMENT",
+                            docKey,
                             result.providerName(),
                             result.transactionId(),
                             result.signingUrl(),
                             signerForRoute,
                             meta,
-                            "ESIGN_AGREEMENT");
+                            "ESIGN_AGREEMENT",
+                            party != null ? party.getId() : null);
                 } catch (Exception ex) {
                     log.warn("Failed to persist esign_requests for application {}: {}", applicationId, ex.getMessage());
                 }
@@ -125,6 +287,9 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                         applicationId, result.transactionId());
             }
 
+            if (party != null) {
+                applicationPartyService.markPartyEsignPending(party);
+            }
             dispatchSigningLinkEmail(applicationId, app, signerForRoute, result, reusedSigningUrl);
         } else {
             log.error("eSign initiation failed for {}: {}", app.getApplicationNumber(), result.errorMessage());
@@ -137,6 +302,7 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                 "esignSuccess", result.success(),
                 "transactionId", result.transactionId() != null ? result.transactionId() : "",
                 "signingUrl", result.signingUrl() != null ? result.signingUrl() : "",
+                "documentKey", docKey,
                 "errorMessage", result.errorMessage() != null ? result.errorMessage() : ""
         );
         return StepResult.ok(out);

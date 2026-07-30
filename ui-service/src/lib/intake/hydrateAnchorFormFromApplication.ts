@@ -1,6 +1,7 @@
 import type { ApplicationResponse } from '@/types/application'
 import type { LoanProductCode } from '@/types/createApplication'
 import { ANCHOR_BORROWER_TYPE } from './anchorIntakeConstants'
+import { contactsFromBusinessInfo, primaryContactFromCorporate } from './anchorContacts'
 import { createEmptyAnchorFormState, type AnchorFormState } from './anchorIntakeTypes'
 
 /**
@@ -18,6 +19,23 @@ export function hydrateAnchorFormFromApplication(
   const toBool = (o: Record<string, unknown>, k: string) =>
     o[k] === true || String(o[k] ?? '').toLowerCase() === 'true'
 
+  const corporateName = str(bi, 'corporateName') || str(bi, 'businessName') || base.corporateName
+  const email = str(bi, 'email') || str(pi, 'email') || base.email
+  const mobile = str(bi, 'mobile') || str(pi, 'mobile') || str(pi, 'phone') || base.mobile
+  const savedContacts = contactsFromBusinessInfo(bi.contacts)
+  const contacts =
+    savedContacts.length > 0
+      ? savedContacts
+      : email || mobile
+        ? [
+            primaryContactFromCorporate({
+              name: str(bi, 'accountHolderName') || corporateName,
+              email,
+              mobile,
+            }),
+          ]
+        : []
+
   return {
     ...base,
     borrowerType: ANCHOR_BORROWER_TYPE,
@@ -25,9 +43,9 @@ export function hydrateAnchorFormFromApplication(
     requestedAmount: app.requestedAmount != null ? String(app.requestedAmount) : base.requestedAmount,
     tenureMonths: app.tenureMonths != null ? String(app.tenureMonths) : base.tenureMonths,
     purpose: str(pi, 'purpose') || base.purpose,
-    corporateName: str(bi, 'corporateName') || str(bi, 'businessName') || base.corporateName,
-    email: str(bi, 'email') || str(pi, 'email') || base.email,
-    mobile: str(bi, 'mobile') || str(pi, 'mobile') || str(pi, 'phone') || base.mobile,
+    corporateName,
+    email,
+    mobile,
     dateOfIncorporation: str(bi, 'dateOfIncorporation') || base.dateOfIncorporation,
     addressLine: str(bi, 'addressLine') || str(bi, 'businessAddress') || base.addressLine,
     city: str(bi, 'city') || base.city,
@@ -46,5 +64,6 @@ export function hydrateAnchorFormFromApplication(
     consentAccountAggregator: toBool(fi, 'consentAccountAggregator') || base.consentAccountAggregator,
     consentComms: toBool(fi, 'consentComms') || toBool(pi, 'consentComms') || base.consentComms,
     documentUploaded: { ...base.documentUploaded },
+    contacts,
   }
 }

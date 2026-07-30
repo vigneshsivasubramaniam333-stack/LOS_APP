@@ -38,6 +38,12 @@ public class PlpProgramStatusMirrorService {
                     program.setApprovedAt(Instant.now());
                 }
             }
+            case "APPROVED_PENDING_DOCS", "APPROVED_PENDING_VERIFICATION" -> {
+                program.setApprovalStatus(ProgramApprovalStatus.APPROVED_PENDING_DOCS);
+                if (program.getApprovedAt() == null) {
+                    program.setApprovedAt(Instant.now());
+                }
+            }
             case "DRAFT" -> program.setApprovalStatus(ProgramApprovalStatus.DRAFT);
             case "PENDING_L2" -> program.setApprovalStatus(ProgramApprovalStatus.PENDING_L2);
             case "SENT_BACK" -> {

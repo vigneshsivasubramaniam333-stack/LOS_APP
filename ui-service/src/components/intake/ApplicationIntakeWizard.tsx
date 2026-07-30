@@ -52,11 +52,26 @@ import {
   checkKycIdentity,
   intakeErrorMessage,
   intakeStepForDuplicateField,
+  validateApplicationIdentity,
 } from '@/lib/intake/checkIntakeIdentity'
 import { duplicateFieldErrors, duplicateFieldFromError } from '@/lib/userFriendlyError'
 import { notifyError, notifySuccess } from '@/lib/notify'
-import { notifyBorrowerToComplete, submitDelegatedBorrowerIntake } from '@/api/workflow'
-import { activeCatalogHasSecuredProduct, uniqueActiveWorkflowLoanProducts, workflowLoanProductDisplayName } from '@/utils/workflowProducts'
+import {
+  listApplicationParties,
+  notifyBorrowerToComplete,
+  submitApplicationParty,
+  submitDelegatedBorrowerIntake,
+  updateApplicationPartyPersonalInfo,
+  upsertApplicationParties,
+} from '@/api/workflow'
+import {
+  CoApplicantsSection,
+  StaffCoApplicantDetailForm,
+  type CoApplicantRow,
+  type StaffMultiPartyPath,
+} from '@/components/intake/CoApplicantsSection'
+import { CoApplicantPortal } from '@/components/intake/CoApplicantPortal'
+import { activeCatalogHasSecuredProduct, productsForIntakeSegment, uniqueActiveWorkflowLoanProducts, workflowLoanProductDisplayName } from '@/utils/workflowProducts'
 import { hydrateIntakeFormFromApplication } from '@/lib/intake/hydrateIntakeFromApplication'
 import {
   applyHydratedIntakeDefaults,
@@ -68,6 +83,8 @@ import {
   isDelegatedBorrowerIntake,
 } from '@/lib/borrowerApplicationDeletable'
 import {
+  resolveAllowedStates,
+  resolveCoApplicantConfig,
   resolveDocumentSlots,
   shouldCollectLoanPurposeField,
   shouldCollectPersonalField,
@@ -76,10 +93,12 @@ import {
 import {
   labelForLoanPurpose,
   labelForOccupation,
+  resolveGenderOptions,
   resolveLoanPurposeOptions,
   resolveOccupationOptions,
 } from '@/lib/intake/intakeOptionCatalogs'
 import { IntakeTenureField } from '@/components/intake/IntakeTenureField'
+import { ANCHOR_BORROWER_TYPE } from '@/lib/intake/anchorIntakeConstants'
 import type { WorkflowConfigResponse } from '@/types/workflow'
 import type { BorrowerType } from '@/types/createApplication'
 import type { ApplicationStatus } from '@/types/application'
@@ -150,9 +169,13 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
   const [incompleteServer, setIncompleteServer] = useState<BorrowerAppSummary[]>([])
   const [resumeLoaded, setResumeLoaded] = useState(false)
   const [resumedAppStatus, setResumedAppStatus] = useState<ApplicationStatus | null>(null)
+  const [coApplicants, setCoApplicants] = useState<CoApplicantRow[]>([])
+  const [staffMultiPartyPath, setStaffMultiPartyPath] = useState<StaffMultiPartyPath | null>(null)
+  const [staffCoFillIndex, setStaffCoFillIndex] = useState<number | null>(null)
 
   const resumeApplicationId =
     editApplicationId ?? (variant === 'borrower' ? searchParams.get('resume') : null)
+  const coApplicantPartyId = variant === 'borrower' ? searchParams.get('partyId') : null
 
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {
@@ -183,7 +206,27 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
 
   const productsForType = productsForBorrowerType(activeWorkflows, form.borrowerType)
   const staffProductList = useMemo(() => uniqueActiveWorkflowLoanProducts(activeWorkflows), [activeWorkflows])
-  const selectedWorkflow = productsForType.find((w) => w.loanProduct === form.loanProduct) ?? null
+  const borrowerWorkflow = productsForType.find((w) => w.loanProduct === form.loanProduct) ?? null
+  /** When Anchor onboarding is chosen, tenure / intake rules must come from the ANCHOR workflow row. */
+  const selectedWorkflow = useMemo(() => {
+    if (
+      isInvoiceDiscountingProduct(form.loanProduct) &&
+      form.invoiceOnboardingChoice === 'ANCHOR'
+    ) {
+      return (
+        productsForIntakeSegment(activeWorkflows, 'ANCHOR', ANCHOR_BORROWER_TYPE).find(
+          (w) => w.loanProduct === form.loanProduct,
+        ) ?? null
+      )
+    }
+    return borrowerWorkflow
+  }, [
+    activeWorkflows,
+    borrowerWorkflow,
+    form.invoiceOnboardingChoice,
+    form.loanProduct,
+  ])
+  const allowedStateNames = useMemo(() => resolveAllowedStates(selectedWorkflow), [selectedWorkflow])
   const documentSlots = useMemo(
     () =>
       selectedWorkflow?.intakeConfig?.policy === 'WORKFLOW_DRIVEN'
@@ -192,6 +235,12 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
     [selectedWorkflow, form],
   )
   const productLocked = Boolean(applicationId)
+  const coApplicantConfig =
+    variant === 'staff' && !isInvoiceDiscountingProduct(form.loanProduct)
+      ? resolveCoApplicantConfig(selectedWorkflow)
+      : null
+  const coApplicantMin = coApplicantConfig?.minCoApplicants ?? 0
+  const coApplicantMax = coApplicantConfig?.maxCoApplicants ?? 3
   const staffCanCreateOrNotify =
     variant === 'staff' && canCreateOrNotifyBorrowerIntake(user?.role ?? '')
   const notifyBasicsOk =
@@ -257,7 +306,9 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
     if (variant !== 'borrower' || !user) return
     void listBorrowerApplications(0, 40)
       .then((p) => {
-        setIncompleteServer(p.content.filter((a) => isBorrowerResumableIntakeStatus(a.status)))
+        setIncompleteServer(p.content.filter(
+          (a) => a.canResumeMyIntake !== false && isBorrowerResumableIntakeStatus(a.status),
+        ))
       })
       .catch(() => setIncompleteServer([]))
   }, [variant, user])
@@ -281,12 +332,38 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
   }, [resumeApplicationId])
 
   useEffect(() => {
-    if (!resumeApplicationId || resumeLoaded || workflowsState !== 'ok') return
+    if (!resumeApplicationId || resumeLoaded || workflowsState !== 'ok' || coApplicantPartyId) return
     let cancelled = false
     void (async () => {
       setResumeError(null)
       setHydrating(true)
       try {
+        if (variant === 'borrower' && user?.userId) {
+          try {
+            const listed = await listBorrowerApplications(0, 50)
+            const mine = listed.content.find((a) => a.applicationId === resumeApplicationId)
+            if (mine?.canResumeMyIntake === false) {
+              setResumeError(
+                mine.viewerFriendlyStatus
+                  ?? 'This application is waiting for another applicant to complete their intake.',
+              )
+              return
+            }
+            if (mine?.partyRole === 'CO_APPLICANT' && mine.partyId) {
+              if (cancelled) return
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev)
+                next.set('resume', resumeApplicationId)
+                next.set('partyId', mine.partyId!)
+                return next
+              })
+              setHydrating(false)
+              return
+            }
+          } catch {
+            // Fall through to the primary-applicant ownership check.
+          }
+        }
         const app = await getApplication(resumeApplicationId)
         if (cancelled) return
         if (variant === 'borrower') {
@@ -361,7 +438,122 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
     return () => {
       cancelled = true
     }
-  }, [resumeApplicationId, resumeLoaded, workflowsState, variant, user, editApplicationId, setSearchParams])
+  }, [resumeApplicationId, resumeLoaded, workflowsState, variant, user, editApplicationId, setSearchParams, coApplicantPartyId])
+
+  useEffect(() => {
+    if (!applicationId || !coApplicantConfig) return
+    let cancelled = false
+    void listApplicationParties(applicationId)
+      .then((parties) => {
+        if (cancelled) return
+        setCoApplicants(
+          parties
+            .filter((party) => party.role === 'CO_APPLICANT')
+            .map((party) => ({
+              id: party.id,
+              fullName: party.displayName ?? String(party.personalInfo?.fullName ?? ''),
+              mobile: party.mobile ?? String(party.personalInfo?.mobile ?? ''),
+              email: party.email ?? String(party.personalInfo?.email ?? ''),
+              relationship: String(party.personalInfo?.relationship ?? ''),
+              dateOfBirth: String(party.personalInfo?.dateOfBirth ?? ''),
+              gender: String(party.personalInfo?.gender ?? ''),
+              occupation: String(party.personalInfo?.occupation ?? ''),
+              panNumber: String(party.personalInfo?.panNumber ?? ''),
+              aadhaarLast4: String(party.personalInfo?.aadhaarLast4 ?? ''),
+              voterId: String(party.personalInfo?.voterId ?? party.personalInfo?.epicNo ?? ''),
+              dlNumber: String(party.personalInfo?.dlNumber ?? party.personalInfo?.dlNo ?? ''),
+              bankAccountNumber: String(
+                party.personalInfo?.bankAccountNumber ?? party.personalInfo?.accountNumber ?? '',
+              ),
+              ifscCode: String(party.personalInfo?.ifscCode ?? party.personalInfo?.ifsc ?? ''),
+              bankName: String(party.personalInfo?.bankName ?? ''),
+              addressLine1: String(
+                party.personalInfo?.addressLine1 ?? party.personalInfo?.currentAddress ?? '',
+              ),
+              city: String(party.personalInfo?.city ?? ''),
+              state: String(party.personalInfo?.state ?? ''),
+              pincode: String(party.personalInfo?.pincode ?? ''),
+              consentAccepted: party.personalInfo?.consentAccepted === true,
+              uploadedDocumentTypes: Array.isArray(party.personalInfo?.uploadedDocumentTypes)
+                ? (party.personalInfo?.uploadedDocumentTypes as unknown[]).map(String)
+                : [],
+            })),
+        )
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [applicationId, Boolean(coApplicantConfig)])
+
+  function validateCoApplicants(): string | null {
+    if (!coApplicantConfig) return null
+    if (coApplicants.length < coApplicantMin) return `At least ${coApplicantMin} co-applicant(s) are required.`
+    if (coApplicants.length > coApplicantMax) return `At most ${coApplicantMax} co-applicant(s) are allowed.`
+    const emails = new Set<string>()
+    const mobiles = new Set<string>()
+    const primaryEmail = (form.borrowerType === 'INDIVIDUAL' ? form.email : form.contactEmail).trim().toLowerCase()
+    const primaryMobile = (form.borrowerType === 'INDIVIDUAL' ? form.mobile || form.borrowerMobile : form.contactMobile).replace(/\D/g, '')
+    if (primaryEmail) emails.add(primaryEmail)
+    if (primaryMobile.length >= 10) mobiles.add(primaryMobile)
+    for (const applicant of coApplicants) {
+      const email = applicant.email.trim().toLowerCase()
+      const mobile = applicant.mobile.replace(/\D/g, '')
+      if (!applicant.fullName.trim() || !email || mobile.length < 10) return 'Complete name, email, and mobile for each co-applicant.'
+      if (emails.has(email)) return 'Each applicant must use a different email.'
+      if (mobiles.has(mobile)) return 'Each applicant must use a different mobile number.'
+      emails.add(email)
+      mobiles.add(mobile)
+    }
+    return coApplicants.length > 0 && !staffMultiPartyPath
+      ? 'Choose whether to notify applicants or fill all applicant details yourself.'
+      : null
+  }
+
+  async function persistCoApplicants(appId: string): Promise<boolean> {
+    if (!coApplicantConfig) return true
+    try {
+      const parties = await upsertApplicationParties(appId, {
+        coApplicants: coApplicants.map((applicant) => ({
+          id: applicant.id,
+          personalInfo: {
+            fullName: applicant.fullName.trim(),
+            mobile: applicant.mobile.trim(),
+            email: applicant.email.trim(),
+            ...(applicant.relationship.trim() ? { relationship: applicant.relationship.trim() } : {}),
+            ...(applicant.dateOfBirth?.trim() ? { dateOfBirth: applicant.dateOfBirth.trim() } : {}),
+            ...(applicant.gender?.trim() ? { gender: applicant.gender.trim() } : {}),
+            ...(applicant.occupation?.trim() ? { occupation: applicant.occupation.trim() } : {}),
+            ...(applicant.panNumber?.trim() ? { panNumber: applicant.panNumber.trim().toUpperCase() } : {}),
+            ...(applicant.aadhaarLast4?.trim() ? { aadhaarLast4: applicant.aadhaarLast4.trim() } : {}),
+            ...(applicant.voterId?.trim() ? { voterId: applicant.voterId.trim(), epicNo: applicant.voterId.trim() } : {}),
+            ...(applicant.dlNumber?.trim() ? { dlNumber: applicant.dlNumber.trim(), dlNo: applicant.dlNumber.trim() } : {}),
+            ...(applicant.bankAccountNumber?.trim()
+              ? { bankAccountNumber: applicant.bankAccountNumber.trim(), accountNumber: applicant.bankAccountNumber.trim() }
+              : {}),
+            ...(applicant.ifscCode?.trim() ? { ifscCode: applicant.ifscCode.trim(), ifsc: applicant.ifscCode.trim() } : {}),
+            ...(applicant.bankName?.trim() ? { bankName: applicant.bankName.trim() } : {}),
+            ...(applicant.addressLine1?.trim()
+              ? { addressLine1: applicant.addressLine1.trim(), currentAddress: applicant.addressLine1.trim() }
+              : {}),
+            ...(applicant.city?.trim() ? { city: applicant.city.trim() } : {}),
+            ...(applicant.state?.trim() ? { state: applicant.state.trim() } : {}),
+            ...(applicant.pincode?.trim() ? { pincode: applicant.pincode.trim() } : {}),
+            ...(applicant.consentAccepted != null ? { consentAccepted: applicant.consentAccepted } : {}),
+            ...(applicant.uploadedDocumentTypes?.length
+              ? { uploadedDocumentTypes: applicant.uploadedDocumentTypes }
+              : {}),
+          },
+        })),
+      })
+      const coApplicantIds = parties.filter((party) => party.role === 'CO_APPLICANT').map((party) => party.id)
+      setCoApplicants((current) => current.map((row, index) => ({ ...row, id: coApplicantIds[index] ?? row.id })))
+      return true
+    } catch (err) {
+      setError(intakeErrorMessage(err, 'Could not save co-applicant details.'))
+      return false
+    }
+  }
 
   const syncDocumentsFromServer = useCallback(async (id: string) => {
     try {
@@ -488,6 +680,23 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       return
     }
     if (step === steps.borrower) {
+      // Notify-all path: only name / email / mobile (plus product basics) — applicants complete the rest in portal.
+      if (coApplicants.length > 0 && staffMultiPartyPath === 'notify') {
+        const basicsErr = validateNotifyBasics(form, mode, activeWorkflows, {
+          needPlpProgram: needPlpAnchorStep,
+        })
+        if (basicsErr) {
+          setError(basicsErr)
+          return
+        }
+        const coApplicantError = validateCoApplicants()
+        if (coApplicantError) {
+          setError(coApplicantError)
+          return
+        }
+        await onNotifyBorrower()
+        return
+      }
       try {
         await prefetchIntakeGeoForValidation(form)
       } catch (e) {
@@ -499,6 +708,11 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
         setError(v)
         return
       }
+      const coApplicantError = validateCoApplicants()
+      if (coApplicantError) {
+        setError(coApplicantError)
+        return
+      }
       setBusy(true)
       try {
         const dup = await checkBorrowerIdentity(form, mode, applicationId)
@@ -506,12 +720,17 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
           setFieldErrors(dup)
           return
         }
-        if (!applicationId) {
+        let appId = applicationId
+        if (!appId) {
           const req = buildIntakeCreateRequest(form, mode, user)
           const res = await createApplication(req)
+          appId = res.id
           setApplicationId(res.id)
         } else {
-          await updateApplication(applicationId, buildIntakeBorrowerUpdate(form, mode, user))
+          await updateApplication(appId, buildIntakeBorrowerUpdate(form, mode, user))
+        }
+        if (appId && !(await persistCoApplicants(appId))) {
+          return
         }
         setStep(needColl ? steps.collateral : steps.documents)
       } catch (err) {
@@ -607,6 +826,15 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
 
   function goBack() {
     setError(null)
+    if (staffCoFillIndex != null) {
+      if (staffCoFillIndex > 0) {
+        setStaffCoFillIndex(staffCoFillIndex - 1)
+      } else {
+        setStaffCoFillIndex(null)
+        setStep(steps.review)
+      }
+      return
+    }
     if (step > 0) {
       if (applicationId && step === 0) {
         // cannot go back before step0 from elsewhere
@@ -617,6 +845,10 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
   }
 
   async function onNotifyBorrower() {
+    if (staffMultiPartyPath === 'staff_fill') {
+      setError('Staff-fill applications cannot notify applicants. Continue the wizard to enter each co-applicant’s details.')
+      return
+    }
     if (anchorBranch) return
     if (!staffCanCreateOrNotify) {
       setError('Only relationship managers and administrators can notify the borrower.')
@@ -629,6 +861,11 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       setError(basicsErr)
       return
     }
+    const coApplicantError = validateCoApplicants()
+    if (coApplicantError) {
+      setError(coApplicantError)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -636,6 +873,15 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       if (dup) {
         setFieldErrors(dup)
         return
+      }
+      for (const applicant of coApplicants) {
+        await validateApplicationIdentity({
+          applicationId: applicationId ?? undefined,
+          asCoApplicant: true,
+          email: applicant.email.trim(),
+          mobile: applicant.mobile.replace(/\D/g, ''),
+          panNumber: applicant.panNumber?.trim() || undefined,
+        })
       }
       let appId = applicationId
       if (!appId) {
@@ -646,9 +892,14 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       } else {
         await updateApplication(appId, buildIntakeBorrowerUpdate(form, mode, user))
       }
+      if (!(await persistCoApplicants(appId))) return
       // Resume at Documents (first step after basics in the reordered wizard).
       await notifyBorrowerToComplete(appId, steps.documents)
-      notifySuccess('Borrower notified to complete the application in the portal.')
+      notifySuccess(
+        coApplicants.length > 0
+          ? 'All applicants notified to complete the application in the portal.'
+          : 'Borrower notified to complete the application in the portal.',
+      )
       void navigate(`/applications/${appId}`, { replace: true })
     } catch (err) {
       const msg = intakeErrorMessage(err, 'Could not notify borrower.')
@@ -661,6 +912,46 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
 
   async function onSubmitFinal() {
     if (!applicationId) return
+    if (variant === 'staff' && staffMultiPartyPath === 'staff_fill' && coApplicants.length > 0) {
+      if (staffCoFillIndex == null) {
+        setStaffCoFillIndex(0)
+        return
+      }
+      const applicant = coApplicants[staffCoFillIndex]
+      if (!applicant || !applicant.fullName.trim() || !applicant.email.trim() || applicant.mobile.replace(/\D/g, '').length < 10) {
+        setError('Complete name, email, and mobile for this co-applicant.')
+        return
+      }
+      if (coApplicantConfig?.personalFields?.dateOfBirth?.required && !applicant.dateOfBirth?.trim()) {
+        setError('Date of birth is required for this co-applicant.')
+        return
+      }
+      if (!applicant.consentAccepted) {
+        setError('Confirm consent for this co-applicant before continuing.')
+        return
+      }
+      setBusy(true)
+      try {
+        await validateApplicationIdentity({
+          applicationId,
+          asCoApplicant: true,
+          email: applicant.email.trim(),
+          mobile: applicant.mobile.replace(/\D/g, ''),
+          panNumber: applicant.panNumber?.trim() || undefined,
+        })
+        if (!(await persistCoApplicants(applicationId))) return
+      } catch (err) {
+        setError(intakeErrorMessage(err, 'Could not validate co-applicant identity.'))
+        return
+      } finally {
+        setBusy(false)
+      }
+      if (staffCoFillIndex < coApplicants.length - 1) {
+        setStaffCoFillIndex(staffCoFillIndex + 1)
+        return
+      }
+      setStaffCoFillIndex(null)
+    }
     setBusy(true)
     setError(null)
     try {
@@ -677,6 +968,13 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
       if (!allConsentsChecked(form)) {
         setError('All consents are required before submission.')
         return
+      }
+      if (variant === 'staff' && staffMultiPartyPath === 'staff_fill' && coApplicants.length > 0) {
+        if (!(await persistCoApplicants(applicationId))) return
+        const parties = await listApplicationParties(applicationId)
+        for (const party of parties.filter((entry) => entry.role === 'CO_APPLICANT')) {
+          await submitApplicationParty(applicationId, party.id)
+        }
       }
       let useDelegated = delegatedApp
       if (variant === 'borrower' && !useDelegated) {
@@ -728,6 +1026,10 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
     } finally {
       setBusy(false)
     }
+  }
+
+  if (variant === 'borrower' && coApplicantPartyId && resumeApplicationId) {
+    return <CoApplicantPortal applicationId={resumeApplicationId} partyId={coApplicantPartyId} />
   }
 
   if (anchorBranch && variant === 'staff') {
@@ -811,7 +1113,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
               >
                 <span>
                   <span className="font-medium">{a.applicationNumber}</span>
-                  <span className="text-indigo-800"> — {a.friendlyStatus}</span>
+                  <span className="text-indigo-800"> — {a.viewerFriendlyStatus ?? a.friendlyStatus}</span>
                 </span>
                 <button
                   type="button"
@@ -820,12 +1122,18 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     setSearchParams((prev) => {
                       const n = new URLSearchParams(prev)
                       n.set('resume', a.applicationId)
+                      if (a.partyRole === 'CO_APPLICANT' && a.partyId) {
+                        n.set('partyId', a.partyId)
+                      } else {
+                        n.delete('partyId')
+                      }
                       return n
                     })
                     setResumeLoaded(false)
                   }}
                 >
                   Continue filling
+                  {a.partyRole === 'CO_APPLICANT' ? ' (co-applicant)' : ''}
                 </button>
               </li>
             ))}
@@ -1016,13 +1324,13 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                 <IntakeTenureField
                   workflow={selectedWorkflow}
                   value={form.tenureMonths}
-                  lmsTenureUnit={form.lmsTenureUnit}
+                  lmsTenureUnit={selectedWorkflow?.lmsTenureUnit?.trim() || form.lmsTenureUnit}
                   onChange={(v) => setForm((f) => ({ ...f, tenureMonths: v }))}
                 />
                 {!isInvoiceDiscountingProduct(form.loanProduct) ? (
                   <LmsWorkflowConfigReadonly
                     lmsProductCode={form.lmsProductCode}
-                    lmsTenureUnit={form.lmsTenureUnit}
+                    lmsTenureUnit={selectedWorkflow?.lmsTenureUnit?.trim() || form.lmsTenureUnit}
                   />
                 ) : null}
                 {shouldCollectLoanPurposeField(selectedWorkflow, true) &&
@@ -1122,13 +1430,13 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                 <IntakeTenureField
                   workflow={selectedWorkflow}
                   value={form.tenureMonths}
-                  lmsTenureUnit={form.lmsTenureUnit}
+                  lmsTenureUnit={selectedWorkflow?.lmsTenureUnit?.trim() || form.lmsTenureUnit}
                   onChange={(v) => setForm((f) => ({ ...f, tenureMonths: v }))}
                 />
                 {!isInvoiceDiscountingProduct(form.loanProduct) ? (
                   <LmsWorkflowConfigReadonly
                     lmsProductCode={form.lmsProductCode}
-                    lmsTenureUnit={form.lmsTenureUnit}
+                    lmsTenureUnit={selectedWorkflow?.lmsTenureUnit?.trim() || form.lmsTenureUnit}
                   />
                 ) : null}
                 {shouldCollectLoanPurposeField(selectedWorkflow, true) &&
@@ -1314,6 +1622,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                 onStateChange={(v) => setForm((f) => ({ ...f, state: v, city: '' }))}
                 onCityChange={(v) => setForm((f) => ({ ...f, city: v }))}
                 onPincodeChange={(v) => setForm((f) => ({ ...f, pincode: v }))}
+                allowedStateNames={allowedStateNames}
               />
             </div>
           ) : (
@@ -1391,6 +1700,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                 onStateChange={(v) => setForm((f) => ({ ...f, businessState: v, businessCity: '' }))}
                 onCityChange={(v) => setForm((f) => ({ ...f, businessCity: v }))}
                 onPincodeChange={(v) => setForm((f) => ({ ...f, businessPincode: v }))}
+                allowedStateNames={allowedStateNames}
               />
             </div>
           )}
@@ -1408,6 +1718,49 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
             <LinkedAnchorProgramReadonly subProgramId={form.selectedSubProgramId} />
           ) : null}
         </section>
+      ) : null}
+
+      {step === steps.borrower && coApplicantConfig ? (
+        <CoApplicantsSection
+          coApplicants={coApplicants}
+          onChange={(rows) => {
+            setCoApplicants(rows)
+            if (rows.length === 0) setStaffMultiPartyPath(null)
+          }}
+          min={coApplicantMin}
+          max={coApplicantMax}
+          showCompletionPathChooser
+          completionPath={staffMultiPartyPath}
+          onCompletionPathChange={setStaffMultiPartyPath}
+        />
+      ) : null}
+
+      {staffCoFillIndex != null && coApplicants[staffCoFillIndex] ? (
+        <StaffCoApplicantDetailForm
+          index={staffCoFillIndex}
+          total={coApplicants.length}
+          row={coApplicants[staffCoFillIndex]!}
+          applicationId={applicationId}
+          onChange={(patch) =>
+            setCoApplicants((rows) =>
+              rows.map((row, index) => (index === staffCoFillIndex ? { ...row, ...patch } : row)),
+            )
+          }
+          collectDob={coApplicantConfig?.personalFields?.dateOfBirth?.collect !== false}
+          collectGender={coApplicantConfig?.personalFields?.gender?.collect !== false}
+          collectOccupation={coApplicantConfig?.personalFields?.occupation?.collect !== false}
+          requireDob={coApplicantConfig?.personalFields?.dateOfBirth?.required === true}
+          genderOptions={resolveGenderOptions(selectedWorkflow)}
+          occupationOptions={resolveOccupationOptions(selectedWorkflow)}
+          documentTypes={
+            (coApplicantConfig?.standaloneDocuments ?? []).length > 0
+              ? (coApplicantConfig?.standaloneDocuments ?? []).map((d) => ({
+                  documentType: d.documentType,
+                  label: d.label || d.documentType,
+                }))
+              : undefined
+          }
+        />
       ) : null}
 
       {step === steps.collateral && needColl && detectSecuredCollateralKind(form.loanProduct) ? (
@@ -1650,7 +2003,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
         </section>
       ) : null}
 
-      {step === steps.review && applicationId ? (
+      {step === steps.review && applicationId && staffCoFillIndex == null ? (
         <section className="space-y-4 bt-card p-5">
           <h2 className="bt-card-title">Review &amp; submit</h2>
           {docWarning ? (
@@ -1740,11 +2093,16 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                     !form.invoiceOnboardingChoice))) ||
               (step === steps.kyc && !applicationId) ||
               (step === steps.documents && !applicationId) ||
-              (step === steps.consent && !applicationId)
+              (step === steps.consent && !applicationId) ||
+              (step === steps.borrower && coApplicants.length > 0 && !staffMultiPartyPath)
             }
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? 'Please wait…' : 'Continue'}
+            {busy
+              ? 'Please wait…'
+              : step === steps.borrower && coApplicants.length > 0 && staffMultiPartyPath === 'notify'
+                ? 'Save draft & notify all applicants'
+                : 'Continue'}
           </button>
         ) : (
           <button
@@ -1765,6 +2123,12 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
                   ? 'Submit for review'
                   : variant === 'borrower'
                     ? 'Submit application'
+                    : staffMultiPartyPath === 'staff_fill' && coApplicants.length > 0
+                      ? staffCoFillIndex == null
+                        ? 'Continue to co-applicant details'
+                        : staffCoFillIndex === coApplicants.length - 1
+                          ? 'Save co-applicants & submit'
+                          : 'Save & next co-applicant'
                     : 'Submit for verification'}
           </button>
         )}
@@ -1772,6 +2136,7 @@ export function ApplicationIntakeWizard({ mode, variant, editApplicationId }: Ap
         step === steps.borrower &&
         !anchorBranch &&
         notifyBasicsOk &&
+        coApplicants.length === 0 &&
         !isStaffPostSubmitEditStatus(resumedAppStatus) ? (
           <button
             type="button"

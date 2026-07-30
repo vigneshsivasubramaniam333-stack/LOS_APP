@@ -3,7 +3,10 @@ package com.los.core.service.loan;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.IntakeSegment;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,7 +52,7 @@ public final class ApplicationPartyResolver {
         return combined.isBlank() ? (isAnchor(app) ? "Anchor" : "") : combined;
     }
 
-    /** Primary email for eSign, VKYC notifications, and contact resolution. */
+    /** Primary email for notifications, portal invite, and anchor master sync (corporate contact). */
     public static String resolveEmail(LoanApplication app) {
         if (app == null) {
             return "";
@@ -98,6 +101,51 @@ public final class ApplicationPartyResolver {
                 stringValue(pi, "borrowerMobile"),
                 stringValue(pi, "mobile"),
                 stringValue(pi, "phone"));
+    }
+
+    /**
+     * E-sign invite target: first signing authority (by signingOrder) when contacts are present;
+     * otherwise corporate {@link #resolveEmail}.
+     */
+    public static String resolveEsignEmail(LoanApplication app) {
+        if (app == null) {
+            return "";
+        }
+        if (isAnchor(app)) {
+            String fromSigning = firstSigningAuthorityField(app.getBusinessInfo(), "email");
+            if (looksLikeEmail(fromSigning)) {
+                return fromSigning;
+            }
+        }
+        return resolveEmail(app);
+    }
+
+    /** E-sign signer mobile: signing authority when available, else corporate mobile. */
+    public static String resolveEsignMobile(LoanApplication app) {
+        if (app == null) {
+            return "";
+        }
+        if (isAnchor(app)) {
+            String fromSigning = firstSigningAuthorityField(app.getBusinessInfo(), "mobile");
+            if (!fromSigning.isBlank() && fromSigning.replaceAll("\\D", "").length() >= 10) {
+                return fromSigning;
+            }
+        }
+        return resolveMobile(app);
+    }
+
+    /** E-sign signer display name: signing authority name when available, else corporate name. */
+    public static String resolveEsignDisplayName(LoanApplication app) {
+        if (app == null) {
+            return "";
+        }
+        if (isAnchor(app)) {
+            String fromSigning = firstSigningAuthorityField(app.getBusinessInfo(), "name");
+            if (!fromSigning.isBlank()) {
+                return fromSigning;
+            }
+        }
+        return resolveDisplayName(app);
     }
 
     public static String resolvePincode(LoanApplication app) {
@@ -211,11 +259,11 @@ public final class ApplicationPartyResolver {
     }
 
     /**
-     * Enriches eSign signer map from application when request omits email/name (anchor corporate email).
+     * Enriches eSign signer map from application when request omits email/name (anchor signing authority).
      */
     public static Map<String, Object> enrichEsignSignerInfo(LoanApplication app, Map<String, Object> incoming) {
         Map<String, Object> out = new HashMap<>(incoming != null ? incoming : Map.of());
-        String email = resolveEmail(app);
+        String email = resolveEsignEmail(app);
         if (!email.isBlank()) {
             if (isBlankValue(out.get("borrowerEmail"))) {
                 out.put("borrowerEmail", email);
@@ -224,7 +272,7 @@ public final class ApplicationPartyResolver {
                 out.put("email", email);
             }
         }
-        String name = resolveDisplayName(app);
+        String name = resolveEsignDisplayName(app);
         if (!name.isBlank()) {
             if (isBlankValue(out.get("name"))) {
                 out.put("name", name);
@@ -236,9 +284,44 @@ public final class ApplicationPartyResolver {
                 out.put("fullName", name);
             }
         }
-        String mobile = resolveMobile(app);
+        String mobile = resolveEsignMobile(app);
         if (!mobile.isBlank() && isBlankValue(out.get("phone"))) {
             out.put("phone", mobile);
+        }
+        if (!mobile.isBlank() && isBlankValue(out.get("mobile"))) {
+            out.put("mobile", mobile);
+        }
+        return out;
+    }
+
+    /** Enriches signer info from a specific application party (co-applicant or primary). */
+    public static Map<String, Object> enrichEsignSignerInfoFromParty(
+            com.los.core.model.entity.ApplicationParty party, Map<String, Object> incoming) {
+        Map<String, Object> out = new HashMap<>(incoming != null ? incoming : Map.of());
+        if (party == null || party.getPersonalInfo() == null) {
+            return out;
+        }
+        Map<String, Object> info = party.getPersonalInfo();
+        String email = firstNonBlank(stringValue(info, "email"), stringValue(info, "borrowerEmail"),
+                stringValue(info, "contactEmail"));
+        if (!email.isBlank()) {
+            out.put("borrowerEmail", email);
+            out.put("email", email);
+        }
+        String name = firstNonBlank(stringValue(info, "fullName"), stringValue(info, "name"),
+                (stringValue(info, "firstName") + " " + stringValue(info, "lastName")).trim());
+        if (!name.isBlank()) {
+            out.put("name", name);
+            out.put("borrowerName", name);
+            out.put("fullName", name);
+        }
+        String mobile = firstNonBlank(stringValue(info, "mobile"), stringValue(info, "phone"));
+        if (!mobile.isBlank()) {
+            out.put("phone", mobile);
+            out.put("mobile", mobile);
+        }
+        if (party.getId() != null) {
+            out.put("partyId", party.getId().toString());
         }
         return out;
     }
@@ -276,5 +359,58 @@ public final class ApplicationPartyResolver {
         }
         Object v = map.get(key);
         return v == null ? "" : String.valueOf(v).trim();
+    }
+
+    /**
+     * First signing authority from {@code businessInfo.contacts}, ordered by {@code signingOrder}
+     * (order 1 is invited first for multi-signer setups).
+     */
+    @SuppressWarnings("unchecked")
+    private static String firstSigningAuthorityField(Map<String, Object> businessInfo, String field) {
+        if (businessInfo == null) {
+            return "";
+        }
+        Object raw = businessInfo.get("contacts");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return "";
+        }
+        List<Map<String, Object>> authorities = new ArrayList<>();
+        for (Object row : list) {
+            if (!(row instanceof Map<?, ?> m)) {
+                continue;
+            }
+            Object flag = m.get("isSigningAuthority");
+            boolean signing = Boolean.TRUE.equals(flag)
+                    || "true".equalsIgnoreCase(String.valueOf(flag == null ? "" : flag).trim());
+            if (!signing) {
+                continue;
+            }
+            authorities.add((Map<String, Object>) m);
+        }
+        if (authorities.isEmpty()) {
+            return "";
+        }
+        authorities.sort(Comparator.comparingInt(c -> {
+            Object order = c.get("signingOrder");
+            if (order instanceof Number n) {
+                return n.intValue() > 0 ? n.intValue() : Integer.MAX_VALUE;
+            }
+            try {
+                int n = Integer.parseInt(String.valueOf(order == null ? "0" : order).trim());
+                return n > 0 ? n : Integer.MAX_VALUE;
+            } catch (NumberFormatException e) {
+                return Integer.MAX_VALUE;
+            }
+        }));
+        return stringValue(authorities.get(0), field);
+    }
+
+    private static boolean looksLikeEmail(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        String e = raw.trim();
+        int at = e.indexOf('@');
+        return at > 0 && at < e.length() - 1 && e.indexOf('.', at) > at + 1;
     }
 }

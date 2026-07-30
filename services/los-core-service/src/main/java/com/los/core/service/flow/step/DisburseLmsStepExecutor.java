@@ -5,6 +5,7 @@ import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
+import com.los.core.service.loan.ApplicationPartyService;
 import com.los.core.service.loan.InvoiceDiscountingLosLoanGuard;
 import com.los.lms.dto.LoanHandoverRequest;
 import com.los.lms.dto.LoanHandoverResponse;
@@ -44,6 +45,7 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
     private final LmsApplicationConfigResolver lmsApplicationConfigResolver;
     private final AuditService auditService;
     private final InvoiceDiscountingLosLoanGuard invoiceDiscountingLosLoanGuard;
+    private final ApplicationPartyService applicationPartyService;
 
     @Override
     public boolean supports(String stepType) {
@@ -67,6 +69,14 @@ public class DisburseLmsStepExecutor implements IStepExecutor {
                     "DISBURSE",
                     Map.of("status", app.getStatus().name())
             );
+        }
+        if (applicationPartyService.isMultiPartyEnabled(app)
+                && !applicationPartyService.allRequiredPartiesEsigned(applicationId)) {
+            throw new BusinessRuleException(
+                    "Cannot disburse until all required applicants complete eSign.",
+                    "REQUIRED_PARTY_ESIGN_PENDING",
+                    "DISBURSE",
+                    Map.of("applicationId", applicationId.toString()));
         }
         if (app.getStatus() != ApplicationStatus.READY_FOR_DISBURSEMENT
                 && app.getStatus() != ApplicationStatus.DISBURSEMENT_PENDING

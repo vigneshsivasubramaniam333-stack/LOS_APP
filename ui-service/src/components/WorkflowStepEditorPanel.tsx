@@ -7,15 +7,19 @@ import {
 } from '@/lib/workflowProcessNotifications'
 import { WORKFLOW_NOTIFICATION_CHANNELS, WORKFLOW_NOTIFICATION_EVENT_OPTIONS } from '@/lib/workflowNotificationConstants'
 import {
+  ESIGN_ADDITIONAL_DOCUMENT_CATALOG,
   WORKFLOW_STEP_TYPES,
   createEmptyVisualStep,
   defaultProviderForWorkflowStep,
   getStepMatrixHelp,
   isPostKycWorkflowStep,
+  type EsignAdditionalDocument,
+  type EsignDocumentsUiConfig,
   type StepNotificationConfig,
   type VisualWorkflowStep,
 } from '@/lib/workflowVisual'
 import { WorkflowStepIntakeOptions } from '@/components/workflow/WorkflowStepIntakeOptions'
+import { WorkflowEsignDocumentsOptions } from '@/components/workflow/WorkflowEsignDocumentsOptions'
 import { useLayoutEffect, useMemo } from 'react'
 
 type Props = {
@@ -227,6 +231,10 @@ function StepCard(props: {
             Allow Physical KYC completion
           </label>
         ) : null}
+        <WorkflowEsignDocumentsOptions
+          step={s}
+          onChange={(next) => onChange(steps.map((x) => (x.id === s.id ? next : x)))}
+        />
         <details className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white p-2 sm:col-span-2">
           <summary className="cursor-pointer text-xs font-medium text-slate-600">
             Legacy step-level notifications ({s.notifications.length})

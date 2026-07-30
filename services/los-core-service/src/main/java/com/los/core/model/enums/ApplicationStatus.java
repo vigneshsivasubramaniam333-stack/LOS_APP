@@ -4,6 +4,12 @@ public enum ApplicationStatus {
     DRAFT,
     CONSENT_PENDING,
     BORROWER_SUBMITTED,
+    /** Anchor portal invite — awaiting anchor to complete intake */
+    ANCHOR_CONSENT_PENDING,
+    /** Anchor submitted intake for staff review / KYC */
+    ANCHOR_SUBMITTED,
+    /** Staff sent intake back to anchor for corrections */
+    ANCHOR_SENT_BACK,
     /** RM handed off to credit officer — awaiting CO accept or send-back */
     PENDING_CREDIT_OFFICER,
     /** CO sent application back to relationship manager */
@@ -28,6 +34,10 @@ public enum ApplicationStatus {
     KFS_GENERATED,
     ESIGN_PENDING,
     ESIGN_COMPLETED,
+    /** After anchor eSign — Operations must verify signed / supporting docs */
+    DOC_VERIFICATION_PENDING,
+    /** Ops sent docs back to anchor for re-upload */
+    DOC_VERIFICATION_SENT_BACK,
     /** eSign and KFS done; pre-disbursement gate */
     READY_FOR_DISBURSEMENT,
     DISBURSEMENT_PENDING,

@@ -37,6 +37,19 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
 
     Page<LoanApplication> findByCustomerId(UUID customerId, Pageable pageable);
 
+    /**
+     * Applications the borrower owns as primary customer <em>or</em> as a linked application party
+     * (co-applicant / joint applicant with {@code application_parties.user_id}).
+     */
+    @Query("""
+            SELECT a FROM LoanApplication a
+            WHERE a.customerId = :userId
+               OR a.id IN (
+                    SELECT p.applicationId FROM ApplicationParty p WHERE p.userId = :userId
+               )
+            """)
+    Page<LoanApplication> findAccessibleByBorrowerUserId(@Param("userId") UUID userId, Pageable pageable);
+
     Optional<LoanApplication> findFirstByCustomerIdOrderByUpdatedAtDesc(UUID customerId);
 
     /**

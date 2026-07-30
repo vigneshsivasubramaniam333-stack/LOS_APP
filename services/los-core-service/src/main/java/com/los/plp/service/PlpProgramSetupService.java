@@ -82,6 +82,10 @@ public class PlpProgramSetupService {
                 .encoreProductCode("YES".equals(lmsEntry) ? trimToNull(request.getEncoreProductCode()) : null)
                 .dependencyVintagePercent(request.getDependencyVintagePercent())
                 .anchorRelationshipVintageMonths(request.getAnchorRelationshipVintageMonths())
+                .interestPayment(normalizeInterestPayment(request.getInterestPayment()))
+                .maxInvoiceVintageDays(request.getMaxInvoiceVintageDays())
+                .maxCmr(request.getMaxCmr())
+                .minCibil(request.getMinCibil())
                 .plpLenderId(parseLenderId())
                 .anchorApplicationId(anchor.getSourceAnchorApplicationId())
                 .plpProgramSyncStatus(PlpSyncStatus.NOT_SYNCED)
@@ -208,6 +212,18 @@ public class PlpProgramSetupService {
         if (request.getAnchorRelationshipVintageMonths() != null) {
             program.setAnchorRelationshipVintageMonths(request.getAnchorRelationshipVintageMonths());
         }
+        if (request.getInterestPayment() != null && !request.getInterestPayment().isBlank()) {
+            program.setInterestPayment(normalizeInterestPayment(request.getInterestPayment()));
+        }
+        if (request.getMaxInvoiceVintageDays() != null) {
+            program.setMaxInvoiceVintageDays(request.getMaxInvoiceVintageDays());
+        }
+        if (request.getMaxCmr() != null) {
+            program.setMaxCmr(request.getMaxCmr());
+        }
+        if (request.getMinCibil() != null) {
+            program.setMinCibil(request.getMinCibil());
+        }
 
         // Ready for another L1 cycle (send-back again or submit to L2).
         program.setApprovalStatus(ProgramApprovalStatus.DRAFT);
@@ -309,6 +325,10 @@ public class PlpProgramSetupService {
                 .assignedL2UserId(program.getAssignedL2UserId())
                 .dependencyVintagePercent(program.getDependencyVintagePercent())
                 .anchorRelationshipVintageMonths(program.getAnchorRelationshipVintageMonths())
+                .interestPayment(program.getInterestPayment())
+                .maxInvoiceVintageDays(program.getMaxInvoiceVintageDays())
+                .maxCmr(program.getMaxCmr())
+                .minCibil(program.getMinCibil())
                 .build();
     }
 
@@ -411,6 +431,17 @@ public class PlpProgramSetupService {
             return v;
         }
         throw new IllegalArgumentException("lmsEntryIn must be YES or NO");
+    }
+
+    private static String normalizeInterestPayment(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String v = raw.trim().toUpperCase().replace('-', '_').replace(' ', '_');
+        if ("UPFRONT".equals(v) || "MONTHLY".equals(v) || "REAR_ENDED".equals(v) || "REARENDED".equals(v)) {
+            return "REARENDED".equals(v) ? "REAR_ENDED" : v;
+        }
+        throw new IllegalArgumentException("interestPayment must be UPFRONT, MONTHLY, or REAR_ENDED");
     }
 
     private static String trimToNull(String raw) {

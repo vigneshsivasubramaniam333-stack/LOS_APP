@@ -16,6 +16,8 @@ import { CollateralPanel } from '@/components/CollateralPanel'
 import { AaConsentPanel } from '@/components/AaConsentPanel'
 import { BorrowerSubmittedIntakePanel } from '@/components/BorrowerSubmittedIntakePanel'
 import { BorrowerSubmissionReviewPanel } from '@/components/application/BorrowerSubmissionReviewPanel'
+import { AnchorSubmissionReviewPanel } from '@/components/application/AnchorSubmissionReviewPanel'
+import { AnchorDocVerificationPanel } from '@/components/application/AnchorDocVerificationPanel'
 import { CamSection } from '@/components/CamSection'
 import { DisbursementSection } from '@/components/DisbursementSection'
 import { EsignSection } from '@/components/EsignSection'
@@ -24,6 +26,7 @@ import { UnderwritingSection } from '@/components/UnderwritingSection'
 import { AnchorDueDiligenceSection } from '@/components/AnchorDueDiligenceSection'
 import { ApplicationDeletePanel } from '@/components/ApplicationDeletePanel'
 import { ApplicationHistoryPanel } from '@/components/ApplicationHistoryPanel'
+import { ApplicationPartiesPanel } from '@/components/application/ApplicationPartiesPanel'
 import { useApplication } from '@/hooks/useApplication'
 import { useApplicationTimeline } from '@/hooks/useApplicationTimeline'
 import { useStepExecutions } from '@/hooks/useStepExecutions'
@@ -45,6 +48,7 @@ import { AppSectionCard } from '@/components/ui/AppSectionCard'
 import { VkycDetailsSection } from '@/components/VkycDetailsSection'
 import { VkycDownstreamGate } from '@/components/VkycDownstreamGate'
 import { staffCanContinueIntake } from '@/lib/intake/intakeResume'
+import { contactsFromBusinessInfo } from '@/lib/intake/anchorContacts'
 import {
   anchorSkipsPostSanctionSteps,
   anchorHiddenDetailTabs,
@@ -305,7 +309,9 @@ export function ApplicationDetailPage() {
                 </div>
               )}
               {tab === 'kyc' && (
-                <KycDetailsSection
+                <>
+                  <ApplicationPartiesPanel parties={app.parties} />
+                  <KycDetailsSection
                   applicationId={id}
                   app={app}
                   onApplicationRefetch={refetchApp}
@@ -313,6 +319,7 @@ export function ApplicationDetailPage() {
                   className="mb-0 border-0 p-0 shadow-none"
                   allowRunKyc={user ? canRunKycFlow(user.role) : false}
                 />
+                </>
               )}
               {tab === 'vkyc' && (
                 <VkycDetailsSection
@@ -483,6 +490,8 @@ function SummaryPanel({
   const im = readStr(app.personalInfo, 'intakeMode')
   const createdBy = readStr(app.personalInfo, 'createdByName') || readStr(app.personalInfo, 'lastSavedByName')
   const assisted = readStr(app.personalInfo, 'assistedBy')
+  const anchorContacts = contactsFromBusinessInfo((app.businessInfo as Record<string, unknown> | null)?.contacts)
+  const signingAuthorities = anchorContacts.filter((c) => c.isSigningAuthority).length
   const manualOverridesRaw = (app.financialInfo as Record<string, unknown> | null)?.manualOverrides
   const manualOverrideCount = Array.isArray(manualOverridesRaw) ? manualOverridesRaw.length : 0
   const hasManualOverride =
@@ -491,6 +500,8 @@ function SummaryPanel({
   return (
     <div>
       <BorrowerSubmissionReviewPanel app={app} onRefetch={onRefetch} />
+      <AnchorSubmissionReviewPanel app={app} onRefetch={onRefetch} />
+      <AnchorDocVerificationPanel app={app} onRefetch={onRefetch} />
       <h2 className="mb-3 bt-card-title">Application summary</h2>
       <div className="mb-4 flex flex-wrap gap-2">
         {app.intakeSegment === 'ANCHOR' ? (
@@ -576,6 +587,49 @@ function SummaryPanel({
         </p>
         </div>
       </AppSectionCard>
+      {isInvoiceDiscountingAnchorApp(app) ? (
+        <AppSectionCard tone="default" className="mb-4" title="Anchor contacts / users" unstyledBody>
+          <div className="p-4">
+            {anchorContacts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">User</th>
+                      <th className="px-3 py-2 text-left">Role</th>
+                      <th className="px-3 py-2 text-left">Email</th>
+                      <th className="px-3 py-2 text-left">Mobile</th>
+                      <th className="px-3 py-2 text-left">Signing authority</th>
+                      <th className="px-3 py-2 text-left">Signing order</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {anchorContacts.map((contact) => (
+                      <tr key={contact.id} className="border-b border-slate-100 last:border-b-0">
+                        <td className="px-3 py-2 font-medium text-slate-900">{contact.name || '—'}</td>
+                        <td className="px-3 py-2 text-slate-700">{contact.role.replaceAll('_', ' ')}</td>
+                        <td className="px-3 py-2 text-slate-700">{contact.email || '—'}</td>
+                        <td className="px-3 py-2 text-slate-700">{contact.mobile || '—'}</td>
+                        <td className="px-3 py-2 text-slate-700">{contact.isSigningAuthority ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-2 text-slate-700">
+                          {contact.isSigningAuthority
+                            ? signingAuthorities > 1
+                              ? String(contact.signingOrder || '—')
+                              : 'Primary'
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">No anchor contacts were captured at intake.</p>
+            )}
+          </div>
+        </AppSectionCard>
+      ) : null}
+      <ApplicationPartiesPanel parties={app.parties} />
       {requiresCollateral(app.loanProduct) ? (
         <AppSectionCard tone="success" className="mb-4 text-sm text-slate-800" title="Secured product — collateral" unstyledBody>
           <div className="p-4">

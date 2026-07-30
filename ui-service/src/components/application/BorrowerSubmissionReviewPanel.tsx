@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   acceptBorrowerSubmission,
   handOffToCreditOfficer,
@@ -52,6 +52,13 @@ export function BorrowerSubmissionReviewPanel({
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const parties = app.parties ?? []
+  const hasCoApplicants = parties.some((party) => party.role === 'CO_APPLICANT')
+  const [selectedPartyIds, setSelectedPartyIds] = useState<string[]>(() => parties.map((party) => party.id))
+
+  useEffect(() => {
+    setSelectedPartyIds(parties.map((party) => party.id))
+  }, [app.id, parties.length])
 
   const status = app.status
   const inPreSanctionWindow = PRE_SANCTION_SEND_BACK_STATUSES.has(status)
@@ -105,6 +112,25 @@ export function BorrowerSubmissionReviewPanel({
     }
   }
 
+  function toggleParty(partyId: string) {
+    setSelectedPartyIds((current) =>
+      current.includes(partyId) ? current.filter((id) => id !== partyId) : [...current, partyId],
+    )
+  }
+
+  function sendSelected() {
+    if (!selectedPartyIds.length) {
+      setError('Select at least one applicant to send back.')
+      return
+    }
+    void run(() =>
+      sendBackBorrowerSubmission(app.id, notes, {
+        partyIds: selectedPartyIds,
+        sendBackMode: 'SELECTED',
+      }),
+    )
+  }
+
   const headline =
     status === 'PENDING_CREDIT_OFFICER'
       ? 'Pending Credit Officer review'
@@ -153,6 +179,35 @@ export function BorrowerSubmissionReviewPanel({
       {error ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       ) : null}
+      {hasCoApplicants ? (
+        <div className="rounded-lg border border-amber-200/70 bg-white/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-950/80">Applicants review</p>
+          <div className="mt-2 space-y-2">
+            {parties.map((party) => {
+              const info = party.personalInfo ?? {}
+              const name = party.displayName || (typeof info.fullName === 'string' ? info.fullName : 'Unnamed applicant')
+              const email = party.email || (typeof info.email === 'string' ? info.email : 'No email')
+              return (
+                <label key={party.id} className="flex cursor-pointer items-start gap-2 rounded border border-slate-200 bg-white px-2 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedPartyIds.includes(party.id)}
+                    onChange={() => toggleParty(party.id)}
+                    disabled={busy || !showSendBackToBorrower}
+                  />
+                  <span className="min-w-0 text-xs text-slate-700">
+                    <span className="font-medium text-slate-900">{party.role === 'PRIMARY' ? 'Primary' : 'Co-applicant'} · {name}</span>
+                    <span className="block truncate">{email}</span>
+                    <span className="block text-slate-500">
+                      Intake: {party.intakeStatus ?? '—'} · KYC: {party.kycStatus ?? '—'} · eSign: {party.esignStatus ?? '—'}
+                    </span>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
       <label className="block text-xs font-medium text-amber-950/80">
         Optional notes
         <textarea
@@ -175,14 +230,30 @@ export function BorrowerSubmissionReviewPanel({
           </button>
         ) : null}
         {showSendBackToBorrower ? (
-          <button
-            type="button"
-            className="bt-btn bt-btn--secondary"
-            disabled={busy}
-            onClick={() => void run(() => sendBackBorrowerSubmission(app.id, notes))}
-          >
-            Send back to borrower
-          </button>
+          hasCoApplicants ? (
+            <>
+              <button
+                type="button"
+                className="bt-btn bt-btn--secondary"
+                disabled={busy}
+                onClick={() => void run(() => sendBackBorrowerSubmission(app.id, notes, { sendBackMode: 'ALL' }))}
+              >
+                Send back to all applicants
+              </button>
+              <button type="button" className="bt-btn bt-btn--secondary" disabled={busy} onClick={sendSelected}>
+                Send back to selected
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="bt-btn bt-btn--secondary"
+              disabled={busy}
+              onClick={() => void run(() => sendBackBorrowerSubmission(app.id, notes))}
+            >
+              Send back to borrower
+            </button>
+          )
         ) : null}
         {showAcceptCo ? (
           <button

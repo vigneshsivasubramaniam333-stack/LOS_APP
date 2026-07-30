@@ -1,9 +1,11 @@
 import { http } from './http'
+import type { ApplicationPartyResponse } from '@/types/application'
 
 export type ProgramApprovalStatus =
   | 'DRAFT'
   | 'PENDING_L2'
   | 'SENT_BACK'
+  | 'APPROVED_PENDING_DOCS'
   | 'APPROVED'
   | 'REJECTED'
 
@@ -71,14 +73,48 @@ export async function notifyBorrowerToComplete(
   })
 }
 
+export async function notifyAnchorToComplete(
+  applicationId: string,
+  completedStep = 1,
+): Promise<void> {
+  await http.post(`/applications/${applicationId}/notify-anchor`, null, {
+    params: { completedStep },
+  })
+}
+
+export async function sendBackToAnchor(applicationId: string, notes?: string) {
+  const { data } = await http.post(`/applications/${applicationId}/review/send-back-to-anchor`, {
+    notes: notes?.trim() ? notes.trim() : undefined,
+  })
+  return data
+}
+
+export async function approveDocumentVerification(applicationId: string) {
+  const { data } = await http.post(`/applications/${applicationId}/doc-verification/approve`)
+  return data
+}
+
+export async function sendBackDocumentVerification(applicationId: string, notes?: string) {
+  const { data } = await http.post(`/applications/${applicationId}/doc-verification/send-back`, {
+    notes: notes?.trim() ? notes.trim() : undefined,
+  })
+  return data
+}
+
 export async function acceptBorrowerSubmission(applicationId: string) {
   const { data } = await http.post(`/applications/${applicationId}/review/accept`)
   return data
 }
 
-export async function sendBackBorrowerSubmission(applicationId: string, notes?: string) {
+export async function sendBackBorrowerSubmission(
+  applicationId: string,
+  notes?: string,
+  options?: { partyIds?: string[]; sendBackMode?: 'ALL' | 'SELECTED' },
+) {
   const { data } = await http.post(`/applications/${applicationId}/review/send-back`, {
     notes: notes?.trim() ? notes.trim() : undefined,
+    partyIds: options?.partyIds,
+    sendBackMode: options?.sendBackMode ?? 'ALL',
   })
   return data
 }
@@ -99,4 +135,50 @@ export async function sendBackToRelationshipManager(applicationId: string, notes
 
 export async function submitDelegatedBorrowerIntake(applicationId: string): Promise<void> {
   await http.post(`/borrower/applications/${applicationId}/submit-delegated`)
+}
+
+/** GET /api/v1/applications/{id}/parties — PRIMARY + co-applicants. */
+export async function listApplicationParties(applicationId: string): Promise<ApplicationPartyResponse[]> {
+  const { data } = await http.get<ApplicationPartyResponse[]>(`/applications/${applicationId}/parties`)
+  return data
+}
+
+export interface UpsertCoApplicantDraft {
+  /** Existing party id when updating; omit / undefined for new co-applicants. */
+  id?: string
+  personalInfo: Record<string, unknown>
+  requiredForDisbursement?: boolean
+}
+
+/** PUT /api/v1/applications/{id}/parties — full replacement of co-applicant list (PRIMARY is retained). */
+export async function upsertApplicationParties(
+  applicationId: string,
+  payload: { coApplicants: UpsertCoApplicantDraft[] },
+): Promise<ApplicationPartyResponse[]> {
+  const { data } = await http.put<ApplicationPartyResponse[]>(`/applications/${applicationId}/parties`, payload)
+  return data
+}
+
+/** POST /api/v1/applications/{id}/parties/{partyId}/submit — co-applicant submits their intake portion. */
+export async function submitApplicationParty(
+  applicationId: string,
+  partyId: string,
+): Promise<ApplicationPartyResponse> {
+  const { data } = await http.post<ApplicationPartyResponse>(
+    `/applications/${applicationId}/parties/${partyId}/submit`,
+  )
+  return data
+}
+
+/** PUT /api/v1/applications/{id}/parties/{partyId}/personal-info — co-applicant portal self-update. */
+export async function updateApplicationPartyPersonalInfo(
+  applicationId: string,
+  partyId: string,
+  personalInfo: Record<string, unknown>,
+): Promise<ApplicationPartyResponse> {
+  const { data } = await http.put<ApplicationPartyResponse>(
+    `/applications/${applicationId}/parties/${partyId}/personal-info`,
+    personalInfo,
+  )
+  return data
 }

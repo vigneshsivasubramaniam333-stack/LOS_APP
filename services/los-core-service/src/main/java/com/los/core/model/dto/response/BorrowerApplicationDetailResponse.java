@@ -45,4 +45,9 @@ public class BorrowerApplicationDetailResponse {
     BigDecimal interestRate;
     Integer tenureMonths;
     boolean termsDocumentAvailable;
+    Boolean canResumeMyIntake;
+    String partyRole;
+    UUID partyId;
+    String partyIntakeStatus;
+    Integer pendingCoApplicantCount;
 }

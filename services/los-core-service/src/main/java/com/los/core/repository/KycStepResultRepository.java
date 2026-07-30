@@ -20,6 +20,11 @@ public interface KycStepResultRepository extends JpaRepository<KycStepResult, UU
 
     Optional<KycStepResult> findTopByApplicationIdAndStepTypeOrderByCreatedAtDesc(UUID applicationId, KycStepType stepType);
 
+    Optional<KycStepResult> findTopByApplicationIdAndPartyIdAndStepTypeOrderByCreatedAtDesc(
+            UUID applicationId, UUID partyId, KycStepType stepType);
+
+    List<KycStepResult> findByApplicationIdAndPartyIdOrderByCreatedAtAsc(UUID applicationId, UUID partyId);
+
     long countByApplicationIdAndOutcome(UUID applicationId, com.los.core.model.enums.StepOutcome outcome);
 
     @Modifying

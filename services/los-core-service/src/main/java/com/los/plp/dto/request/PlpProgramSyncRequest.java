@@ -28,4 +28,8 @@ public class PlpProgramSyncRequest {
 
     private java.math.BigDecimal dependencyVintagePercent;
     private Integer anchorRelationshipVintageMonths;
+    private String interestPayment;
+    private Integer maxInvoiceVintageDays;
+    private Integer maxCmr;
+    private Integer minCibil;
 }

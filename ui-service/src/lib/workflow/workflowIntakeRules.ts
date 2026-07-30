@@ -5,7 +5,8 @@ import {
   resolveLoanPurposeOptions,
   resolveOccupationOptions,
 } from '@/lib/intake/intakeOptionCatalogs'
-import type {  WorkflowConfigResponse,
+import type {  WorkflowCoApplicantConfig,
+  WorkflowConfigResponse,
   WorkflowIntakeConfig,
   WorkflowMandatoryFieldGroup,
   WorkflowStandaloneDocument,
@@ -39,10 +40,36 @@ export function defaultWorkflowDrivenIntakeConfig(): WorkflowIntakeConfig {
     },
     ageRules: { enabled: false, minAge: 18, maxAge: 70 },
     tenureRules: { inputMode: 'numeric', min: 1, max: 360 },
+    locationRules: { allowedStates: [] },
     occupationRules: { options: [...DEFAULT_OCCUPATION_OPTIONS] },
     loanPurposeRules: { options: [...DEFAULT_LOAN_PURPOSE_OPTIONS] },
     mandatoryFieldGroups: [],
     standaloneDocuments: [],
+    coApplicant: {
+      enabled: false,
+      minCoApplicants: 0,
+      maxCoApplicants: 3,
+      captureAtRmCreate: true,
+      notifyAllOnInvite: true,
+      primaryKycSteps: [],
+      coApplicantKycSteps: ['MOBILE_OTP', 'AADHAAR_OTP', 'PAN_VERIFY'],
+      requireAllEsignBeforeDisbursement: true,
+      underwritingParty: 'PRIMARY',
+      personalFields: {
+        dateOfBirth: { collect: true, required: true },
+        gender: {
+          collect: true,
+          required: false,
+          allowedValues: ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'],
+        },
+        occupation: { collect: true, required: false },
+      },
+      ageRules: { enabled: false, minAge: 18, maxAge: 70 },
+      occupationRules: { options: [...DEFAULT_OCCUPATION_OPTIONS] },
+      mandatoryFieldGroups: [],
+      standaloneDocuments: [],
+    },
+    contacts: { enabled: false, maxUsers: 5 },
   }
 }
 
@@ -71,6 +98,33 @@ export function intakeConfigFromApi(
 
 export function isWorkflowDrivenIntake(workflow: WorkflowConfigResponse | null | undefined): boolean {
   return workflow?.intakeConfig?.policy === 'WORKFLOW_DRIVEN'
+}
+
+/** Co-applicant rules for this workflow, or null when not workflow-driven / not enabled. */
+export function resolveCoApplicantConfig(
+  workflow: WorkflowConfigResponse | null | undefined,
+): WorkflowCoApplicantConfig | null {
+  if (!isWorkflowDrivenIntake(workflow)) return null
+  const cfg = workflow?.intakeConfig?.coApplicant
+  return cfg?.enabled ? cfg : null
+}
+
+export function isCoApplicantEnabled(workflow: WorkflowConfigResponse | null | undefined): boolean {
+  return resolveCoApplicantConfig(workflow) != null
+}
+
+/** Anchor contacts/users section — enabled only when workflow configures contacts.enabled. */
+export function resolveContactsConfig(
+  workflow: WorkflowConfigResponse | null | undefined,
+): { enabled: boolean; maxUsers: number } {
+  const raw = workflow?.intakeConfig?.contacts
+  const enabled = raw?.enabled === true
+  const maxUsers = Math.max(1, Number(raw?.maxUsers ?? 5) || 5)
+  return { enabled, maxUsers }
+}
+
+export function isAnchorContactsEnabled(workflow: WorkflowConfigResponse | null | undefined): boolean {
+  return resolveContactsConfig(workflow).enabled
 }
 
 export function activeWorkflowForProduct(
@@ -148,10 +202,40 @@ export function shouldCollectLoanPurposeField(
 }
 
 export function resolveTenureRules(workflow: WorkflowConfigResponse | null | undefined): WorkflowTenureRules | null {
+  const rules = workflow?.intakeConfig?.tenureRules ?? null
+  if (!rules) {
+    return null
+  }
+  if (isWorkflowDrivenIntake(workflow)) {
+    return rules
+  }
+  // Honor explicit dropdown/range config even when policy is still LEGACY / unset.
+  if (rules.inputMode === 'dropdown' && (rules.options?.length ?? 0) > 0) {
+    return rules
+  }
+  if (
+    rules.inputMode === 'numeric' &&
+    ((rules.min != null && rules.min > 0) || (rules.max != null && rules.max > 0))
+  ) {
+    return rules
+  }
+  return null
+}
+
+/**
+ * When workflow-driven and allowedStates is non-empty, return those state names (for dropdown filter).
+ * Empty / missing = all master states.
+ */
+export function resolveAllowedStates(workflow: WorkflowConfigResponse | null | undefined): string[] | null {
   if (!isWorkflowDrivenIntake(workflow)) {
     return null
   }
-  return workflow?.intakeConfig?.tenureRules ?? null
+  const raw = workflow?.intakeConfig?.locationRules?.allowedStates
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return null
+  }
+  const names = raw.map((s) => String(s ?? '').trim()).filter(Boolean)
+  return names.length > 0 ? names : null
 }
 
 function fieldValue(form: IntakeFormState, fieldKey: string): string {
@@ -439,10 +523,6 @@ export function resolveDocumentSlots(
   workflow: WorkflowConfigResponse | null | undefined,
   borrowerType: BorrowerType,
 ): ResolvedIntakeDocumentSlot[] {
-  if (!isWorkflowDrivenIntake(workflow)) {
-    return documentSlotsForBorrowerType(borrowerType).map((s) => ({ ...s, required: false }))
-  }
-
   const byType = new Map<string, ResolvedIntakeDocumentSlot>()
   const labelFor = (documentType: string, fallback?: string) =>
     INTAKE_DOCUMENT_TYPE_LABELS[documentType.toUpperCase()] ??
@@ -450,6 +530,7 @@ export function resolveDocumentSlots(
     documentType.replaceAll('_', ' ')
   const add = (documentType: string, label: string, required: boolean) => {
     const key = documentType.toUpperCase()
+    if (!key) return
     const existing = byType.get(key)
     if (existing) {
       if (required) {
@@ -465,35 +546,43 @@ export function resolveDocumentSlots(
     })
   }
 
-  for (const step of workflow?.steps ?? []) {
-    if (!collectAtIntake(step)) {
-      continue
-    }
-    const stepName = stepNameFromWorkflowStep(step)
-    const meta = metaForKycStep(stepName)
-    const docs = step.documentsRequired as { documentType: string; required?: boolean }[] | undefined
-    if (Array.isArray(docs) && docs.length > 0) {
-      for (const d of docs) {
-        if (d.documentType) {
-          add(
-            d.documentType,
-            labelFor(d.documentType, d.documentType.replaceAll('_', ' ')),
-            d.required !== false,
-          )
+  if (isWorkflowDrivenIntake(workflow)) {
+    for (const step of workflow?.steps ?? []) {
+      if (!collectAtIntake(step)) {
+        continue
+      }
+      const stepName = stepNameFromWorkflowStep(step)
+      const meta = metaForKycStep(stepName)
+      const docs = step.documentsRequired as { documentType: string; required?: boolean }[] | undefined
+      if (Array.isArray(docs) && docs.length > 0) {
+        for (const d of docs) {
+          if (d.documentType) {
+            add(
+              d.documentType,
+              labelFor(d.documentType, d.documentType.replaceAll('_', ' ')),
+              d.required !== false,
+            )
+          }
+        }
+      } else if (step.documentRequired === true && meta) {
+        for (const dt of meta.defaultDocumentTypes) {
+          add(dt, labelFor(dt, meta.label), true)
+        }
+      } else if (meta) {
+        for (const dt of meta.defaultDocumentTypes) {
+          add(dt, labelFor(dt, meta.label), false)
         }
       }
-    } else if (step.documentRequired === true && meta) {
-      for (const dt of meta.defaultDocumentTypes) {
-        add(dt, labelFor(dt, meta.label), true)
-      }
-    } else if (meta) {
-      for (const dt of meta.defaultDocumentTypes) {
-        add(dt, labelFor(dt, meta.label), false)
-      }
+    }
+  } else {
+    for (const s of documentSlotsForBorrowerType(borrowerType)) {
+      add(s.documentType, s.label, false)
     }
   }
 
+  // Standalone docs always apply when configured (even if policy is not WORKFLOW_DRIVEN).
   for (const doc of workflow?.intakeConfig?.standaloneDocuments ?? []) {
+    if (!doc.documentType) continue
     add(
       doc.documentType,
       doc.label ?? labelFor(doc.documentType, doc.documentType.replaceAll('_', ' ')),
@@ -501,7 +590,21 @@ export function resolveDocumentSlots(
     )
   }
 
-  return [...byType.values()]
+  const slots = [...byType.values()]
+  if (slots.length > 0) return slots
+  return documentSlotsForBorrowerType(borrowerType).map((s) => ({ ...s, required: false }))
+}
+
+/** Anchor corporate intake excludes individual KYC docs even when workflow steps list them. */
+const ANCHOR_EXCLUDED_DOCUMENT_TYPES = new Set(['AADHAAR', 'PHOTOGRAPH'])
+
+export function resolveAnchorDocumentSlots(
+  workflow: WorkflowConfigResponse | null | undefined,
+  borrowerType: BorrowerType,
+): ResolvedIntakeDocumentSlot[] {
+  return resolveDocumentSlots(workflow, borrowerType).filter(
+    (s) => !ANCHOR_EXCLUDED_DOCUMENT_TYPES.has(s.documentType),
+  )
 }
 
 export function missingRequiredWorkflowDocuments(
@@ -509,9 +612,7 @@ export function missingRequiredWorkflowDocuments(
   workflow: WorkflowConfigResponse | null | undefined,
   borrowerType: BorrowerType,
 ): string[] {
-  if (!isWorkflowDrivenIntake(workflow)) {
-    return []
-  }
+  // Enforce required slots from workflow-driven KYC steps and/or standalone documents.
   return resolveDocumentSlots(workflow, borrowerType)
     .filter((s) => s.required && !form.documentUploaded[s.documentType])
     .map((s) => s.documentType)

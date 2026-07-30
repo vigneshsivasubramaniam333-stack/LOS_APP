@@ -21,9 +21,10 @@ public final class BorrowerFriendlyLabels {
         if (invoiceDiscountingBorrower) {
             return switch (s) {
                 case DRAFT -> "Application in progress";
-                case CONSENT_PENDING -> "Waiting for your consent";
-                case BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM -> "Submitted — under review";
-                case BORROWER_SENT_BACK -> "Changes requested — please update and resubmit";
+                case CONSENT_PENDING, ANCHOR_CONSENT_PENDING -> "Waiting for your consent";
+                case BORROWER_SUBMITTED, ANCHOR_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM ->
+                        "Submitted — under review";
+                case BORROWER_SENT_BACK, ANCHOR_SENT_BACK -> "Changes requested — please update and resubmit";
                 case KYC_IN_PROGRESS -> "Verification in progress";
                 case KYC_FAILED -> "We need a bit more information";
                 case UNDERWRITING, UNDERWRITING_COMPLETED -> "We are reviewing your application";
@@ -33,7 +34,8 @@ public final class BorrowerFriendlyLabels {
                 case CAM_SENT_BACK -> "Credit summary sent back for revision";
                 case CAM_REVIEWED, SANCTION_PENDING -> "Final approval in progress";
                 case ESIGN_PENDING -> "Terms pending your signature";
-                case ESIGN_COMPLETED, READY_FOR_DISBURSEMENT, DISBURSEMENT_PENDING -> "Onboarding complete";
+                case ESIGN_COMPLETED, DOC_VERIFICATION_PENDING, DOC_VERIFICATION_SENT_BACK,
+                        READY_FOR_DISBURSEMENT, DISBURSEMENT_PENDING -> "Onboarding complete";
                 case DISBURSED -> "Onboarding complete";
                 case WITHDRAWN -> "Application withdrawn";
                 case ON_HOLD -> "We have paused for now";
@@ -41,9 +43,10 @@ public final class BorrowerFriendlyLabels {
         }
         return switch (s) {
             case DRAFT -> "Application in progress";
-            case CONSENT_PENDING -> "Waiting for your consent";
-            case BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM -> "Submitted — under review";
-            case BORROWER_SENT_BACK -> "Changes requested — please update and resubmit";
+            case CONSENT_PENDING, ANCHOR_CONSENT_PENDING -> "Waiting for your consent";
+            case BORROWER_SUBMITTED, ANCHOR_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM ->
+                    "Submitted — under review";
+            case BORROWER_SENT_BACK, ANCHOR_SENT_BACK -> "Changes requested — please update and resubmit";
             case KYC_IN_PROGRESS -> "Verification in progress";
             case KYC_FAILED -> "We need a bit more information";
             case UNDERWRITING, UNDERWRITING_COMPLETED -> "We are reviewing your application";
@@ -53,7 +56,8 @@ public final class BorrowerFriendlyLabels {
             case CAM_SENT_BACK -> "Credit summary sent back for revision";
             case CAM_REVIEWED, SANCTION_PENDING -> "Final approval in progress";
             case ESIGN_PENDING -> "Agreement pending signature";
-            case ESIGN_COMPLETED, READY_FOR_DISBURSEMENT, DISBURSEMENT_PENDING -> "Disbursement in progress";
+            case ESIGN_COMPLETED, DOC_VERIFICATION_PENDING, DOC_VERIFICATION_SENT_BACK,
+                    READY_FOR_DISBURSEMENT, DISBURSEMENT_PENDING -> "Disbursement in progress";
             case DISBURSED -> "Loan disbursed";
             case WITHDRAWN -> "Application withdrawn";
             case ON_HOLD -> "We have paused for now";

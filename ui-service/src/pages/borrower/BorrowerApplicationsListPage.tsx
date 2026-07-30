@@ -59,15 +59,18 @@ export function BorrowerApplicationsListPage() {
             </thead>
             <tbody>
               {list.map((a) => {
-                const showContinue = isBorrowerResumableIntakeStatus(a.status)
+                const showContinue = a.canResumeMyIntake === true && isBorrowerResumableIntakeStatus(a.status)
                 return (
                   <tr key={a.applicationId}>
                     <td className="font-medium text-slate-900">{a.applicationNumber}</td>
                     <td className="text-slate-700">{loanProductLabel(a.product)}</td>
                     <td>
                       <span className="inline-flex rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-800">
-                        {a.friendlyStatus}
+                        {a.viewerFriendlyStatus ?? a.friendlyStatus}
                       </span>
+                      {a.partyRole === 'CO_APPLICANT' ? (
+                        <span className="ml-2 text-xs text-slate-500">Co-applicant</span>
+                      ) : null}
                     </td>
                     <td className="text-slate-600 tabular-nums">{formatInstant(a.updatedAt)}</td>
                     <td className="!text-right align-middle">
@@ -76,6 +79,9 @@ export function BorrowerApplicationsListPage() {
                           <BorrowerContinueIntakeLink
                             applicationId={a.applicationId}
                             status={a.status}
+                            partyId={a.partyId}
+                            partyRole={a.partyRole}
+                            canResumeMyIntake={a.canResumeMyIntake}
                             label="Continue"
                             className="text-sm font-medium text-indigo-800 underline-offset-2 hover:underline"
                           />

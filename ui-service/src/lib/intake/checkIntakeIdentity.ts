@@ -9,6 +9,8 @@ export type ValidateIdentityPayload = {
   mobile?: string
   panNumber?: string
   gstin?: string
+  /** When true, do not treat the application's primary customerId as "same borrower". */
+  asCoApplicant?: boolean
 }
 
 export async function validateApplicationIdentity(payload: ValidateIdentityPayload): Promise<void> {

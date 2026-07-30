@@ -4,6 +4,7 @@ import { retryKycFlow, runKycFlow, submitApplicationForKyc } from '@/api/flow'
 import { getActiveWorkflow } from '@/api/workflows'
 import { messageForKycAction, messageFromKycRunOutput } from '@/api/kycErrorMessage'
 import { updateApplication } from '@/api/applications'
+import { updateApplicationPartyPersonalInfo } from '@/api/workflow'
 import { ErrorState } from '@/components/ErrorState'
 import { ProcessOverrideCard } from '@/components/ProcessOverrideCard'
 import type { ApplicationResponse } from '@/types/application'
@@ -224,10 +225,26 @@ export function KycDetailsSection({
   const [retrying, setRetrying] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [lastRunSummary, setLastRunSummary] = useState<Record<string, unknown> | null>(null)
+  const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null)
   const [fullResponseModal, setFullResponseModal] = useState<{
     title: string
     body: Record<string, unknown> | null
   } | null>(null)
+
+  const parties = useMemo(() => [...(app.parties ?? [])].sort((a, b) => a.sequenceNo - b.sequenceNo), [app.parties])
+  const hasCoApplicants = parties.some((p) => p.role === 'CO_APPLICANT')
+  const selectedParty = parties.find((p) => p.id === selectedPartyId) ?? parties.find((p) => p.role === 'PRIMARY') ?? null
+
+  useEffect(() => {
+    if (!hasCoApplicants) {
+      setSelectedPartyId(null)
+      return
+    }
+    if (!selectedPartyId || !parties.some((p) => p.id === selectedPartyId)) {
+      const primary = parties.find((p) => p.role === 'PRIMARY')
+      setSelectedPartyId(primary?.id ?? parties[0]?.id ?? null)
+    }
+  }, [hasCoApplicants, parties, selectedPartyId])
 
   const configuredKycStepNames = useMemo(() => {
     const steps = activeWorkflow?.steps ?? []
@@ -240,19 +257,23 @@ export function KycDetailsSection({
       showDynamicFromWorkflow ? configuredKycStepNames.includes(stepName) : fallback,
     [configuredKycStepNames, showDynamicFromWorkflow],
   )
+  const isAnchorApp = isAnchorApplication(app.intakeSegment)
   const showPan = shouldShow('PAN_VERIFY', true)
-  const showAadhaar = shouldShow('AADHAAR_OTP', true)
+  const showAadhaar = shouldShow('AADHAAR_OTP', !isAnchorApp)
   const showBank = shouldShow('BANK_PENNY_DROP', true)
   const showGstin = shouldShow('GSTIN_VERIFY', app.borrowerType !== 'INDIVIDUAL')
   const showUdyam = shouldShow('UDYAM_VERIFY', isBusinessBorrowerType((app.borrowerType as BorrowerType) ?? 'INDIVIDUAL'))
   const showDl = shouldShow('DL_VERIFY', false)
   const showVoter = shouldShow('VOTER_ID_VERIFY', false)
   const showMnrl = shouldShow('MNRL', false)
-  const showMobile = shouldShow('MOBILE_OTP', true) || showAadhaar || showMnrl
-  const isAnchorApp = isAnchorApplication(app.intakeSegment)
-  const showFullName = isAnchorApp || showPan || showAadhaar || showDl || showVoter || showBank
-  const showPanField = isAnchorApp || showPan
-  const showBankFields = isAnchorApp || showBank
+  const showMobile = shouldShow('MOBILE_OTP', !isAnchorApp) || showAadhaar || showMnrl
+  // Honor workflow KYC steps for anchors too (do not force the full bank/PAN/GSTIN set).
+  // Anchor "account holder" is bank-related; borrower "full name" ties to identity KYC steps.
+  const showFullName = isAnchorApp
+    ? showBank
+    : showPan || showAadhaar || showDl || showVoter || showBank
+  const showPanField = showPan
+  const showBankFields = showBank
   const extraConfiguredSteps = useMemo(() => {
     const names = configuredKycStepNames.filter(
       (name) =>
@@ -316,13 +337,18 @@ export function KycDetailsSection({
 
   useEffect(() => {
     void (async () => {
-      if (appHydrationKey === lastHydratedFromApp) return
+      const hydrateKey = `${appHydrationKey}:${selectedPartyId ?? 'primary'}`
+      if (hydrateKey === lastHydratedFromApp) return
       if (formDirty) return
       await Promise.resolve()
-      const pi = app.personalInfo as Record<string, unknown> | null | undefined
+      const partyInfo = selectedParty?.personalInfo as Record<string, unknown> | null | undefined
+      const pi =
+        selectedParty && selectedParty.role === 'CO_APPLICANT'
+          ? partyInfo
+          : (app.personalInfo as Record<string, unknown> | null | undefined)
       const bi = app.businessInfo as Record<string, unknown> | null | undefined
       const fi = app.financialInfo as Record<string, unknown> | null | undefined
-      if (isAnchorApplication(app.intakeSegment)) {
+      if (isAnchorApplication(app.intakeSegment) && !(selectedParty && selectedParty.role === 'CO_APPLICANT')) {
         const anchor = hydrateAnchorKycFields(pi, bi, fi)
         setPanNumber(anchor.panNumber)
         setName(anchor.name)
@@ -335,12 +361,14 @@ export function KycDetailsSection({
         setCin(anchor.cin)
       } else {
         setPanNumber(pickStr(pi, 'panNumber'))
-        setName(pickStr(pi, 'fullName') || pickStr(pi, 'name'))
-        setMobile(pickStr(pi, 'mobile') || pickStr(pi, 'phone'))
+        setName(pickStr(pi, 'fullName') || pickStr(pi, 'name') || selectedParty?.displayName || '')
+        setMobile(pickStr(pi, 'mobile') || pickStr(pi, 'phone') || selectedParty?.mobile || '')
         setGstin(pickStr(bi, 'gstin'))
         setBusinessName(pickStr(bi, 'businessName'))
-        setAccountNumber(pickStr(pi, 'bankAccountNumber') || pickStr(fi, 'accountNumber'))
-        setIfsc(pickStr(pi, 'ifsc') || pickStr(fi, 'ifsc'))
+        setAccountNumber(
+          pickStr(pi, 'bankAccountNumber') || pickStr(pi, 'accountNumber') || pickStr(fi, 'accountNumber'),
+        )
+        setIfsc(pickStr(pi, 'ifsc') || pickStr(pi, 'ifscCode') || pickStr(fi, 'ifsc'))
         setBankName(pickStr(pi, 'bankName'))
         setCin(pickStr(bi, 'cin'))
       }
@@ -363,9 +391,17 @@ export function KycDetailsSection({
         seedExtra[step] = fromPi || fromBi || fromFi
       })
       setExtraStepValues(seedExtra)
-      setLastHydratedFromApp(appHydrationKey)
+      setLastHydratedFromApp(hydrateKey)
     })()
-  }, [app, extraConfiguredSteps, appHydrationKey, lastHydratedFromApp, formDirty])
+  }, [
+    app,
+    extraConfiguredSteps,
+    appHydrationKey,
+    lastHydratedFromApp,
+    formDirty,
+    selectedParty,
+    selectedPartyId,
+  ])
 
   useEffect(() => {
     void (async () => {
@@ -432,7 +468,9 @@ export function KycDetailsSection({
       }
       const aadhaarClean = aadhaarNumber.replace(/\D/g, '')
       const personalInfo: Record<string, unknown> = {
-        ...((app.personalInfo as Record<string, unknown> | null) ?? {}),
+        ...((selectedParty?.role === 'CO_APPLICANT'
+          ? (selectedParty.personalInfo as Record<string, unknown> | null)
+          : (app.personalInfo as Record<string, unknown> | null)) ?? {}),
         panNumber: panNumber.trim() || undefined,
         name: name.trim() || undefined,
         fullName: name.trim() || undefined,
@@ -440,14 +478,18 @@ export function KycDetailsSection({
         aadhaarLast4: aadhaarClean.length === 4 ? aadhaarClean : undefined,
         mobile: mobile.trim() || undefined,
         phone: mobile.trim() || undefined,
+        email: selectedParty?.email || undefined,
         dlNo: dlNo.trim().toUpperCase() || undefined,
         dlNumber: dlNo.trim().toUpperCase() || undefined,
         drivingLicenseNumber: dlNo.trim().toUpperCase() || undefined,
         drivingLicenseDob: dlDob.trim() || undefined,
+        dateOfBirth: dlDob.trim() || undefined,
         epicNo: epicNo.trim().toUpperCase() || undefined,
         voterId: epicNo.trim().toUpperCase() || undefined,
         bankAccountNumber: accountNumber.replace(/\D/g, '').trim() || undefined,
+        accountNumber: accountNumber.replace(/\D/g, '').trim() || undefined,
         ifsc: ifsc.trim().toUpperCase() || undefined,
+        ifscCode: ifsc.trim().toUpperCase() || undefined,
         bankName: bankName.trim() || undefined,
         ...Object.fromEntries(
           Object.entries(extraStepValues).map(([k, v]) => [k, v.trim() || undefined]),
@@ -459,6 +501,13 @@ export function KycDetailsSection({
       Object.keys(personalInfo).forEach((k) => {
         if (personalInfo[k] === undefined) delete personalInfo[k]
       })
+
+      if (selectedParty?.role === 'CO_APPLICANT') {
+        await updateApplicationPartyPersonalInfo(applicationId, selectedParty.id, personalInfo)
+        setFormDirty(false)
+        onApplicationRefetch()
+        return
+      }
 
       const businessInfo: Record<string, unknown> = {
         ...((app.businessInfo as Record<string, unknown> | null) ?? {}),
@@ -644,6 +693,43 @@ export function KycDetailsSection({
       ) : null}
 
       <fieldset disabled={fieldsLocked} className="min-w-0">
+        {hasCoApplicants ? (
+          <div className="mb-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Edit KYC inputs by applicant</p>
+            <div className="flex flex-wrap gap-2">
+              {parties.map((party) => {
+                const label =
+                  party.role === 'PRIMARY'
+                    ? `Primary · ${party.displayName || 'Applicant'}`
+                    : `Co-applicant · ${party.displayName || 'Applicant'}`
+                const active = party.id === selectedParty?.id
+                return (
+                  <button
+                    key={party.id}
+                    type="button"
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                      active
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-300 bg-white text-slate-800'
+                    }`}
+                    onClick={() => {
+                      setFormDirty(false)
+                      setLastHydratedFromApp('')
+                      setSelectedPartyId(party.id)
+                    }}
+                  >
+                    {label}
+                    <span className="ml-2 opacity-80">{party.kycStatus?.replaceAll('_', ' ') ?? '—'}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-slate-500">
+              Save updates the selected applicant. <strong>Run KYC</strong> checks every applicant and overall success
+              requires all to pass.
+            </p>
+          </div>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           {showFullName ? (
             <label className="block text-sm text-slate-700 sm:col-span-2">
@@ -713,7 +799,7 @@ export function KycDetailsSection({
               />
             </label>
           ) : null}
-          {showGstin || isAnchorApp ? (
+          {showGstin ? (
             <>
               <label className="block text-sm text-slate-700 sm:col-span-2">
                 <span className="mb-1 block text-xs font-medium text-slate-500">
@@ -871,7 +957,7 @@ export function KycDetailsSection({
             disabled={!canRunKyc || running || kycActionBusy}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {running ? 'Running KYC checks…' : 'Run KYC'}
+            {running ? 'Running KYC checks…' : hasCoApplicants ? 'Run KYC for all applicants' : 'Run KYC'}
           </button>
         ) : null}
         {!kycChecksComplete && !isDraft && !isFailed && !isKycInProgress && !running ? (
@@ -918,6 +1004,7 @@ export function KycDetailsSection({
             <table className="min-w-full text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                 <tr>
+                  <th className="px-2 py-1.5">Applicant</th>
                   <th className="px-2 py-1.5">Check</th>
                   <th className="px-2 py-1.5">Result</th>
                   <th className="px-2 py-1.5">Provider</th>
@@ -929,8 +1016,15 @@ export function KycDetailsSection({
               <tbody className="">
                 {visibleKycResults.map((r) => {
                   const pairs = summaryPairs(r.stepType, r.parsedData, r.errorMessage)
+                  const party = parties.find((p) => p.id === r.partyId)
+                  const applicantLabel = party
+                    ? `${party.role === 'PRIMARY' ? 'Primary' : 'Co-applicant'} · ${party.displayName || 'Applicant'}`
+                    : r.partyId
+                      ? 'Applicant'
+                      : 'Primary'
                   return (
                     <tr key={r.id}>
+                      <td className="px-2 py-1.5 text-slate-700">{applicantLabel}</td>
                       <td className="px-2 py-1.5 font-mono">{r.stepType}</td>
                       <td className="px-2 py-1.5">{r.outcome}</td>
                       <td className="px-2 py-1.5">{r.provider}</td>

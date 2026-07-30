@@ -29,6 +29,10 @@ public class KycStepResult {
     @Column(nullable = false)
     private UUID applicationId;
 
+    /** Null = legacy / primary party. */
+    @Column(name = "party_id")
+    private UUID partyId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private KycStepType stepType;

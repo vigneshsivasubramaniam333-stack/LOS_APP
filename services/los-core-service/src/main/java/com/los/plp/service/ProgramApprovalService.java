@@ -96,10 +96,14 @@ public class ProgramApprovalService {
                 }
                 String action = "PROGRAM_STATUS_REFRESHED";
                 String description = "PLP program status refreshed";
-                if (program.getApprovalStatus() == ProgramApprovalStatus.APPROVED
-                        && previousApproval != ProgramApprovalStatus.APPROVED) {
+                if ((program.getApprovalStatus() == ProgramApprovalStatus.APPROVED
+                        || program.getApprovalStatus() == ProgramApprovalStatus.APPROVED_PENDING_DOCS)
+                        && previousApproval != ProgramApprovalStatus.APPROVED
+                        && previousApproval != ProgramApprovalStatus.APPROVED_PENDING_DOCS) {
                     action = "PROGRAM_APPROVED_FROM_PLP";
-                    description = "Program approved in PLP (maker-checker)";
+                    description = program.getApprovalStatus() == ProgramApprovalStatus.APPROVED_PENDING_DOCS
+                            ? "Program L2-approved in PLP — pending document verification"
+                            : "Program approved in PLP (maker-checker)";
                 } else if (program.getApprovalStatus() == ProgramApprovalStatus.SENT_BACK
                         && previousApproval != ProgramApprovalStatus.SENT_BACK) {
                     action = "PROGRAM_SENT_BACK_FROM_PLP";
@@ -144,7 +148,12 @@ public class ProgramApprovalService {
     }
 
     public boolean isApproved(ProgramMaster program) {
-        return program != null && program.getApprovalStatus() == ProgramApprovalStatus.APPROVED;
+        if (program == null) {
+            return false;
+        }
+        ProgramApprovalStatus status = program.getApprovalStatus();
+        return status == ProgramApprovalStatus.APPROVED
+                || status == ProgramApprovalStatus.APPROVED_PENDING_DOCS;
     }
 
     private ProgramApprovalResponse toResponse(ProgramMaster program) {

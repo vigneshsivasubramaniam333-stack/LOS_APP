@@ -111,6 +111,12 @@ public class LoanApplication {
     @Column(name = "borrower_sent_back_notes", columnDefinition = "TEXT")
     private String borrowerSentBackNotes;
 
+    @Column(name = "anchor_sent_back_notes", columnDefinition = "TEXT")
+    private String anchorSentBackNotes;
+
+    @Column(name = "doc_verification_notes", columnDefinition = "TEXT")
+    private String docVerificationNotes;
+
     private UUID assignedTo;
 
     private Instant slaDeadline;

@@ -28,6 +28,8 @@ public class ApplicationResponse {
     private IntakeOwner intakeOwner;
     private Integer intakeCompletedStep;
     private String borrowerSentBackNotes;
+    private String anchorSentBackNotes;
+    private String docVerificationNotes;
     private BigDecimal requestedAmount;
     private BigDecimal interestRate;
     private Integer tenureMonths;
@@ -119,4 +121,7 @@ public class ApplicationResponse {
     /** True when intake/KYC fields changed after the latest staff send-back snapshot. */
     private Boolean intakeModifiedSinceSendBack;
     private java.util.List<String> intakeChangeSummary;
+
+    /** Applicants on this loan (PRIMARY + co-applicants). Empty/null for legacy responses before load. */
+    private java.util.List<ApplicationPartyResponse> parties;
 }

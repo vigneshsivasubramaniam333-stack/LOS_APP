@@ -51,6 +51,7 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
     private final IntakeMetadataEnricher intakeMetadataEnricher;
     private final ApplicationSubmitIdentityValidator applicationSubmitIdentityValidator;
     private final ApplicationInputChangeTracker applicationInputChangeTracker;
+    private final ApplicationPartyService applicationPartyService;
 
     private static final AtomicLong SEQUENCE = new AtomicLong(System.currentTimeMillis() % 100000);
     private static final Pattern EMAIL_RE = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
@@ -337,7 +338,9 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
     public void validateIdentity(ValidateIdentityRequest request) {
         UUID selfId = request.applicationId();
         UUID customerId = null;
-        if (selfId != null) {
+        // Co-applicant checks must not inherit the primary borrower's customerId, or duplicates
+        // belonging to that primary on other apps would be incorrectly allowed.
+        if (selfId != null && !Boolean.TRUE.equals(request.asCoApplicant())) {
             LoanApplication app = findApplicationOrThrow(selfId);
             customerId = app.getCustomerId();
         }
@@ -486,6 +489,12 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
         creditAppraisalMemoRepository.findByApplicationId(app.getId())
                 .ifPresent(cam -> r.setCamStatus(cam.getCamStatus()));
         applicationInputChangeTracker.applyToResponse(r, app);
+        try {
+            applicationPartyService.ensurePrimaryParty(app);
+            r.setParties(applicationPartyService.listParties(app.getId()));
+        } catch (Exception e) {
+            log.warn("Failed to load application parties for {}: {}", app.getId(), e.getMessage());
+        }
         return r;
     }
 
@@ -500,6 +509,8 @@ public class LoanApplicationServiceImpl implements ILoanApplicationService {
                 .intakeOwner(app.getIntakeOwner())
                 .intakeCompletedStep(app.getIntakeCompletedStep())
                 .borrowerSentBackNotes(app.getBorrowerSentBackNotes())
+                .anchorSentBackNotes(app.getAnchorSentBackNotes())
+                .docVerificationNotes(app.getDocVerificationNotes())
                 .requestedAmount(app.getRequestedAmount())
                 .interestRate(app.getInterestRate())
                 .tenureMonths(app.getTenureMonths())

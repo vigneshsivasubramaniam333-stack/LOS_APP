@@ -39,4 +39,8 @@ public class PlpProgramSetupResponse {
     private UUID assignedL2UserId;
     private BigDecimal dependencyVintagePercent;
     private Integer anchorRelationshipVintageMonths;
+    private String interestPayment;
+    private Integer maxInvoiceVintageDays;
+    private Integer maxCmr;
+    private Integer minCibil;
 }

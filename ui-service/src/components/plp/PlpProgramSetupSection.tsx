@@ -34,7 +34,7 @@ function rmMayEditProgram(saved: PlpProgramSetupResponse | null): boolean {
   if (!saved) return true
   const status = saved.approvalStatus ?? 'DRAFT'
   if (status === 'SENT_BACK') return true
-  if (status === 'APPROVED' || status === 'PENDING_L2' || status === 'REJECTED') return false
+  if (status === 'APPROVED' || status === 'APPROVED_PENDING_DOCS' || status === 'PENDING_L2' || status === 'REJECTED') return false
   return saved.programSyncStatus !== 'SYNC_SUCCESS'
 }
 
@@ -63,6 +63,10 @@ function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpPr
     approvalNotes: p.approvalNotes ?? null,
     dependencyVintagePercent: p.dependencyVintagePercent ?? null,
     anchorRelationshipVintageMonths: p.anchorRelationshipVintageMonths ?? null,
+    interestPayment: p.interestPayment ?? null,
+    maxInvoiceVintageDays: p.maxInvoiceVintageDays ?? null,
+    maxCmr: p.maxCmr ?? null,
+    minCibil: p.minCibil ?? null,
   }
 }
 
@@ -88,6 +92,10 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   const [validityEnd, setValidityEnd] = useState('')
   const [dependencyVintagePercent, setDependencyVintagePercent] = useState('')
   const [anchorRelationshipVintageMonths, setAnchorRelationshipVintageMonths] = useState('')
+  const [interestPayment, setInterestPayment] = useState('')
+  const [maxInvoiceVintageDays, setMaxInvoiceVintageDays] = useState('')
+  const [maxCmr, setMaxCmr] = useState('')
+  const [minCibil, setMinCibil] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<PlpProgramSetupResponse | null>(null)
@@ -114,6 +122,12 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
         ? String(existing.anchorRelationshipVintageMonths)
         : '',
     )
+    setInterestPayment(existing.interestPayment ?? '')
+    setMaxInvoiceVintageDays(
+      existing.maxInvoiceVintageDays != null ? String(existing.maxInvoiceVintageDays) : '',
+    )
+    setMaxCmr(existing.maxCmr != null ? String(existing.maxCmr) : '')
+    setMinCibil(existing.minCibil != null ? String(existing.minCibil) : '')
     return hydrated
   }, [])
 
@@ -249,6 +263,22 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           programType === 'INVOICE_DISCOUNTING' && anchorRelationshipVintageMonths.trim()
             ? Number.parseInt(anchorRelationshipVintageMonths, 10)
             : undefined,
+        interestPayment:
+          programType === 'INVOICE_DISCOUNTING' && interestPayment.trim()
+            ? interestPayment.trim()
+            : undefined,
+        maxInvoiceVintageDays:
+          programType === 'INVOICE_DISCOUNTING' && maxInvoiceVintageDays.trim()
+            ? Number.parseInt(maxInvoiceVintageDays, 10)
+            : undefined,
+        maxCmr:
+          programType === 'INVOICE_DISCOUNTING' && maxCmr.trim()
+            ? Number.parseInt(maxCmr, 10)
+            : undefined,
+        minCibil:
+          programType === 'INVOICE_DISCOUNTING' && minCibil.trim()
+            ? Number.parseInt(minCibil, 10)
+            : undefined,
       }
       const result = await createPlpProgram(body)
       setSaved(result)
@@ -336,6 +366,14 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
             setDependencyVintagePercent={setDependencyVintagePercent}
             anchorRelationshipVintageMonths={anchorRelationshipVintageMonths}
             setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
+            interestPayment={interestPayment}
+            setInterestPayment={setInterestPayment}
+            maxInvoiceVintageDays={maxInvoiceVintageDays}
+            setMaxInvoiceVintageDays={setMaxInvoiceVintageDays}
+            maxCmr={maxCmr}
+            setMaxCmr={setMaxCmr}
+            minCibil={minCibil}
+            setMinCibil={setMinCibil}
             error={error}
             busy={busy}
             canCreate={canCreateProgram}
@@ -420,6 +458,14 @@ function ProgramSetupForm(props: {
   setDependencyVintagePercent: (v: string) => void
   anchorRelationshipVintageMonths: string
   setAnchorRelationshipVintageMonths: (v: string) => void
+  interestPayment: string
+  setInterestPayment: (v: string) => void
+  maxInvoiceVintageDays: string
+  setMaxInvoiceVintageDays: (v: string) => void
+  maxCmr: string
+  setMaxCmr: (v: string) => void
+  minCibil: string
+  setMinCibil: (v: string) => void
   error: string | null
   successMsg: string | null
   busy: boolean
@@ -459,6 +505,14 @@ function ProgramSetupForm(props: {
     setDependencyVintagePercent,
     anchorRelationshipVintageMonths,
     setAnchorRelationshipVintageMonths,
+    interestPayment,
+    setInterestPayment,
+    maxInvoiceVintageDays,
+    setMaxInvoiceVintageDays,
+    maxCmr,
+    setMaxCmr,
+    minCibil,
+    setMinCibil,
     error,
     successMsg,
     busy,
@@ -589,7 +643,7 @@ function ProgramSetupForm(props: {
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
-              Anchor relationship vintage (months)
+              Min Dir Relationship (months)
               <input
                 type="number"
                 step="1"
@@ -598,6 +652,59 @@ function ProgramSetupForm(props: {
                 value={anchorRelationshipVintageMonths}
                 onChange={(e) => setAnchorRelationshipVintageMonths(e.target.value)}
                 placeholder="e.g. 10"
+                disabled={fieldsDisabled}
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Interest payment
+              <select
+                className="mt-1 bt-input w-full text-sm"
+                value={interestPayment}
+                onChange={(e) => setInterestPayment(e.target.value)}
+                disabled={fieldsDisabled}
+              >
+                <option value="">Select</option>
+                <option value="UPFRONT">Upfront</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="REAR_ENDED">Rear-ended</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Max invoice vintage (days)
+              <input
+                type="number"
+                step="1"
+                min={1}
+                className="mt-1 bt-input w-full text-sm"
+                value={maxInvoiceVintageDays}
+                onChange={(e) => setMaxInvoiceVintageDays(e.target.value)}
+                placeholder="e.g. 90"
+                disabled={fieldsDisabled}
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Max CMR
+              <input
+                type="number"
+                step="1"
+                min={1}
+                className="mt-1 bt-input w-full text-sm"
+                value={maxCmr}
+                onChange={(e) => setMaxCmr(e.target.value)}
+                placeholder="e.g. 7"
+                disabled={fieldsDisabled}
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Min CIBIL
+              <input
+                type="number"
+                step="1"
+                min={1}
+                className="mt-1 bt-input w-full text-sm"
+                value={minCibil}
+                onChange={(e) => setMinCibil(e.target.value)}
+                placeholder="e.g. 700"
                 disabled={fieldsDisabled}
               />
             </label>
@@ -625,7 +732,7 @@ function ProgramSetupForm(props: {
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          Tenure (days)
+          Max tenor (days)
           <input
             type="number"
             className="mt-1 bt-input w-full text-sm"

@@ -128,6 +128,21 @@ describe('workflowIntakeRules', () => {
     expect(missingRequiredWorkflowDocuments(form, workflow, 'INDIVIDUAL')).toEqual([])
   })
 
+  it('merges standalone documents even when intake policy is not WORKFLOW_DRIVEN', () => {
+    const workflow = wf({
+      intakeConfig: {
+        policy: 'LEGACY',
+        standaloneDocuments: [{ documentType: 'BOARD_RESOLUTION', required: true, label: 'Board resolution' }],
+      },
+      steps: [],
+    })
+    const slots = resolveDocumentSlots(workflow, 'COMPANY')
+    expect(slots.map((s) => s.documentType)).toEqual(expect.arrayContaining(['BOARD_RESOLUTION']))
+    expect(slots.find((s) => s.documentType === 'BOARD_RESOLUTION')?.required).toBe(true)
+    const form = createEmptyIntakeFormState()
+    expect(missingRequiredWorkflowDocuments(form, workflow, 'COMPANY')).toContain('BOARD_RESOLUTION')
+  })
+
   it('resolves voter and driving licence upload slots from workflow KYC steps', () => {
     const workflow = wf({
       intakeConfig: { policy: 'WORKFLOW_DRIVEN' },

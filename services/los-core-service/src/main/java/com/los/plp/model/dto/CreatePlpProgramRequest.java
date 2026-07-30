@@ -50,6 +50,16 @@ public class CreatePlpProgramRequest {
     /** Minimum borrower dependency on anchor (%). */
     private BigDecimal dependencyVintagePercent;
 
-    /** Minimum anchor relationship vintage (months). */
+    /** Minimum anchor relationship vintage (months) — Min Dir Relationship. */
     private Integer anchorRelationshipVintageMonths;
+
+    /** UPFRONT | MONTHLY | REAR_ENDED */
+    private String interestPayment;
+
+    /** Max invoice vintage / age (days). */
+    private Integer maxInvoiceVintageDays;
+
+    private Integer maxCmr;
+
+    private Integer minCibil;
 }

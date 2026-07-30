@@ -16,6 +16,7 @@ public class KycStepResultResponse {
 
     private UUID id;
     private UUID applicationId;
+    private UUID partyId;
     private KycStepType stepType;
     private ProviderType provider;
     private StepOutcome outcome;

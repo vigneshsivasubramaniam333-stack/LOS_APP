@@ -1,7 +1,9 @@
 package com.los.core.service.loan.intake;
 
 import com.los.core.exception.BusinessRuleException;
+import com.los.core.model.entity.ApplicationParty;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.repository.ApplicationPartyRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.loan.ApplicantIdentityResolver;
 import com.los.core.service.loan.ApplicationPartyResolver;
@@ -27,6 +29,7 @@ public class ApplicationSubmitIdentityValidator {
     static final UUID NO_APPLICATION_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     private final LoanApplicationRepository applicationRepository;
+    private final ApplicationPartyRepository applicationPartyRepository;
 
     public void validateNoDuplicateIdentity(LoanApplication app) {
         validateFields(
@@ -56,6 +59,10 @@ public class ApplicationSubmitIdentityValidator {
                     applicationRepository.findOthersByEmail(excludeId, email.trim()), customerId,
                     "email", email.trim(),
                     "This email is already used by another borrower's application.");
+            blockIfPartyConflict(
+                    applicationPartyRepository.findOthersByEmail(excludeId, email.trim()), customerId,
+                    "email", email.trim(),
+                    "This email is already used by another applicant on a different application.");
         }
 
         String mobileDigits = normalizeMobileDigits(mobile);
@@ -64,6 +71,10 @@ public class ApplicationSubmitIdentityValidator {
                     applicationRepository.findOthersByMobile(excludeId, mobileDigits), customerId,
                     "mobile", mobile,
                     "This mobile number is already used by another borrower's application.");
+            blockIfPartyConflict(
+                    applicationPartyRepository.findOthersByMobileDigits(excludeId, mobileDigits), customerId,
+                    "mobile", mobile,
+                    "This mobile number is already used by another applicant on a different application.");
         }
 
         if (pan != null && !pan.isBlank()) {
@@ -71,6 +82,10 @@ public class ApplicationSubmitIdentityValidator {
                     applicationRepository.findOthersByPan(excludeId, pan.trim()), customerId,
                     "panNumber", pan.trim(),
                     "This PAN is already used by another borrower's application.");
+            blockIfPartyConflict(
+                    applicationPartyRepository.findOthersByPan(excludeId, pan.trim()), customerId,
+                    "panNumber", pan.trim(),
+                    "This PAN is already used by another applicant on a different application.");
         }
 
         if (gstin != null && !gstin.isBlank()) {
@@ -93,6 +108,25 @@ public class ApplicationSubmitIdentityValidator {
                                 "conflictingApplicationNumber",
                                 other.getApplicationNumber() != null ? other.getApplicationNumber() : ""));
             }
+        }
+    }
+
+    private void blockIfPartyConflict(
+            List<ApplicationParty> others,
+            UUID customerId,
+            String field,
+            String value,
+            String message) {
+        for (ApplicationParty p : others) {
+            if (customerId != null && customerId.equals(p.getUserId())) {
+                continue;
+            }
+            throw new BusinessRuleException(
+                    message,
+                    "DUPLICATE_" + field.toUpperCase(),
+                    "VALIDATE_IDENTITY",
+                    Map.of("field", field, "value", value,
+                            "conflictPartyId", p.getId() != null ? p.getId().toString() : ""));
         }
     }
 

@@ -15,6 +15,7 @@ import com.los.core.service.esign.EsignSigningLinkNotifier;
 import com.los.core.service.esign.EsignRequestTrackingService;
 import com.los.core.service.integration.IIntegrationRouterService;
 import com.los.core.service.kfs.KfsService;
+import com.los.core.service.loan.ApplicationPartyService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -54,6 +55,8 @@ class EsignInitiateStepExecutorTest {
     private EsignSigningLinkNotifier esignSigningLinkNotifier;
     @Mock
     private EsignNotificationProperties esignNotificationProperties;
+    @Mock
+    private ApplicationPartyService applicationPartyService;
 
     @InjectMocks
     private EsignInitiateStepExecutor executor;
@@ -92,7 +95,7 @@ class EsignInitiateStepExecutorTest {
 
         verify(esignRequestTrackingService).recordInitiationSuccess(
                 eq(appId), eq("KFS_AGREEMENT"), eq("EMSIGNER"), eq("TX-9"), eq("https://sign.example"),
-                any(), any(), eq("ESIGN_AGREEMENT"));
+                any(), any(), eq("ESIGN_AGREEMENT"), org.mockito.ArgumentMatchers.isNull());
     }
 
     @Test

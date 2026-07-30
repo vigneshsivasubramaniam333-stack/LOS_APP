@@ -101,11 +101,14 @@ public class BorrowerApplicationStatusService {
     private static String sanctionLabel(ApplicationStatus s) {
         return switch (s) {
             case DRAFT, CONSENT_PENDING, BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM,
-                    BORROWER_SENT_BACK, KYC_IN_PROGRESS, KYC_FAILED,
+                    BORROWER_SENT_BACK, ANCHOR_CONSENT_PENDING, ANCHOR_SUBMITTED, ANCHOR_SENT_BACK,
+                    KYC_IN_PROGRESS, KYC_FAILED,
                     UNDERWRITING, UNDERWRITING_COMPLETED, CAM_READY, CAM_SENT_BACK, CAM_REVIEWED -> "Pending";
             case REJECTED, WITHDRAWN -> "Not applicable";
             case SANCTION_PENDING -> "In review";
-            case SANCTIONED, KFS_GENERATED, SANCTION_ISSUED, ESIGN_PENDING, ESIGN_COMPLETED, APPROVED, READY_FOR_DISBURSEMENT,
+            case SANCTIONED, KFS_GENERATED, SANCTION_ISSUED, ESIGN_PENDING, ESIGN_COMPLETED,
+                    DOC_VERIFICATION_PENDING, DOC_VERIFICATION_SENT_BACK,
+                    APPROVED, READY_FOR_DISBURSEMENT,
                     DISBURSEMENT_PENDING, DISBURSED, ON_HOLD -> "Completed";
         };
     }
@@ -113,11 +116,13 @@ public class BorrowerApplicationStatusService {
     private static String kfsLabel(ApplicationStatus s) {
         return switch (s) {
             case DRAFT, CONSENT_PENDING, BORROWER_SUBMITTED, PENDING_CREDIT_OFFICER, SENT_BACK_TO_RM,
-                    BORROWER_SENT_BACK, KYC_IN_PROGRESS, KYC_FAILED,
+                    BORROWER_SENT_BACK, ANCHOR_CONSENT_PENDING, ANCHOR_SUBMITTED, ANCHOR_SENT_BACK,
+                    KYC_IN_PROGRESS, KYC_FAILED,
                     UNDERWRITING, UNDERWRITING_COMPLETED, CAM_READY, CAM_SENT_BACK, CAM_REVIEWED, SANCTION_PENDING, SANCTIONED,
                     APPROVED -> "Pending";
             case REJECTED, WITHDRAWN -> "Not applicable";
-            case KFS_GENERATED, ESIGN_PENDING, ESIGN_COMPLETED, READY_FOR_DISBURSEMENT, DISBURSEMENT_PENDING, DISBURSED,
+            case KFS_GENERATED, ESIGN_PENDING, ESIGN_COMPLETED, DOC_VERIFICATION_PENDING, DOC_VERIFICATION_SENT_BACK,
+                    READY_FOR_DISBURSEMENT, DISBURSEMENT_PENDING, DISBURSED,
                     SANCTION_ISSUED, ON_HOLD -> "Available";
         };
     }

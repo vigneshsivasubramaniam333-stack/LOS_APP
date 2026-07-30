@@ -1,5 +1,6 @@
 import type { BorrowerType, LoanProductCode } from '@/types/createApplication'
 import { ANCHOR_BORROWER_TYPE } from './anchorIntakeConstants'
+import type { AnchorContactUser } from './anchorContacts'
 
 export interface AnchorFormState {
   borrowerType: BorrowerType
@@ -27,6 +28,8 @@ export interface AnchorFormState {
   consentAccountAggregator: boolean
   consentComms: boolean
   documentUploaded: Record<string, boolean>
+  /** Workflow-configured contacts/users (persisted on businessInfo.contacts). */
+  contacts: AnchorContactUser[]
 }
 
 export function createEmptyAnchorFormState(): AnchorFormState {
@@ -56,5 +59,6 @@ export function createEmptyAnchorFormState(): AnchorFormState {
     consentAccountAggregator: false,
     consentComms: false,
     documentUploaded: {},
+    contacts: [],
   }
 }

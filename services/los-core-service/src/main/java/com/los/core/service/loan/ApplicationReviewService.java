@@ -3,10 +3,14 @@ package com.los.core.service.loan;
 import com.los.core.config.RabbitMQConfig;
 import com.los.core.exception.BusinessRuleException;
 import com.los.core.model.dto.response.ApplicationResponse;
+import com.los.core.model.entity.ApplicationParty;
 import com.los.core.model.entity.LoanApplication;
+import com.los.core.model.enums.ApplicationPartyRole;
 import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.model.enums.IntakeOwner;
 import com.los.core.model.enums.IntakeSegment;
+import com.los.core.model.enums.PartyIntakeStatus;
+import com.los.core.repository.ApplicationPartyRepository;
 import com.los.core.repository.CreditAppraisalMemoRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
@@ -21,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +39,7 @@ import java.util.UUID;
 public class ApplicationReviewService {
 
     private final LoanApplicationRepository applicationRepository;
+    private final ApplicationPartyRepository partyRepository;
     private final CreditAppraisalMemoRepository creditAppraisalMemoRepository;
     private final ILoanApplicationService loanApplicationService;
     private final AuditService auditService;
@@ -66,17 +73,18 @@ public class ApplicationReviewService {
 
         if (status == ApplicationStatus.PENDING_CREDIT_OFFICER) {
             workflowRoleGuard.requireCreditOfficerOrAdmin(userRole);
-        } else if (status == ApplicationStatus.BORROWER_SUBMITTED) {
+        } else if (status == ApplicationStatus.BORROWER_SUBMITTED
+                || status == ApplicationStatus.ANCHOR_SUBMITTED) {
             // Admin break-glass: accept without RM handoff
             if (!isAdmin(role)) {
                 throw new BusinessRuleException(
-                        "Accept from BORROWER_SUBMITTED requires Admin. "
+                        "Accept from " + status + " requires Admin. "
                                 + "Credit Officer must wait for RM handoff (PENDING_CREDIT_OFFICER). Current: "
                                 + status);
             }
         } else {
             throw new BusinessRuleException(
-                    "Accept is only for PENDING_CREDIT_OFFICER (or Admin from BORROWER_SUBMITTED). Current: "
+                    "Accept is only for PENDING_CREDIT_OFFICER (or Admin from BORROWER_SUBMITTED / ANCHOR_SUBMITTED). Current: "
                             + status);
         }
 
@@ -85,7 +93,7 @@ public class ApplicationReviewService {
         app.setIntakeOwner(IntakeOwner.STAFF);
         app.setUpdatedAt(Instant.now());
         applicationRepository.save(app);
-        auditService.logEvent(applicationId, "FLOW", "BORROWER_REVIEW_ACCEPTED", null,
+        auditService.logEvent(applicationId, "FLOW", "REVIEW_ACCEPTED", null,
                 Map.of("status", from.name()),
                 Map.of("status", ApplicationStatus.KYC_IN_PROGRESS.name()),
                 "Accepted application for KYC processing");
@@ -94,6 +102,12 @@ public class ApplicationReviewService {
 
     @Transactional
     public ApplicationResponse sendBackToBorrower(UUID applicationId, String notes, String userRole) {
+        return sendBackToBorrower(applicationId, notes, userRole, null, "ALL");
+    }
+
+    @Transactional
+    public ApplicationResponse sendBackToBorrower(
+            UUID applicationId, String notes, String userRole, List<UUID> partyIds, String sendBackMode) {
         workflowRoleGuard.requireRelationshipManagerOrAdmin(userRole);
         LoanApplication app = requireApp(applicationId);
         if (app.getIntakeSegment() == IntakeSegment.ANCHOR) {
@@ -111,13 +125,30 @@ public class ApplicationReviewService {
                             + from);
         }
         String trimmed = trimToNull(notes);
+        List<ApplicationParty> parties = partyRepository.findByApplicationIdOrderBySequenceNoAsc(applicationId);
+        boolean selected = "SELECTED".equalsIgnoreCase(sendBackMode) && partyIds != null && !partyIds.isEmpty();
+        List<ApplicationParty> targets;
+        if (selected) {
+            Set<UUID> requested = new HashSet<>(partyIds);
+            targets = parties.stream().filter(p -> requested.contains(p.getId())).toList();
+            if (targets.size() != requested.size()) {
+                throw new BusinessRuleException("One or more selected applicants do not belong to this application");
+            }
+        } else {
+            targets = parties;
+        }
+        boolean primaryTargeted = !selected
+                || targets.stream().anyMatch(p -> p.getRole() == ApplicationPartyRole.PRIMARY);
         StatusChangeContext.set(null, trimmed != null ? trimmed : "Sent back to borrower");
         try {
-            app.setStatus(ApplicationStatus.BORROWER_SENT_BACK);
+            app.setStatus(primaryTargeted ? ApplicationStatus.BORROWER_SENT_BACK : ApplicationStatus.CONSENT_PENDING);
             app.setBorrowerSentBackNotes(trimmed);
             app.setIntakeOwner(IntakeOwner.BORROWER);
             storeReviewNotes(app, "SENT_BACK_TO_BORROWER", trimmed);
-            applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
+            if (primaryTargeted) {
+                applicationInputChangeTracker.snapshotIntakeAtSendBack(app);
+            }
+            markPartiesSentBack(targets, trimmed, selected);
             app.setUpdatedAt(Instant.now());
             applicationRepository.save(app);
         } finally {
@@ -125,10 +156,10 @@ public class ApplicationReviewService {
         }
         auditService.logEvent(applicationId, "FLOW", "BORROWER_SENT_BACK", null,
                 Map.of("status", from.name()),
-                Map.of("status", ApplicationStatus.BORROWER_SENT_BACK.name(),
+                Map.of("status", app.getStatus().name(),
                         "notes", trimmed != null ? trimmed : ""),
                 "Sent application back to borrower for more details");
-        publishSendBackEmail(app, trimmed != null ? trimmed : "");
+        publishSendBackEmails(app, targets, trimmed != null ? trimmed : "");
         return loanApplicationService.getApplication(applicationId);
     }
 
@@ -138,9 +169,10 @@ public class ApplicationReviewService {
         LoanApplication app = requireApp(applicationId);
         ApplicationStatus status = app.getStatus();
         if (status != ApplicationStatus.BORROWER_SUBMITTED
+                && status != ApplicationStatus.ANCHOR_SUBMITTED
                 && status != ApplicationStatus.SENT_BACK_TO_RM) {
             throw new BusinessRuleException(
-                    "Hand off to Credit Officer is only from BORROWER_SUBMITTED or SENT_BACK_TO_RM. Current: "
+                    "Hand off to Credit Officer is only from BORROWER_SUBMITTED, ANCHOR_SUBMITTED, or SENT_BACK_TO_RM. Current: "
                             + status);
         }
         String trimmed = trimToNull(notes);
@@ -248,16 +280,68 @@ public class ApplicationReviewService {
         return "ADMIN".equals(role) || "ADMINISTRATOR".equals(role);
     }
 
-    private void publishSendBackEmail(LoanApplication app, String notes) {
-        String email = ApplicationPartyResolver.resolveEmail(app);
+    private void markPartiesSentBack(List<ApplicationParty> parties, String notes, boolean forceAllTargets) {
+        for (ApplicationParty party : parties) {
+            if (!forceAllTargets && !isSubmittedOrLater(party.getIntakeStatus())) {
+                continue;
+            }
+            Map<String, Object> info = party.getPersonalInfo() != null
+                    ? new LinkedHashMap<>(party.getPersonalInfo())
+                    : new LinkedHashMap<>();
+            if (notes != null) {
+                info.put("sendBackNotes", notes);
+            } else {
+                info.remove("sendBackNotes");
+            }
+            party.setPersonalInfo(info);
+            party.setIntakeStatus(PartyIntakeStatus.SENT_BACK);
+            party.setUpdatedAt(Instant.now());
+            partyRepository.save(party);
+        }
+    }
+
+    private static boolean isSubmittedOrLater(PartyIntakeStatus status) {
+        return status == PartyIntakeStatus.SUBMITTED
+                || status == PartyIntakeStatus.KYC_COMPLETE
+                || status == PartyIntakeStatus.ESIGN_PENDING
+                || status == PartyIntakeStatus.ESIGN_COMPLETE;
+    }
+
+    private void publishSendBackEmails(LoanApplication app, List<ApplicationParty> parties, String notes) {
+        if (parties.isEmpty()) {
+            publishSendBackEmail(app, ApplicationPartyResolver.resolveEmail(app),
+                    ApplicationPartyResolver.resolveDisplayName(app), null, notes);
+            return;
+        }
+        boolean hasPrimary = parties.stream().anyMatch(p -> p.getRole() == ApplicationPartyRole.PRIMARY);
+        if (!hasPrimary) {
+            publishSendBackEmail(app, ApplicationPartyResolver.resolveEmail(app),
+                    ApplicationPartyResolver.resolveDisplayName(app), null, notes);
+        }
+        for (ApplicationParty party : parties) {
+            publishSendBackEmail(
+                    app,
+                    ApplicationPartyService.resolvePartyEmail(party),
+                    ApplicationPartyService.resolvePartyName(party),
+                    party.getRole() == ApplicationPartyRole.CO_APPLICANT ? party.getId() : null,
+                    notes);
+        }
+    }
+
+    private void publishSendBackEmail(
+            LoanApplication app, String email, String borrowerName, UUID coApplicantPartyId, String notes) {
         if (email.isBlank()) {
             return;
         }
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("borrowerName", ApplicationPartyResolver.resolveDisplayName(app));
+        data.put("borrowerName", borrowerName);
         data.put("applicationNumber", app.getApplicationNumber());
         data.put("notes", notes);
-        data.put("portalUrl", borrowerUiUrl + "/apply?resume=" + app.getId());
+        String portalUrl = borrowerUiUrl + "/apply?resume=" + app.getId();
+        if (coApplicantPartyId != null) {
+            portalUrl += "&partyId=" + coApplicantPartyId;
+        }
+        data.put("portalUrl", portalUrl);
 
         RoutingEmailEvent event = RoutingEmailEvent.builder()
                 .channel("EMAIL")

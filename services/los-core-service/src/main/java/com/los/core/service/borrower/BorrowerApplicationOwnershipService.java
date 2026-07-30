@@ -1,18 +1,22 @@
 package com.los.core.service.borrower;
 
 import com.los.core.model.catalog.StandardLoanProduct;
+import com.los.core.model.entity.ApplicationParty;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.entity.LosUser;
 import com.los.plp.model.enums.PlpSyncStatus;
+import com.los.core.repository.ApplicationPartyRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.LosUserRepository;
 import com.los.core.service.loan.ApplicationPartyResolver;
+import com.los.core.service.loan.ApplicationPartyService;
 import com.los.core.service.loan.InvoiceDiscountingApplicationRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -31,6 +35,7 @@ import java.util.UUID;
 public class BorrowerApplicationOwnershipService {
 
     private final LoanApplicationRepository applicationRepository;
+    private final ApplicationPartyRepository applicationPartyRepository;
     private final LosUserRepository losUserRepository;
 
     /**
@@ -82,8 +87,80 @@ public class BorrowerApplicationOwnershipService {
         if (borrowerUserId.equals(app.getCustomerId())) {
             return true;
         }
+        if (applicationPartyRepository.findByApplicationIdAndUserId(app.getId(), borrowerUserId).isPresent()) {
+            return true;
+        }
+        if (findMatchingUnlinkedParty(app.getId(), borrowerUserId).isPresent()) {
+            return true;
+        }
         return findInvoiceDiscountingApplications(borrowerUserId).stream()
                 .anyMatch(candidate -> candidate.getId().equals(app.getId()));
+    }
+
+    public boolean ownsApplication(UUID borrowerUserId, UUID applicationId) {
+        return applicationRepository.findById(applicationId)
+                .map(app -> ownsApplication(borrowerUserId, app))
+                .orElse(false);
+    }
+
+    /**
+     * Links co-applicant (and primary) party rows to the logged-in borrower when email/mobile match
+     * but {@code user_id} was never set. Call before portal list/detail so JPQL accessibility works.
+     */
+    @Transactional
+    public void reconcilePartyUserLinks(UUID borrowerUserId) {
+        LosUser user = losUserRepository.findById(borrowerUserId).orElse(null);
+        if (user == null) {
+            return;
+        }
+        String email = normalizedEmail(user);
+        String mobile = mobileDigits(user);
+        LinkedHashMap<UUID, ApplicationParty> candidates = new LinkedHashMap<>();
+        if (!email.isBlank()) {
+            for (ApplicationParty party : applicationPartyRepository.findByContactEmail(email)) {
+                candidates.putIfAbsent(party.getId(), party);
+            }
+        }
+        if (mobile.length() >= 10) {
+            for (ApplicationParty party : applicationPartyRepository.findByMobileDigits(mobile)) {
+                candidates.putIfAbsent(party.getId(), party);
+            }
+        }
+        for (ApplicationParty party : candidates.values()) {
+            if (borrowerUserId.equals(party.getUserId())) {
+                continue;
+            }
+            // Do not steal a party already linked to a different borrower.
+            if (party.getUserId() != null) {
+                continue;
+            }
+            party.setUserId(borrowerUserId);
+            party.setUpdatedAt(Instant.now());
+            applicationPartyRepository.save(party);
+            log.info("Linked application party {} (app {}) to borrower user {}",
+                    party.getId(), party.getApplicationId(), borrowerUserId);
+        }
+    }
+
+    private Optional<ApplicationParty> findMatchingUnlinkedParty(UUID applicationId, UUID borrowerUserId) {
+        LosUser user = losUserRepository.findById(borrowerUserId).orElse(null);
+        if (user == null) {
+            return Optional.empty();
+        }
+        String email = normalizedEmail(user);
+        String mobile = mobileDigits(user);
+        return applicationPartyRepository.findByApplicationIdOrderBySequenceNoAsc(applicationId).stream()
+                .filter(party -> party.getUserId() == null)
+                .filter(party -> {
+                    String partyEmail = ApplicationPartyService.resolvePartyEmail(party);
+                    String partyMobile = ApplicationPartyService.resolvePartyMobile(party);
+                    boolean emailMatch = !email.isBlank()
+                            && email.equalsIgnoreCase(partyEmail == null ? "" : partyEmail.trim());
+                    String partyDigits = partyMobile == null ? "" : partyMobile.replaceAll("\\D", "");
+                    boolean mobileMatch = mobile.length() >= 10 && mobile.equals(partyDigits);
+                    return emailMatch || mobileMatch;
+                })
+                .findFirst();
     }
 
     private List<LoanApplication> findInvoiceDiscountingApplications(UUID borrowerUserId) {

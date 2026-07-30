@@ -50,6 +50,7 @@ public class EsignRequestTrackingService {
                 .signedDocumentUrl(e.getSignedDocumentUrl())
                 .createdAt(e.getCreatedAt())
                 .signedAt(e.getSignedAt())
+                .partyId(e.getPartyId())
                 .build();
     }
 
@@ -88,6 +89,21 @@ public class EsignRequestTrackingService {
             Map<String, Object> signerInfo,
             Map<String, Object> rawResponse,
             String esignStepType) {
+        recordInitiationSuccess(applicationId, documentType, providerName, providerRequestId, signingUrl,
+                signerInfo, rawResponse, esignStepType, null);
+    }
+
+    @Transactional
+    public void recordInitiationSuccess(
+            UUID applicationId,
+            String documentType,
+            String providerName,
+            String providerRequestId,
+            String signingUrl,
+            Map<String, Object> signerInfo,
+            Map<String, Object> rawResponse,
+            String esignStepType,
+            UUID partyId) {
         if (applicationId == null || providerRequestId == null || providerRequestId.isBlank()) {
             log.warn("Skip esign_requests row: missing applicationId or providerRequestId");
             return;
@@ -106,9 +122,18 @@ public class EsignRequestTrackingService {
         if (esignStepType != null && !esignStepType.isBlank()) {
             persistedRaw.put("losEsignStep", esignStepType.trim());
         }
+        UUID resolvedPartyId = partyId;
+        if (resolvedPartyId == null && signers.get("partyId") != null) {
+            try {
+                resolvedPartyId = UUID.fromString(String.valueOf(signers.get("partyId")).trim());
+            } catch (Exception ignored) {
+                // leave null
+            }
+        }
 
         EsignRequest row = EsignRequest.builder()
                 .applicationId(applicationId)
+                .partyId(resolvedPartyId)
                 .documentType(documentType != null && !documentType.isBlank() ? documentType : "UNKNOWN")
                 .provider(provider)
                 .providerRequestId(providerRequestId)
@@ -119,11 +144,12 @@ public class EsignRequestTrackingService {
                 .rawResponse(persistedRaw.isEmpty() ? null : persistedRaw)
                 .build();
         esignRequestRepository.save(row);
-        log.info("[ESIGN_PERSIST] saved esign_requests appId={} documentType={} provider={} providerRequestId={} status=INITIATED signingUrlPresent={} losSignerEmailTracked={} losEsignStep={}",
+        log.info("[ESIGN_PERSIST] saved esign_requests appId={} documentType={} provider={} providerRequestId={} status=INITIATED signingUrlPresent={} losSignerEmailTracked={} losEsignStep={} partyId={}",
                 applicationId, row.getDocumentType(), provider, providerRequestId,
                 signingUrl != null && !signingUrl.isBlank(),
                 signerKey != null && !signerKey.isBlank(),
-                esignStepType);
+                esignStepType,
+                resolvedPartyId);
     }
 
     @Transactional(readOnly = true)

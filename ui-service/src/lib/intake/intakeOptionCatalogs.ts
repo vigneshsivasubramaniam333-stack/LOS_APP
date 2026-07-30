@@ -10,6 +10,13 @@ export const DEFAULT_OCCUPATION_OPTIONS: IntakeCodedOption[] = [
   { value: 'SALARIED_GOVERNMENT', label: 'Salaried — government' },
 ]
 
+export const DEFAULT_GENDER_OPTIONS: IntakeCodedOption[] = [
+  { value: 'MALE', label: 'Male' },
+  { value: 'FEMALE', label: 'Female' },
+  { value: 'OTHER', label: 'Other' },
+  { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
+]
+
 export const DEFAULT_LOAN_PURPOSE_OPTIONS: IntakeCodedOption[] = [
   { value: 'OTHER', label: 'Others' },
   { value: 'SIBLING_MARRIAGE', label: "Sibling's Marriage" },
@@ -28,6 +35,22 @@ export function resolveOccupationOptions(
   const configured = workflow?.intakeConfig?.occupationRules?.options
   if (configured?.length) return configured.map(({ value, label }) => ({ value, label }))
   return DEFAULT_OCCUPATION_OPTIONS
+}
+
+export function resolveGenderOptions(
+  workflow: WorkflowConfigResponse | null | undefined,
+): IntakeCodedOption[] {
+  const fromCo =
+    workflow?.intakeConfig?.coApplicant?.personalFields?.gender?.allowedValues
+  const fromPrimary = workflow?.intakeConfig?.personalFields?.gender?.allowedValues
+  const allowed = fromCo?.length ? fromCo : fromPrimary
+  if (allowed?.length) {
+    return allowed.map((value) => ({
+      value,
+      label: DEFAULT_GENDER_OPTIONS.find((o) => o.value === value)?.label ?? value.replaceAll('_', ' '),
+    }))
+  }
+  return DEFAULT_GENDER_OPTIONS
 }
 
 export function resolveLoanPurposeOptions(

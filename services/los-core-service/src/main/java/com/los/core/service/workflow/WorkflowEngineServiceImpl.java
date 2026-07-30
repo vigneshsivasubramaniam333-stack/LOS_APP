@@ -6,9 +6,11 @@ import com.los.core.exception.ResourceNotFoundException;
 import com.los.core.model.dto.request.WorkflowConfigRequest;
 import com.los.core.model.dto.response.WorkflowConfigResponse;
 import com.los.core.model.entity.WorkflowConfig;
+import com.los.core.model.catalog.StandardLoanProduct;
 import com.los.core.model.enums.BorrowerType;
 import com.los.core.model.enums.IntakeSegment;
 import com.los.core.repository.WorkflowConfigRepository;
+import com.los.core.service.loan.CoApplicantWorkflowConfig;
 import com.los.core.service.workflow.intake.KycStepIntakeCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -95,7 +97,11 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
             config.setIntakeIdentitySchema(request.getIntakeIdentitySchema());
         }
         if (request.getIntakeConfig() != null) {
-            config.setIntakeConfig(copyJsonMap(request.getIntakeConfig()));
+            String product = request.getLoanProduct() != null ? request.getLoanProduct() : config.getLoanProduct();
+            String segment = request.getIntakeSegment() != null
+                    ? request.getIntakeSegment().name()
+                    : config.getIntakeSegment();
+            config.setIntakeConfig(sanitizeIntakeConfig(product, segment, copyJsonMap(request.getIntakeConfig())));
         }
         if (request.getSteps() != null) {
             config.setSteps(request.getSteps());
@@ -347,10 +353,27 @@ public class WorkflowEngineServiceImpl implements IWorkflowEngineService {
     }
 
     private static Map<String, Object> resolveIntakeConfigForCreate(WorkflowConfigRequest request) {
+        Map<String, Object> base;
         if (request.getIntakeConfig() != null && !request.getIntakeConfig().isEmpty()) {
-            return copyJsonMap(request.getIntakeConfig());
+            base = copyJsonMap(request.getIntakeConfig());
+        } else {
+            base = KycStepIntakeCatalog.defaultWorkflowDrivenIntakeConfig();
         }
-        return KycStepIntakeCatalog.defaultWorkflowDrivenIntakeConfig();
+        String segment = request.getIntakeSegment() != null
+                ? request.getIntakeSegment().name()
+                : IntakeSegment.BORROWER.name();
+        return sanitizeIntakeConfig(request.getLoanProduct(), segment, base);
+    }
+
+    /** Co-applicant is never allowed for invoice discounting or ANCHOR intake. */
+    private static Map<String, Object> sanitizeIntakeConfig(String loanProduct, String intakeSegment, Map<String, Object> intakeConfig) {
+        boolean invoiceDiscounting = StandardLoanProduct.BUSINESS_WC_INVOICE_DISCOUNTING.equals(loanProduct);
+        boolean anchor = IntakeSegment.ANCHOR.name().equalsIgnoreCase(
+                intakeSegment != null ? intakeSegment.trim() : "");
+        if (invoiceDiscounting || anchor) {
+            return CoApplicantWorkflowConfig.forceDisabledInIntakeConfig(intakeConfig);
+        }
+        return intakeConfig;
     }
 
     /**

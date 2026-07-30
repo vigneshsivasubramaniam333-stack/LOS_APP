@@ -30,6 +30,12 @@ export interface BorrowerAppSummary {
   status: ApplicationStatus
   createdAt: string | null
   updatedAt: string | null
+  partyRole?: string | null
+  partyId?: string | null
+  partyIntakeStatus?: string | null
+  canResumeMyIntake?: boolean | null
+  pendingCoApplicantCount?: number | null
+  viewerFriendlyStatus?: string | null
 }
 
 export interface BorrowerTimelineStep {
@@ -71,6 +77,11 @@ export interface BorrowerApplicationDetail {
   interestRate?: number | null
   tenureMonths?: number | null
   termsDocumentAvailable?: boolean
+  canResumeMyIntake?: boolean | null
+  partyRole?: string | null
+  partyId?: string | null
+  partyIntakeStatus?: string | null
+  pendingCoApplicantCount?: number | null
 }
 
 export async function getBorrowerDashboard(): Promise<BorrowerDashboard> {

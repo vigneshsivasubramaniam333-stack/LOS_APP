@@ -235,6 +235,10 @@ public class PlpProgramQueryService {
                 .approvalNotes(program.getApprovalNotes())
                 .dependencyVintagePercent(program.getDependencyVintagePercent())
                 .anchorRelationshipVintageMonths(program.getAnchorRelationshipVintageMonths())
+                .interestPayment(program.getInterestPayment())
+                .maxInvoiceVintageDays(program.getMaxInvoiceVintageDays())
+                .maxCmr(program.getMaxCmr())
+                .minCibil(program.getMinCibil())
                 .build();
     }
 

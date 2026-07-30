@@ -34,6 +34,10 @@ public class EsignRequest {
     @Column(name = "application_id", nullable = false)
     private UUID applicationId;
 
+    /** Null = legacy / primary party. */
+    @Column(name = "party_id")
+    private UUID partyId;
+
     @Column(name = "document_type", nullable = false, length = 100)
     private String documentType;
 

@@ -4,6 +4,7 @@
 export interface KycStepResultResponse {
   id: string
   applicationId: string
+  partyId?: string | null
   stepType: string
   provider: string
   outcome: 'SUCCESS' | 'FAILURE' | 'PENDING' | 'MANUAL' | string

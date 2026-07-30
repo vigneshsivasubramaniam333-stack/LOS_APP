@@ -37,4 +37,8 @@ public class PlpProgramSummaryResponse {
     private String approvalNotes;
     private BigDecimal dependencyVintagePercent;
     private Integer anchorRelationshipVintageMonths;
+    private String interestPayment;
+    private Integer maxInvoiceVintageDays;
+    private Integer maxCmr;
+    private Integer minCibil;
 }

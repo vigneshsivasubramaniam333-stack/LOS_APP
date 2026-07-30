@@ -122,6 +122,22 @@ public class ProgramMaster {
     @Column(name = "anchor_relationship_vintage_months")
     private Integer anchorRelationshipVintageMonths;
 
+    /** Interest payment timing: UPFRONT | MONTHLY | REAR_ENDED. */
+    @Column(name = "interest_payment", length = 20)
+    private String interestPayment;
+
+    /** Max invoice vintage / age in days (PLP config.maxInvoiceAgeDays). */
+    @Column(name = "max_invoice_vintage_days")
+    private Integer maxInvoiceVintageDays;
+
+    /** Maximum allowed CMR (commercial credit rating). */
+    @Column(name = "max_cmr")
+    private Integer maxCmr;
+
+    /** Minimum required CIBIL score. */
+    @Column(name = "min_cibil")
+    private Integer minCibil;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

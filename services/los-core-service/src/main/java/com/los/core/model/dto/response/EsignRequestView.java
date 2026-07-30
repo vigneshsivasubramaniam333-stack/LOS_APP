@@ -20,4 +20,5 @@ public class EsignRequestView {
     private String signedDocumentUrl;
     private Instant createdAt;
     private Instant signedAt;
+    private UUID partyId;
 }
