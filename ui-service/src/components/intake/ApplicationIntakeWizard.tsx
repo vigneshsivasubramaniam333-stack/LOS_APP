@@ -61,7 +61,6 @@ import {
   notifyBorrowerToComplete,
   submitApplicationParty,
   submitDelegatedBorrowerIntake,
-  updateApplicationPartyPersonalInfo,
   upsertApplicationParties,
 } from '@/api/workflow'
 import {

@@ -13,6 +13,7 @@ const STATUS_LABEL: Record<ProgramApprovalStatus, string> = {
   DRAFT: 'Draft (L1)',
   PENDING_L2: 'Pending L2 approval',
   SENT_BACK: 'Sent back to L1',
+  APPROVED_PENDING_DOCS: 'Approved — pending document verification',
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
 }

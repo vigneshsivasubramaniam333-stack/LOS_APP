@@ -4,6 +4,7 @@ export type ProgramApprovalStatus =
   | 'DRAFT'
   | 'PENDING_L2'
   | 'SENT_BACK'
+  | 'APPROVED_PENDING_DOCS'
   | 'APPROVED'
   | 'REJECTED'
 

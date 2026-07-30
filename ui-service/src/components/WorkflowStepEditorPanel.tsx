@@ -7,14 +7,11 @@ import {
 } from '@/lib/workflowProcessNotifications'
 import { WORKFLOW_NOTIFICATION_CHANNELS, WORKFLOW_NOTIFICATION_EVENT_OPTIONS } from '@/lib/workflowNotificationConstants'
 import {
-  ESIGN_ADDITIONAL_DOCUMENT_CATALOG,
   WORKFLOW_STEP_TYPES,
   createEmptyVisualStep,
   defaultProviderForWorkflowStep,
   getStepMatrixHelp,
   isPostKycWorkflowStep,
-  type EsignAdditionalDocument,
-  type EsignDocumentsUiConfig,
   type StepNotificationConfig,
   type VisualWorkflowStep,
 } from '@/lib/workflowVisual'
