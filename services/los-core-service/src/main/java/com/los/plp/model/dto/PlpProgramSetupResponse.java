@@ -8,6 +8,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -43,4 +44,6 @@ public class PlpProgramSetupResponse {
     private Integer maxInvoiceVintageDays;
     private Integer maxCmr;
     private Integer minCibil;
+    /** Values keyed by program field definition fieldKey (system + free-form). */
+    private Map<String, Object> customFields;
 }

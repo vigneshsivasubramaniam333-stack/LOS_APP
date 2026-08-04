@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 
 @Data
 @Builder
@@ -32,4 +33,6 @@ public class PlpProgramSyncRequest {
     private Integer maxInvoiceVintageDays;
     private Integer maxCmr;
     private Integer minCibil;
+    /** Dynamic custom + system field bag for PLP program config merge. */
+    private Map<String, Object> customFields;
 }

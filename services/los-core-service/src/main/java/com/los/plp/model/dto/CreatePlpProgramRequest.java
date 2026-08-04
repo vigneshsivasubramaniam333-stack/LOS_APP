@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -62,4 +63,10 @@ public class CreatePlpProgramRequest {
     private Integer maxCmr;
 
     private Integer minCibil;
+
+    /**
+     * Dynamic program eligibility / commercial field values keyed by field definition key.
+     * System-managed keys are dual-written onto typed columns when present.
+     */
+    private Map<String, Object> customFields;
 }
