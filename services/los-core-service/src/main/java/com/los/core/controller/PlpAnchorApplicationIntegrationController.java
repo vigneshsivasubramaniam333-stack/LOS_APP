@@ -6,6 +6,7 @@ import com.los.core.model.dto.response.ApplicationResponse;
 import com.los.core.model.dto.response.DocumentResponse;
 import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.entity.WorkflowConfig;
+import com.los.core.model.enums.ApplicationStatus;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.anchor.AnchorIntakeDelegationService;
 import com.los.core.service.document.IDocumentService;
@@ -71,6 +72,7 @@ public class PlpAnchorApplicationIntegrationController {
             @RequestBody UpdateApplicationRequest request,
             @RequestHeader(value = INTEGRATION_KEY_HEADER, required = false) String integrationKey) {
         requireIntegrationKey(integrationKey);
+        rejectPersonalUpdateDuringDocVerificationSendBack(applicationId, request);
         return ResponseEntity.ok(loanApplicationService.updateApplication(applicationId, request));
     }
 
@@ -202,6 +204,36 @@ public class PlpAnchorApplicationIntegrationController {
         wf.put("steps", config.getSteps());
         wf.put("active", config.isActive());
         return wf;
+    }
+
+    /**
+     * During document-verification send-back, the anchor may only re-upload documents and resubmit.
+     * Reject personal / business / financial / product mutation payloads from the portal.
+     */
+    private void rejectPersonalUpdateDuringDocVerificationSendBack(
+            UUID applicationId, UpdateApplicationRequest request) {
+        ApplicationResponse existing = loanApplicationService.getApplication(applicationId);
+        if (existing.getStatus() != ApplicationStatus.DOC_VERIFICATION_SENT_BACK) {
+            return;
+        }
+        if (request == null) {
+            return;
+        }
+        boolean hasMutation =
+                request.getPersonalInfo() != null
+                        || request.getBusinessInfo() != null
+                        || request.getFinancialInfo() != null
+                        || request.getCollateralInfo() != null
+                        || request.getRequestedAmount() != null
+                        || request.getTenureMonths() != null
+                        || (request.getLmsProductCode() != null && !request.getLmsProductCode().isBlank())
+                        || (request.getLmsTenureUnit() != null && !request.getLmsTenureUnit().isBlank())
+                        || (request.getRemarks() != null && !request.getRemarks().isBlank());
+        if (hasMutation) {
+            throw new IllegalArgumentException(
+                    "Only document upload is allowed while document verification is sent back. "
+                            + "Personal and KYC details cannot be changed.");
+        }
     }
 
     private void requireIntegrationKey(String providedKey) {

@@ -30,6 +30,7 @@ public final class PlpProgramPayloadMapper {
                 .maxInvoiceVintageDays(program.getMaxInvoiceVintageDays())
                 .maxCmr(program.getMaxCmr())
                 .minCibil(program.getMinCibil())
+                .customFields(com.los.plp.service.ProgramCustomFieldBridge.mergeForResponse(program))
                 .build();
     }
 }

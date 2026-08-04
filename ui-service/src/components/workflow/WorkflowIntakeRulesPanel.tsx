@@ -4,13 +4,24 @@ import type {
   WorkflowCodedOption,
   WorkflowContactsConfig,
   WorkflowIntakeConfig,
+  WorkflowIntakeSegment,
   WorkflowMandatoryFieldGroup,
+  WorkflowEsignSigningDocument,
+  WorkflowEsignSystemDocument,
   WorkflowStandaloneDocument,
 } from '@/types/workflow'
 import type { VisualWorkflowStep } from '@/lib/workflowVisual'
 import { KYC_IDENTITY_WORKFLOW_STEPS } from '@/lib/workflowVisual'
 import { DEFAULT_LOAN_PURPOSE_OPTIONS, DEFAULT_OCCUPATION_OPTIONS } from '@/lib/intake/intakeOptionCatalogs'
-import { defaultWorkflowDrivenIntakeConfig, newMandatoryGroup, newStandaloneDocument } from '@/lib/workflow/workflowIntakeRules'
+import {
+  defaultWorkflowDrivenIntakeConfig,
+  newMandatoryGroup,
+  newStandaloneDocument,
+  newEsignSigningDocument,
+  newEsignSystemDocument,
+  suggestedEsignSystemDocuments,
+} from '@/lib/workflow/workflowIntakeRules'
+import { ESIGN_ADDITIONAL_DOCUMENT_CATALOG } from '@/lib/workflowVisual'
 import { ensureGeoStatesLoaded } from '@/lib/intake/masterGeoClientCache'
 import type { GeoStateRow } from '@/api/geoMaster'
 
@@ -216,6 +227,7 @@ export function WorkflowIntakeRulesPanel({
   visualSteps,
   hideCoApplicant = false,
   showContacts = false,
+  intakeSegment = 'BORROWER',
 }: {
   intakeConfig: WorkflowIntakeConfig
   onChange: (next: WorkflowIntakeConfig) => void
@@ -223,11 +235,18 @@ export function WorkflowIntakeRulesPanel({
   hideCoApplicant?: boolean
   /** When true (ANCHOR workflows), show contacts/users capture config. */
   showContacts?: boolean
+  /** Drives suggested system eSign document keys (program terms vs KFS). */
+  intakeSegment?: WorkflowIntakeSegment
 }) {
   const configuredSteps = visualSteps.map((s) => s.step)
 
   function patch(partial: Partial<WorkflowIntakeConfig>) {
     onChange({ ...intakeConfig, ...partial })
+  }
+
+  function ensureSystemDocsSeeded() {
+    if ((intakeConfig.esignSystemDocuments ?? []).length > 0) return
+    patch({ esignSystemDocuments: suggestedEsignSystemDocuments(intakeSegment) })
   }
 
   return (
@@ -599,6 +618,111 @@ export function WorkflowIntakeRulesPanel({
                 onRemove={() => {
                   const docs = (intakeConfig.standaloneDocuments ?? []).filter((_, i) => i !== dIdx)
                   patch({ standaloneDocuments: docs })
+                }}
+              />
+            ))}
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium text-slate-800">System-generated eSign documents</h3>
+              <div className="flex flex-wrap gap-2">
+                {(intakeConfig.esignSystemDocuments ?? []).length === 0 ? (
+                  <button
+                    type="button"
+                    className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs"
+                    onClick={() => ensureSystemDocsSeeded()}
+                  >
+                    Use {intakeSegment === 'ANCHOR' ? 'anchor' : 'borrower'} defaults
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs"
+                  onClick={() =>
+                    patch({
+                      esignSystemDocuments: [
+                        ...(intakeConfig.esignSystemDocuments ?? []),
+                        newEsignSystemDocument(
+                          intakeSegment === 'ANCHOR'
+                            ? {
+                                documentKey: 'SANCTION_LETTER',
+                                label: 'Sanction letter',
+                                enabled: true,
+                              }
+                            : {
+                                documentKey: 'SANCTION_LETTER',
+                                label: 'Sanction letter',
+                                enabled: true,
+                              },
+                        ),
+                      ],
+                    })
+                  }
+                >
+                  Add system document
+                </button>
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {intakeSegment === 'ANCHOR'
+                ? 'Configure Anchor program terms (signed after sanction) and optional Sanction letter. When Sanction letter is enabled, LOS generates a 2-page letter at eSign initiate and creates a signing URL.'
+                : 'Configure Key Fact Statement / borrower terms and optional Sanction letter for invoice discounting and other borrower products. When Sanction letter is enabled, LOS generates a 2-page letter at eSign initiate.'}{' '}
+              Optional templates are stored for future use only — generation currently uses the default LOS PDF procedure (templates are not applied yet). Leave this section empty to keep historical single-document eSign behaviour.
+            </p>
+            {(intakeConfig.esignSystemDocuments ?? []).map((doc, dIdx) => (
+              <EsignSystemDocRow
+                key={`${doc.documentKey}-${dIdx}`}
+                doc={doc}
+                intakeSegment={intakeSegment}
+                onChange={(next) => {
+                  const docs = [...(intakeConfig.esignSystemDocuments ?? [])]
+                  docs[dIdx] = next
+                  patch({ esignSystemDocuments: docs })
+                }}
+                onRemove={() => {
+                  const docs = (intakeConfig.esignSystemDocuments ?? []).filter((_, i) => i !== dIdx)
+                  patch({ esignSystemDocuments: docs })
+                }}
+              />
+            ))}
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium text-slate-800">Additional eSign documents</h3>
+              <button
+                type="button"
+                className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs"
+                onClick={() =>
+                  patch({
+                    esignSigningDocuments: [
+                      ...(intakeConfig.esignSigningDocuments ?? []),
+                      newEsignSigningDocument(),
+                    ],
+                  })
+                }
+              >
+                Add signing document
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              User-uploaded PDFs only (e.g. board resolution). System-generated docs are configured in the
+              section above — do not list KFS, program terms, or sanction letter here. Uncheck &quot;Collect
+              at intake&quot; for documents that staff may upload later from application review.
+            </p>
+            {(intakeConfig.esignSigningDocuments ?? []).map((doc, dIdx) => (
+              <EsignSigningDocRow
+                key={`${doc.documentType}-${dIdx}`}
+                doc={doc}
+                onChange={(next) => {
+                  const docs = [...(intakeConfig.esignSigningDocuments ?? [])]
+                  docs[dIdx] = next
+                  patch({ esignSigningDocuments: docs })
+                }}
+                onRemove={() => {
+                  const docs = (intakeConfig.esignSigningDocuments ?? []).filter((_, i) => i !== dIdx)
+                  patch({ esignSigningDocuments: docs })
                 }}
               />
             ))}
@@ -1103,6 +1227,270 @@ function StandaloneDocRow({
       <button type="button" className="text-xs text-rose-700" onClick={onRemove}>
         Remove
       </button>
+    </div>
+  )
+}
+
+function EsignSystemDocRow({
+  doc,
+  onChange,
+  onRemove,
+  intakeSegment,
+}: {
+  doc: WorkflowEsignSystemDocument
+  onChange: (d: WorkflowEsignSystemDocument) => void
+  onRemove: () => void
+  intakeSegment: WorkflowIntakeSegment
+}) {
+  const catalog =
+    intakeSegment === 'ANCHOR'
+      ? [
+          { documentKey: 'ANCHOR_PROGRAM_TERMS', label: 'Anchor program terms' },
+          { documentKey: 'SANCTION_LETTER', label: 'Sanction letter' },
+        ]
+      : [
+          { documentKey: 'KFS_AGREEMENT', label: 'Key Fact Statement' },
+          { documentKey: 'SANCTION_LETTER', label: 'Sanction letter' },
+        ]
+  const catalogMatch = catalog.some((c) => c.documentKey === doc.documentKey)
+
+  return (
+    <div className="mt-2 space-y-2 rounded border border-slate-200 bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className="rounded border border-slate-300 px-2 py-1 text-xs"
+          value={catalogMatch ? doc.documentKey : '__CUSTOM__'}
+          onChange={(e) => {
+            const key = e.target.value
+            if (key === '__CUSTOM__') {
+              onChange({
+                ...doc,
+                documentKey: doc.documentKey || 'CUSTOM_SYSTEM_DOC',
+                label: doc.label || 'Custom system document',
+              })
+              return
+            }
+            const hit = catalog.find((c) => c.documentKey === key)
+            onChange({
+              ...doc,
+              documentKey: key,
+              label: hit?.label ?? key,
+            })
+          }}
+        >
+          {catalog.map((t) => (
+            <option key={t.documentKey} value={t.documentKey}>
+              {t.label}
+            </option>
+          ))}
+          <option value="__CUSTOM__">Custom document key…</option>
+        </select>
+        <input
+          className="min-w-[8rem] flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
+          value={doc.label ?? ''}
+          placeholder="Label"
+          onChange={(e) => onChange({ ...doc, label: e.target.value })}
+        />
+        <input
+          className="w-44 rounded border border-slate-300 px-2 py-1 text-xs font-mono uppercase"
+          value={doc.documentKey}
+          placeholder="DOCUMENT_KEY"
+          onChange={(e) =>
+            onChange({
+              ...doc,
+              documentKey: e.target.value.trim().toUpperCase().replace(/\s+/g, '_'),
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            className="rounded border-slate-300"
+            checked={doc.enabled !== false}
+            onChange={(e) => onChange({ ...doc, enabled: e.target.checked })}
+          />
+          Enabled for eSign
+        </label>
+        <label className="flex items-center gap-1">
+          Expected pages
+          <input
+            type="number"
+            min={1}
+            className="w-14 rounded border border-slate-300 px-1 py-0.5"
+            value={doc.expectedPageCount ?? 2}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              onChange({
+                ...doc,
+                expectedPageCount: Number.isFinite(n) && n > 0 ? Math.floor(n) : 2,
+              })
+            }}
+          />
+        </label>
+        <button type="button" className="text-xs text-rose-700" onClick={onRemove}>
+          Remove
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-slate-700">Template (optional, future use)</span>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="max-w-full text-xs"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              const reader = new FileReader()
+              reader.onload = () => {
+                const result = typeof reader.result === 'string' ? reader.result : ''
+                const base64 = result.includes(',') ? result.split(',')[1] ?? '' : result
+                onChange({
+                  ...doc,
+                  templateFileName: file.name,
+                  templateMimeType: file.type || 'application/octet-stream',
+                  templateBase64: base64 || null,
+                })
+              }
+              reader.readAsDataURL(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
+        {doc.templateFileName ? (
+          <span className="rounded bg-emerald-50 px-2 py-0.5 text-emerald-800">
+            Stored: {doc.templateFileName}
+            <button
+              type="button"
+              className="ml-2 text-rose-700 underline"
+              onClick={() =>
+                onChange({
+                  ...doc,
+                  templateFileName: null,
+                  templateMimeType: null,
+                  templateBase64: null,
+                })
+              }
+            >
+              Clear
+            </button>
+          </span>
+        ) : (
+          <span className="text-slate-400">No template uploaded</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EsignSigningDocRow({
+  doc,
+  onChange,
+  onRemove,
+}: {
+  doc: WorkflowEsignSigningDocument
+  onChange: (d: WorkflowEsignSigningDocument) => void
+  onRemove: () => void
+}) {
+  const catalogMatch = ESIGN_ADDITIONAL_DOCUMENT_CATALOG.some((c) => c.documentType === doc.documentType)
+  return (
+    <div className="mt-2 space-y-2 rounded border border-slate-200 bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className="rounded border border-slate-300 px-2 py-1 text-xs"
+          value={catalogMatch ? doc.documentType : '__CUSTOM__'}
+          onChange={(e) => {
+            const type = e.target.value
+            if (type === '__CUSTOM__') {
+              onChange({
+                ...doc,
+                documentType: doc.documentType || 'CUSTOM_DOC',
+                label: doc.label || 'Custom document',
+              })
+              return
+            }
+            const catalog = ESIGN_ADDITIONAL_DOCUMENT_CATALOG.find((c) => c.documentType === type)
+            onChange({
+              ...doc,
+              documentType: type,
+              label: catalog?.label ?? type,
+            })
+          }}
+        >
+          {ESIGN_ADDITIONAL_DOCUMENT_CATALOG.map((t) => (
+            <option key={t.documentType} value={t.documentType}>
+              {t.label}
+            </option>
+          ))}
+          <option value="__CUSTOM__">Custom document type…</option>
+        </select>
+        <input
+          className="min-w-[8rem] flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
+          value={doc.label ?? ''}
+          placeholder="Label"
+          onChange={(e) => onChange({ ...doc, label: e.target.value })}
+        />
+        <input
+          className="w-36 rounded border border-slate-300 px-2 py-1 text-xs font-mono uppercase"
+          value={doc.documentType}
+          placeholder="DOCUMENT_TYPE"
+          onChange={(e) =>
+            onChange({
+              ...doc,
+              documentType: e.target.value.trim().toUpperCase().replace(/\s+/g, '_'),
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            className="rounded border-slate-300"
+            checked={doc.required !== false}
+            onChange={(e) => {
+              const required = e.target.checked
+              onChange({
+                ...doc,
+                required,
+                collectAtIntake: required ? doc.collectAtIntake !== false : false,
+              })
+            }}
+          />
+          Required for signing
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            className="rounded border-slate-300"
+            checked={doc.collectAtIntake !== false && doc.required !== false}
+            disabled={doc.required === false}
+            onChange={(e) => onChange({ ...doc, collectAtIntake: e.target.checked })}
+          />
+          Collect at intake
+        </label>
+        <label className="flex items-center gap-1">
+          Expected pages
+          <input
+            type="number"
+            min={1}
+            className="w-14 rounded border border-slate-300 px-1 py-0.5"
+            value={doc.expectedPageCount ?? 2}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              onChange({
+                ...doc,
+                expectedPageCount: Number.isFinite(n) && n > 0 ? Math.floor(n) : 2,
+              })
+            }}
+          />
+        </label>
+        <button type="button" className="text-xs text-rose-700" onClick={onRemove}>
+          Remove
+        </button>
+      </div>
     </div>
   )
 }

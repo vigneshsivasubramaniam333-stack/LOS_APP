@@ -138,6 +138,14 @@ public class ProgramMaster {
     @Column(name = "min_cibil")
     private Integer minCibil;
 
+    /**
+     * Flexible program custom field values keyed by {@code program_field_definitions.field_key}.
+     * System keys are dual-written to typed columns via {@link com.los.plp.service.ProgramCustomFieldBridge}.
+     */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "custom_fields", columnDefinition = "jsonb")
+    private java.util.Map<String, Object> customFields;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

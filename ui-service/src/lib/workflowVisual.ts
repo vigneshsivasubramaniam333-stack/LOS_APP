@@ -64,11 +64,17 @@ export interface EsignAdditionalDocument {
   documentType: string
   label: string
   required: boolean
+  /** When true, require upload during application intake. Defaults to same as required. */
+  collectAtIntake: boolean
+  /** Expected PDF page count for EmSigner template selection (default 2). */
+  expectedPageCount: number
 }
 
 /** `esignDocuments` on the `ESIGN_AGREEMENT` step — default KFS/program-terms doc plus optional extra signing files. */
 export interface EsignDocumentsUiConfig {
   defaultDocumentKey: string
+  /** Default expected pages for the default document / fallback (default 2). */
+  expectedPageCount: number
   additional: EsignAdditionalDocument[]
 }
 
@@ -176,20 +182,34 @@ function parseEsignDocuments(raw: unknown): EsignDocumentsUiConfig | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const m = raw as Record<string, unknown>
   const defaultDocumentKey = String(m.defaultDocumentKey ?? '').trim().toUpperCase() || 'KFS_AGREEMENT'
+  const topPages = parsePositiveInt(m.expectedPageCount, 2)
   const additionalRaw = Array.isArray(m.additional) ? m.additional : []
   const additional: EsignAdditionalDocument[] = additionalRaw
     .map((item) => {
       const im = item && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : {}
-      const documentType = String(im.documentType ?? '').trim().toUpperCase()
+      const documentType = String(im.documentType ?? im.documentKey ?? '').trim().toUpperCase()
       if (!documentType) return null
+      const required = im.required !== false
+      const collectAtIntake = im.collectAtIntake === undefined ? required : im.collectAtIntake !== false
       return {
         documentType,
         label: String(im.label ?? '').trim() || documentType,
-        required: im.required !== false,
+        required,
+        collectAtIntake,
+        expectedPageCount: parsePositiveInt(im.expectedPageCount, topPages),
       }
     })
     .filter((x): x is EsignAdditionalDocument => x != null)
-  return { defaultDocumentKey, additional }
+  return { defaultDocumentKey, expectedPageCount: topPages, additional }
+}
+
+function parsePositiveInt(raw: unknown, fallback: number): number {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return Math.floor(raw)
+  if (raw != null) {
+    const n = Number(String(raw).trim())
+    if (Number.isFinite(n) && n > 0) return Math.floor(n)
+  }
+  return fallback
 }
 
 export function parseWorkflowStepsFromJson(steps: Record<string, unknown>[]): VisualWorkflowStep[] {
@@ -266,12 +286,15 @@ export function visualStepsToJsonArray(visual: VisualWorkflowStep[]): Record<str
     if (s.esignDocuments) {
       o.esignDocuments = {
         defaultDocumentKey: s.esignDocuments.defaultDocumentKey.trim().toUpperCase() || 'KFS_AGREEMENT',
+        expectedPageCount: parsePositiveInt(s.esignDocuments.expectedPageCount, 2),
         additional: s.esignDocuments.additional
           .filter((d) => d.documentType.trim())
           .map((d) => ({
             documentType: d.documentType.trim().toUpperCase(),
             label: d.label.trim() || d.documentType.trim().toUpperCase(),
             required: d.required,
+            collectAtIntake: d.collectAtIntake !== false,
+            expectedPageCount: parsePositiveInt(d.expectedPageCount, parsePositiveInt(s.esignDocuments?.expectedPageCount, 2)),
           })),
       }
     }

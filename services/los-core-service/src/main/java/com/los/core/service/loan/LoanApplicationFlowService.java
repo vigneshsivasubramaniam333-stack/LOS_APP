@@ -1121,10 +1121,21 @@ public class LoanApplicationFlowService {
 
     /**
      * Complete eSign (called by webhook or manually after eSign provider confirms signing).
-     * Transitions from ESIGN_PENDING to DISBURSEMENT_PENDING.
+     * Transitions from ESIGN_PENDING to DISBURSEMENT_PENDING / DOC_VERIFICATION_PENDING / ESIGN_COMPLETED.
      */
     @Transactional
     public ApplicationResponse completeESign(UUID applicationId, String esignTransactionId) {
+        return completeESign(applicationId, esignTransactionId, false);
+    }
+
+    /**
+     * @param markAllPendingDocuments when {@code true} (admin "Mark eSign complete"), mark every open
+     *                                esign_requests row SIGNED before evaluating multi-document readiness.
+     *                                Webhooks/simulate leave this {@code false} so only the signed txn advances.
+     */
+    @Transactional
+    public ApplicationResponse completeESign(
+            UUID applicationId, String esignTransactionId, boolean markAllPendingDocuments) {
         vkycWorkflowService.assertVkycCleared(applicationId, VkycWorkflowService.DownstreamAction.COMPLETE_ESIGN);
         LoanApplication app = findOrThrow(applicationId);
         boolean anchorFlow = InvoiceDiscountingApplicationRules.isAnchorFlow(app);
@@ -1141,6 +1152,19 @@ public class LoanApplicationFlowService {
                     "ESIGN_COMPLETE",
                     Map.of("status", app.getStatus().name())
             );
+        }
+
+        if (markAllPendingDocuments) {
+            esignRequestTrackingService.markAllPendingAsSigned(applicationId, "ADMIN_MARK_ESIGN_COMPLETE");
+        } else if (esignTransactionId != null && !esignTransactionId.isBlank()) {
+            // Ensure the completed provider txn is marked SIGNED if webhook did not update the table first
+            try {
+                esignRequestTrackingService.updateFromAgreementCallback(
+                        applicationId, esignTransactionId, "signed",
+                        Map.of("source", "ESIGN_COMPLETE", "transactionId", esignTransactionId));
+            } catch (Exception ex) {
+                log.debug("Could not mark esign_request SIGNED for txn {}: {}", esignTransactionId, ex.getMessage());
+            }
         }
 
         markPartyEsignCompleteFromTransaction(applicationId, esignTransactionId);
@@ -1160,12 +1184,16 @@ public class LoanApplicationFlowService {
         if (!allRequiredEsignDocumentsSigned(app)) {
             app.setUpdatedAt(Instant.now());
             app = applicationRepository.save(app);
+            List<String> missing = missingRequiredEsignDocumentTypes(app);
             auditService.logEvent(applicationId, "FLOW", "ESIGN_DOCUMENT_COMPLETE",
                     null, Map.of("status", "ESIGN_PENDING"),
                     Map.of("status", "ESIGN_PENDING",
                             "esignTransactionId", esignTransactionId != null ? esignTransactionId : "",
-                            "allDocumentsSigned", false),
+                            "allDocumentsSigned", false,
+                            "missingDocumentTypes", missing),
                     "One document eSign completed; waiting for remaining required documents");
+            log.info("eSign partial complete for {} — still missing signed docs: {}",
+                    app.getApplicationNumber(), missing);
             return toResponse(app);
         }
 
@@ -1247,25 +1275,31 @@ public class LoanApplicationFlowService {
     }
 
     private boolean allRequiredEsignDocumentsSigned(LoanApplication app) {
+        return missingRequiredEsignDocumentTypes(app).isEmpty();
+    }
+
+    private List<String> missingRequiredEsignDocumentTypes(LoanApplication app) {
         EsignDocumentsConfig.Settings docs = activeWorkflowConfigService.findActiveForApplication(app)
-                .map(wf -> EsignDocumentsConfig.fromWorkflowSteps(wf.getSteps()))
+                .map(EsignDocumentsConfig::fromWorkflow)
                 .orElseGet(EsignDocumentsConfig.Settings::singleDefault);
+        // Legacy single-doc KFS path: do not gate complete on esign_requests status rows.
         if (docs.additional().isEmpty()) {
-            return true;
+            return List.of();
         }
         List<String> requiredKeys = new ArrayList<>();
         requiredKeys.add(docs.defaultDocumentKey());
         requiredKeys.addAll(docs.requiredAdditionalTypes());
         var views = esignRequestTrackingService.listForApplication(app.getId());
+        List<String> missing = new ArrayList<>();
         for (String key : requiredKeys) {
             boolean signed = views.stream().anyMatch(v ->
                     key.equalsIgnoreCase(v.getDocumentType())
                             && EsignRequestStatuses.SIGNED.equalsIgnoreCase(v.getStatus()));
             if (!signed) {
-                return false;
+                missing.add(key);
             }
         }
-        return true;
+        return missing;
     }
 
     private Map<String, Object> buildAnchorProgramMeta(LoanApplication app) {

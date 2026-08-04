@@ -274,7 +274,7 @@ public class NotificationTemplateEngine {
             case "SANCTION_TERM_LOAN" -> "Sanction Approved — KFS & Agreement — {{applicationNumber}}";
             case "DISBURSEMENT_COMPLETED" -> "Loan Disbursed — {{applicationNumber}}";
             case "EMI_REMINDER" -> "Payment Reminder — {{applicationNumber}}";
-            case "ESIGN_PENDING" -> "eSign Required — {{applicationNumber}}";
+            case "ESIGN_PENDING" -> "eSign Required — {{documentLabel}} — {{applicationNumber}}";
             case "ESIGN_REMINDER" -> "eSign Reminder — {{applicationNumber}}";
             case "ESIGN_COMPLETED" -> "eSign Completed — {{applicationNumber}}";
             case "VKYC_LINK" -> "Video KYC Link — {{applicationNumber}}";

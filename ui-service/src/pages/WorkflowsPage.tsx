@@ -622,6 +622,7 @@ export function WorkflowsPage() {
                     visualSteps={visualSteps}
                     hideCoApplicant={intakeSegment === 'ANCHOR' || loanProduct === 'BUSINESS_WC_INVOICE_DISCOUNTING'}
                     showContacts={intakeSegment === 'ANCHOR'}
+                    intakeSegment={intakeSegment}
                   />
                 </DetailSection>
                 ) : null}

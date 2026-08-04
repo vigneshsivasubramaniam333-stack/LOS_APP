@@ -8,7 +8,10 @@ import {
 import type {  WorkflowCoApplicantConfig,
   WorkflowConfigResponse,
   WorkflowIntakeConfig,
+  WorkflowIntakeSegment,
   WorkflowMandatoryFieldGroup,
+  WorkflowEsignSigningDocument,
+  WorkflowEsignSystemDocument,
   WorkflowStandaloneDocument,
   WorkflowTenureRules,
 } from '@/types/workflow'
@@ -590,6 +593,55 @@ export function resolveDocumentSlots(
     )
   }
 
+  // Prefer intakeConfig additionals when the key is set (even empty); legacy step only otherwise.
+  const hasIntakeSigningKey =
+    workflow?.intakeConfig != null &&
+    Object.prototype.hasOwnProperty.call(workflow.intakeConfig, 'esignSigningDocuments')
+  if (hasIntakeSigningKey) {
+    const intakeSigning = workflow?.intakeConfig?.esignSigningDocuments ?? []
+    for (const d of intakeSigning) {
+      if (!d?.documentType) continue
+      const type = d.documentType.trim().toUpperCase()
+      if (!type || type === 'KFS_AGREEMENT' || type === 'ANCHOR_PROGRAM_TERMS' || type === 'SANCTION_LETTER') continue
+      const required = d.required !== false
+      const collect = d.collectAtIntake === undefined ? required : d.collectAtIntake === true
+      if (!collect) continue
+      add(
+        type,
+        d.label ?? labelFor(type, type.replaceAll('_', ' ')),
+        required,
+      )
+    }
+  } else {
+    // Legacy: eSign additional docs on ESIGN step with collectAtIntake.
+    for (const step of workflow?.steps ?? []) {
+      const stepName = String((step as { step?: string }).step ?? '').trim().toUpperCase()
+      if (stepName !== 'ESIGN_AGREEMENT' && stepName !== 'ESIGN' && stepName !== 'ESIGN_KFS') continue
+      const esignDocs = (step as { esignDocuments?: {
+        additional?: {
+          documentType?: string
+          label?: string
+          required?: boolean
+          collectAtIntake?: boolean
+        }[]
+      } }).esignDocuments
+      if (!esignDocs?.additional?.length) continue
+      for (const d of esignDocs.additional) {
+        if (!d?.documentType) continue
+        const type = d.documentType.trim().toUpperCase()
+        if (!type || type === 'KFS_AGREEMENT' || type === 'ANCHOR_PROGRAM_TERMS' || type === 'SANCTION_LETTER') continue
+        const required = d.required !== false
+        const collect = d.collectAtIntake === undefined ? required : d.collectAtIntake === true
+        if (!collect) continue
+        add(
+          type,
+          d.label ?? labelFor(type, type.replaceAll('_', ' ')),
+          required,
+        )
+      }
+    }
+  }
+
   const slots = [...byType.values()]
   if (slots.length > 0) return slots
   return documentSlotsForBorrowerType(borrowerType).map((s) => ({ ...s, required: false }))
@@ -635,4 +687,69 @@ export function newStandaloneDocument(partial?: Partial<WorkflowStandaloneDocume
     label: 'Photograph',
     ...partial,
   }
+}
+
+export function newEsignSigningDocument(
+  partial?: Partial<WorkflowEsignSigningDocument>,
+): WorkflowEsignSigningDocument {
+  return {
+    documentType: 'BOARD_RESOLUTION',
+    label: 'Board resolution',
+    required: true,
+    collectAtIntake: true,
+    expectedPageCount: 2,
+    ...partial,
+  }
+}
+
+export function newEsignSystemDocument(
+  partial?: Partial<WorkflowEsignSystemDocument>,
+): WorkflowEsignSystemDocument {
+  return {
+    documentKey: 'SANCTION_LETTER',
+    label: 'Sanction letter',
+    enabled: true,
+    expectedPageCount: 2,
+    templateFileName: null,
+    templateMimeType: null,
+    templateBase64: null,
+    ...partial,
+  }
+}
+
+/** Preset system docs suggested in intake UI by segment (does not auto-write config). */
+export function suggestedEsignSystemDocuments(
+  intakeSegment: WorkflowIntakeSegment | null | undefined,
+): WorkflowEsignSystemDocument[] {
+  if (intakeSegment === 'ANCHOR') {
+    return [
+      newEsignSystemDocument({
+        documentKey: 'ANCHOR_PROGRAM_TERMS',
+        label: 'Anchor program terms',
+        enabled: true,
+        expectedPageCount: 2,
+      }),
+      newEsignSystemDocument({
+        documentKey: 'SANCTION_LETTER',
+        label: 'Sanction letter',
+        enabled: false,
+        expectedPageCount: 2,
+      }),
+    ]
+  }
+  // Borrower segment (incl. invoice discounting borrower): KFS + optional sanction letter
+  return [
+    newEsignSystemDocument({
+      documentKey: 'KFS_AGREEMENT',
+      label: 'Key Fact Statement',
+      enabled: true,
+      expectedPageCount: 2,
+    }),
+    newEsignSystemDocument({
+      documentKey: 'SANCTION_LETTER',
+      label: 'Sanction letter',
+      enabled: false,
+      expectedPageCount: 2,
+    }),
+  ]
 }

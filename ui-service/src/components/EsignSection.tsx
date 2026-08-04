@@ -91,12 +91,21 @@ export function EsignSection({
     setError(null)
     setInfo(null)
     try {
-      await completeEsignFlow(
+      const updated = await completeEsignFlow(
         applicationId,
         txId || app.esignTransactionId || undefined,
+        { markAllPendingDocuments: true },
       )
       setTxId('')
       await onRefetch()
+      await load()
+      if (updated.status === 'ESIGN_PENDING') {
+        setInfo(
+          'Still waiting on remaining required signers or documents. Refresh the list — pending rows may need another mark complete after all sessions are ready.',
+        )
+      } else {
+        setInfo('eSign marked complete.')
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Complete eSign failed')
     } finally {

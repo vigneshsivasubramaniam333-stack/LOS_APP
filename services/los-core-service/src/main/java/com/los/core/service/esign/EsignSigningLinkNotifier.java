@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +19,9 @@ import java.util.UUID;
 /**
  * Publishes eSign signing-link emails to {@code los.notification} (queue {@code notification.email}).
  * Payload fields match notification-service {@code NotificationEvent} for JSON deserialization.
+ * <p>
+ * Multi-document eSign: each document type publishes a separate email (own signing URL + labels).
+ * Sends run after the current DB transaction commits so Rabbit delivery is not lost on rollback.
  */
 @Slf4j
 @Service
@@ -41,9 +46,33 @@ public class EsignSigningLinkNotifier {
             String templateCode,
             int expiryHours,
             boolean reusedSigningUrl) {
+        publishSigningLinkEmail(
+                applicationId,
+                applicationNumber,
+                borrowerName,
+                recipientEmails,
+                signingUrl,
+                templateCode,
+                expiryHours,
+                reusedSigningUrl,
+                null,
+                null);
+    }
+
+    public void publishSigningLinkEmail(
+            UUID applicationId,
+            String applicationNumber,
+            String borrowerName,
+            List<String> recipientEmails,
+            String signingUrl,
+            String templateCode,
+            int expiryHours,
+            boolean reusedSigningUrl,
+            String documentType,
+            String documentLabel) {
         if (recipientEmails == null || recipientEmails.stream().noneMatch(e -> e != null && !e.isBlank())) {
-            log.warn("[ESIGN_EMAIL] skipped (no recipients) applicationId={} applicationNumber={} reusedSigningUrl={}",
-                    applicationId, maskAppNumber(applicationNumber), reusedSigningUrl);
+            log.warn("[ESIGN_EMAIL] skipped (no recipients) applicationId={} applicationNumber={} reusedSigningUrl={} documentType={}",
+                    applicationId, maskAppNumber(applicationNumber), reusedSigningUrl, documentType);
             return;
         }
         List<String> to = recipientEmails.stream()
@@ -52,18 +81,62 @@ public class EsignSigningLinkNotifier {
                 .distinct()
                 .toList();
         if (to.isEmpty()) {
-            log.warn("[ESIGN_EMAIL] skipped (empty after sanitize) applicationId={}", applicationId);
+            log.warn("[ESIGN_EMAIL] skipped (empty after sanitize) applicationId={} documentType={}", applicationId, documentType);
             return;
         }
+        if (signingUrl == null || signingUrl.isBlank()) {
+            log.warn("[ESIGN_EMAIL] skipped (empty signingUrl) applicationId={} documentType={}", applicationId, documentType);
+            return;
+        }
+
         Map<String, Object> templateData = new LinkedHashMap<>();
         templateData.put("borrowerName", borrowerName != null ? borrowerName : "Borrower");
         templateData.put("applicationNumber", applicationNumber != null ? applicationNumber : "");
         templateData.put("esignLink", signingUrl);
         templateData.put("expiryHours", expiryHours);
         templateData.put("eventType", "ESIGN_LINK");
+        // Unique correlation for multi-doc so notification / SMTP logs can distinguish messages.
+        templateData.put("notificationUid", UUID.randomUUID().toString());
+        String resolvedLabel = documentLabel != null && !documentLabel.isBlank()
+                ? documentLabel
+                : (documentType != null && !documentType.isBlank() ? documentType.replace('_', ' ') : "Agreement");
+        templateData.put("documentLabel", resolvedLabel);
+        if (documentType != null && !documentType.isBlank()) {
+            templateData.put("documentType", documentType.trim());
+        }
 
         String code = templateCode != null && !templateCode.isBlank() ? templateCode : TEMPLATE_ESIGN_PENDING;
+
+        Runnable send = () -> doPublish(applicationId, applicationNumber, to, code, templateData, documentType, reusedSigningUrl);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        send.run();
+                    } catch (Exception e) {
+                        log.error("[ESIGN_EMAIL] afterCommit publish failed applicationId={} documentType={}: {}",
+                                applicationId, documentType, e.getMessage(), e);
+                    }
+                }
+            });
+            log.info("[ESIGN_EMAIL] scheduled after-commit applicationId={} documentType={} documentLabel={} recipientCount={}",
+                    applicationId, documentType, resolvedLabel, to.size());
+        } else {
+            send.run();
+        }
+    }
+
+    private void doPublish(
+            UUID applicationId,
+            String applicationNumber,
+            List<String> to,
+            String code,
+            Map<String, Object> templateData,
+            String documentType,
+            boolean reusedSigningUrl) {
         String exchange = RabbitMQConfig.EXCHANGE;
+        // Prefer workflow process mappings, but always fall back so multi-doc never drops emails.
         var actions = workflowNotificationResolverService.resolveForApplication(
                 applicationId,
                 "ESIGN_KFS",
@@ -71,15 +144,39 @@ public class EsignSigningLinkNotifier {
                 to,
                 code,
                 "EMAIL");
-        log.info("[ESIGN_EMAIL] trigger started applicationId={} applicationNumber={} templateCode={} recipientCount={} recipients={} reusedSigningUrl={}",
+        if (actions == null || actions.isEmpty()) {
+            actions = workflowNotificationResolverService.resolveForApplication(
+                    applicationId,
+                    "ESIGN_AGREEMENT",
+                    "ESIGN_LINK",
+                    to,
+                    code,
+                    "EMAIL");
+        }
+        if (actions == null || actions.isEmpty()) {
+            actions = List.of(WorkflowNotificationResolverService.ResolvedNotificationAction.builder()
+                    .channel("EMAIL")
+                    .templateCode(code)
+                    .eventType("ESIGN_LINK")
+                    .recipientType("BORROWER_EMAIL")
+                    .delaySeconds(0)
+                    .recipients(to)
+                    .build());
+        }
+        log.info("[ESIGN_EMAIL] trigger started applicationId={} applicationNumber={} templateCode={} documentType={} documentLabel={} recipientCount={} recipients={} reusedSigningUrl={} actionCount={}",
                 applicationId, maskAppNumber(applicationNumber),
-                code, to.size(),
+                code, documentType, templateData.get("documentLabel"), to.size(),
                 maskEmails(to),
-                reusedSigningUrl);
+                reusedSigningUrl,
+                actions.size());
 
+        int published = 0;
         for (var action : actions) {
-            String routingKey = "notification." + action.getChannel().toLowerCase() + "."
-                    + action.getEventType().toLowerCase();
+            // Stable binding: notification.email.# — include document key for multi-doc routing uniqueness only.
+            String docSuffix = documentType != null && !documentType.isBlank()
+                    ? "." + documentType.trim().toLowerCase().replace(' ', '_')
+                    : "";
+            String routingKey = "notification.email.esign_link" + docSuffix;
             for (String recipient : action.getRecipients()) {
                 RoutingEmailEvent ev = RoutingEmailEvent.builder()
                         .channel(action.getChannel())
@@ -87,28 +184,30 @@ public class EsignSigningLinkNotifier {
                         .templateCode(action.getTemplateCode())
                         .eventType(action.getEventType())
                         .applicationId(applicationId)
-                        .templateData(templateData)
+                        .templateData(new LinkedHashMap<>(templateData))
                         .build();
                 try {
-                    log.info("[ESIGN_NOTIFICATION_PUBLISH] templateCode={} eventType={} channel={} recipient={} applicationId={} routingKey={} templateData={}",
+                    log.info("[ESIGN_NOTIFICATION_PUBLISH] templateCode={} eventType={} channel={} recipient={} applicationId={} routingKey={} documentType={} esignLinkPresent={}",
                             ev.getTemplateCode(),
                             ev.getEventType(),
                             ev.getChannel(),
                             recipient,
                             ev.getApplicationId(),
                             routingKey,
-                            templateData);
+                            documentType,
+                            templateData.get("esignLink") != null);
                     rabbitTemplate.convertAndSend(exchange, routingKey, ev);
-                    log.info("[ESIGN_NOTIFICATION] queued exchange={} routingKey={} applicationId={} recipient={}",
-                            exchange, routingKey, applicationId, maskEmail(recipient));
+                    published++;
+                    log.info("[ESIGN_NOTIFICATION] queued exchange={} routingKey={} applicationId={} recipient={} documentType={}",
+                            exchange, routingKey, applicationId, maskEmail(recipient), documentType);
                 } catch (Exception e) {
-                    log.error("[ESIGN_EMAIL][ERROR] RabbitMQ routing failed exchange={} routingKey={} applicationId={} recipient={}: {}",
-                            exchange, routingKey, applicationId, maskEmail(recipient), e.getMessage(), e);
+                    log.error("[ESIGN_EMAIL][ERROR] RabbitMQ routing failed exchange={} routingKey={} applicationId={} recipient={} documentType={}: {}",
+                            exchange, routingKey, applicationId, maskEmail(recipient), documentType, e.getMessage(), e);
                 }
             }
         }
-        log.info("[ESIGN_EMAIL] publish batch finished applicationId={} configuredActionCount={} (delivery via notification-service)",
-                applicationId, actions.size());
+        log.info("[ESIGN_EMAIL] publish batch finished applicationId={} documentType={} publishedCount={} configuredActionCount={}",
+                applicationId, documentType, published, actions.size());
     }
 
     private static String maskAppNumber(String applicationNumber) {

@@ -70,7 +70,9 @@ public class EsignEmailResendService {
                 row.getSigningUrl(),
                 esignNotificationProperties.getTemplateCode(),
                 esignNotificationProperties.getLinkExpiryHours(),
-                true
+                true,
+                row.getDocumentType(),
+                row.getDocumentType()
         );
         log.info("[ESIGN_EMAIL] resend accepted applicationId={} esignRequestId={} recipient={}",
                 applicationId, row.getId(), maskEmail(to));

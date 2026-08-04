@@ -307,6 +307,69 @@ public class WorkflowIntakeValidator {
                 }
             }
         }
+        // Additional eSign signing documents from intake rules (preferred when key present).
+        if (intakeConfig.containsKey("esignSigningDocuments")) {
+            Object esignSigning = intakeConfig.get("esignSigningDocuments");
+            if (esignSigning instanceof List<?> list) {
+                for (Object item : list) {
+                    if (!(item instanceof Map<?, ?> doc)) {
+                        continue;
+                    }
+                    String type = stringValue(doc.get("documentType")).toUpperCase();
+                    if (type.isBlank()) {
+                        type = stringValue(doc.get("documentKey")).toUpperCase();
+                    }
+                    if (type.isBlank()
+                            || "KFS_AGREEMENT".equals(type)
+                            || "ANCHOR_PROGRAM_TERMS".equals(type)
+                            || "SANCTION_LETTER".equals(type)) {
+                        continue;
+                    }
+                    boolean docRequired = doc.get("required") == null || boolValue(doc.get("required"));
+                    boolean collectAtIntake = doc.get("collectAtIntake") == null
+                            ? docRequired
+                            : boolValue(doc.get("collectAtIntake"));
+                    if (collectAtIntake && docRequired) {
+                        required.add(type);
+                    }
+                }
+            }
+        } else {
+            // Legacy: eSign additional on ESIGN step (esignDocuments.additional).
+            for (Map<String, Object> step : steps) {
+                String stepName = stringValue(step.get("step")).toUpperCase();
+                if (!"ESIGN_AGREEMENT".equals(stepName) && !"ESIGN".equals(stepName) && !"ESIGN_KFS".equals(stepName)) {
+                    continue;
+                }
+                Object esignRaw = step.get("esignDocuments");
+                if (!(esignRaw instanceof Map<?, ?> esignMap)) {
+                    continue;
+                }
+                Object addRaw = esignMap.get("additional");
+                if (!(addRaw instanceof List<?> addList)) {
+                    continue;
+                }
+                for (Object item : addList) {
+                    if (!(item instanceof Map<?, ?> doc)) {
+                        continue;
+                    }
+                    String type = stringValue(doc.get("documentType")).toUpperCase();
+                    if (type.isBlank()) {
+                        type = stringValue(doc.get("documentKey")).toUpperCase();
+                    }
+                    if (type.isBlank()) {
+                        continue;
+                    }
+                    boolean docRequired = doc.get("required") == null || boolValue(doc.get("required"));
+                    boolean collectAtIntake = doc.get("collectAtIntake") == null
+                            ? docRequired
+                            : boolValue(doc.get("collectAtIntake"));
+                    if (collectAtIntake && docRequired) {
+                        required.add(type);
+                    }
+                }
+            }
+        }
         for (String docType : required) {
             if (!uploaded.contains(docType.toUpperCase())) {
                 throw new BusinessRuleException(

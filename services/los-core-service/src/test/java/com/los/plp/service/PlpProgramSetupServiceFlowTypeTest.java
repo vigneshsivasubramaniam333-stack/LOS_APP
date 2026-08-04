@@ -46,6 +46,8 @@ class PlpProgramSetupServiceFlowTypeTest {
     LoanApplicationRepository loanApplicationRepository;
     @Mock
     AuditService auditService;
+    @Mock
+    ProgramFieldDefinitionService programFieldDefinitionService;
 
     PlpProgramSetupService service;
 
@@ -60,9 +62,12 @@ class PlpProgramSetupServiceFlowTypeTest {
                 plpProperties,
                 programApprovalService,
                 loanApplicationRepository,
-                auditService);
+                auditService,
+                programFieldDefinitionService);
         when(plpProperties.isEnabled()).thenReturn(false);
         when(plpProperties.getLenderId()).thenReturn(UUID.randomUUID().toString());
+        when(programFieldDefinitionService.validateAndNormalizeValues(any(), any()))
+                .thenAnswer(inv -> inv.getArgument(1) != null ? inv.getArgument(1) : java.util.Map.of());
     }
 
     @Test

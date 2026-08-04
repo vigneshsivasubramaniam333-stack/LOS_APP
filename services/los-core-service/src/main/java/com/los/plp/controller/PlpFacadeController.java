@@ -39,6 +39,15 @@ public class PlpFacadeController {
     private final InvoiceDiscountingVintageService invoiceDiscountingVintageService;
     private final ILoanApplicationService loanApplicationService;
     private final LoanApplicationRepository loanApplicationRepository;
+    private final ProgramFieldDefinitionService programFieldDefinitionService;
+
+    @GetMapping("/program-field-definitions")
+    @Operation(summary = "List program custom field definitions from PLP admin (read-only proxy)")
+    public ResponseEntity<List<ProgramFieldDefinitionResponse>> listProgramFieldDefinitions(
+            @RequestParam(required = false) String productType,
+            @RequestParam(defaultValue = "true") boolean activeOnly) {
+        return ResponseEntity.ok(programFieldDefinitionService.list(productType, activeOnly));
+    }
 
     @PostMapping("/programs")
     @Operation(summary = "Create PLP program and sub-program for an anchor")

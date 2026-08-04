@@ -282,7 +282,13 @@ export function KycDetailsSection({
         name !== 'LIVENESS' &&
         name !== 'VIDEO_KYC' &&
         name !== 'CKYC_DOWNLOAD' &&
-        name !== 'CKYC_UPLOAD',
+        name !== 'CKYC_UPLOAD' &&
+        name !== 'ESIGN' &&
+        name !== 'ESIGN_AGREEMENT' &&
+        name !== 'ESIGN_KFS' &&
+        name !== 'BUREAU' &&
+        name !== 'UNDERWRITING' &&
+        name !== 'DISBURSE',
     )
     return filterAnchorKycUiStepNames(isAnchorApp, names)
   }, [configuredKycStepNames, isAnchorApp])

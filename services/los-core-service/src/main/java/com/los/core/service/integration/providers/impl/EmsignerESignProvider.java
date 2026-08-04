@@ -105,7 +105,14 @@ public class EmsignerESignProvider implements IESignProvider {
         try {
             byte[] pdfBytes = loadPdfBytes(applicationId, documentStorageKey, signerInfo);
             int pageCount = countPdfPages(pdfBytes);
-            log.info("[Emsigner] PDF ready: {} bytes, {} page(s)", pdfBytes.length, pageCount);
+            int expectedPageCount = expectedPageCountFromContext(signerInfo, documentStorageKey);
+            if (pageCount <= 0 && expectedPageCount > 0) {
+                pageCount = expectedPageCount;
+            } else if (pageCount <= 1 && expectedPageCount > 1) {
+                // When PDF page-count fails soft to 1, prefer workflow expected page count for templates.
+                pageCount = expectedPageCount;
+            }
+            log.info("[Emsigner] PDF ready: {} bytes, {} page(s) (expected={})", pdfBytes.length, pageCount, expectedPageCount);
 
             String bearer = fetchAccessToken(rt);
             requireAccessToken(bearer);
@@ -416,8 +423,10 @@ public class EmsignerESignProvider implements IESignProvider {
                         documentKey, applicationId);
                 return additional.get();
             }
-            log.warn("[Emsigner] No uploaded document found for documentType={} applicationId={} — "
-                    + "falling back to KFS/program terms document", documentKey, applicationId);
+            throw new IllegalStateException(
+                    "No uploaded document of type " + documentKey
+                            + " for application " + applicationId
+                            + " — upload is required before multi-document eSign (no KFS fallback).");
         }
         Optional<KfsDocument> kfsOpt = kfsDocumentRepository.findFirstByApplicationIdOrderByCreatedAtDesc(applicationId);
         if (kfsOpt.isPresent()) {
@@ -458,6 +467,26 @@ public class EmsignerESignProvider implements IESignProvider {
                     documentType, applicationId, e.getMessage());
             return Optional.empty();
         }
+    }
+
+    private static int expectedPageCountFromContext(Map<String, Object> signerInfo, String documentKey) {
+        if (signerInfo != null) {
+            Object v = signerInfo.get("expectedPageCount");
+            if (v instanceof Number n && n.intValue() > 0) {
+                return n.intValue();
+            }
+            if (v != null) {
+                try {
+                    int parsed = Integer.parseInt(String.valueOf(v).trim());
+                    if (parsed > 0) {
+                        return parsed;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // fall through
+                }
+            }
+        }
+        return 2;
     }
 
     private static int countPdfPages(byte[] pdfBytes) {

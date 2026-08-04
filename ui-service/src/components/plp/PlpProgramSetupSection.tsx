@@ -14,6 +14,13 @@ import type { ApplicationResponse } from '@/types/application'
 import type { CreatePlpProgramRequest, PlpProgramSetupResponse, PlpProgramSummary } from '@/types/plp'
 import { PlpSyncStatusBadge } from '@/components/plp/PlpSyncStatusBadge'
 import { PlpProgramStatusPanel } from '@/components/plp/PlpProgramStatusPanel'
+import {
+  ProgramCustomFieldsForm,
+  customFieldsMapFromForm,
+  formValuesFromProgram,
+  useProgramFieldDefinitions,
+  validateCustomFieldValues,
+} from '@/components/plp/ProgramCustomFieldsForm'
 
 const PROGRAM_TYPES = [
   { value: 'INVOICE_DISCOUNTING', label: 'Invoice discounting' },
@@ -67,6 +74,7 @@ function setupResponseFromSummary(p: PlpProgramSummary, anchorId: string): PlpPr
     maxInvoiceVintageDays: p.maxInvoiceVintageDays ?? null,
     maxCmr: p.maxCmr ?? null,
     minCibil: p.minCibil ?? null,
+    customFields: p.customFields ?? null,
   }
 }
 
@@ -91,11 +99,9 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
   const [validityStart, setValidityStart] = useState('')
   const [validityEnd, setValidityEnd] = useState('')
   const [dependencyVintagePercent, setDependencyVintagePercent] = useState('')
-  const [anchorRelationshipVintageMonths, setAnchorRelationshipVintageMonths] = useState('')
-  const [interestPayment, setInterestPayment] = useState('')
-  const [maxInvoiceVintageDays, setMaxInvoiceVintageDays] = useState('')
-  const [maxCmr, setMaxCmr] = useState('')
-  const [minCibil, setMinCibil] = useState('')
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
+  const { definitions: customFieldDefs, loading: customFieldsLoading } =
+    useProgramFieldDefinitions(programType === 'INVOICE_DISCOUNTING' ? programType : undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<PlpProgramSetupResponse | null>(null)
@@ -117,19 +123,39 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
     setDependencyVintagePercent(
       existing.dependencyVintagePercent != null ? String(existing.dependencyVintagePercent) : '',
     )
-    setAnchorRelationshipVintageMonths(
-      existing.anchorRelationshipVintageMonths != null
-        ? String(existing.anchorRelationshipVintageMonths)
-        : '',
+    // Tenure still mirrored from scalars for non-definition products / defaults
+    if (existing.tenureDays != null) setTenureDays(String(existing.tenureDays))
+    setCustomFieldValues(
+      formValuesFromProgram([], {
+        customFields: existing.customFields,
+        tenureDays: existing.tenureDays,
+        anchorRelationshipVintageMonths: existing.anchorRelationshipVintageMonths,
+        interestPayment: existing.interestPayment,
+        maxInvoiceVintageDays: existing.maxInvoiceVintageDays,
+        maxCmr: existing.maxCmr,
+        minCibil: existing.minCibil,
+      }),
     )
-    setInterestPayment(existing.interestPayment ?? '')
-    setMaxInvoiceVintageDays(
-      existing.maxInvoiceVintageDays != null ? String(existing.maxInvoiceVintageDays) : '',
-    )
-    setMaxCmr(existing.maxCmr != null ? String(existing.maxCmr) : '')
-    setMinCibil(existing.minCibil != null ? String(existing.minCibil) : '')
     return hydrated
   }, [])
+
+  useEffect(() => {
+    if (!customFieldDefs.length) return
+    setCustomFieldValues((prev) => {
+      const fromProgram = formValuesFromProgram(customFieldDefs, saved)
+      // Preserve user edits already typed when defs load; fill blanks from program
+      const next = { ...fromProgram, ...prev }
+      for (const [k, v] of Object.entries(fromProgram)) {
+        if (!(k in prev) || !prev[k]) next[k] = v
+      }
+      // Default max tenor when empty (ID programs) — either tenureDays or maxTenureDays key
+      if (programType === 'INVOICE_DISCOUNTING' && !next.tenureDays && !next.maxTenureDays) {
+        next.tenureDays = DEFAULT_ID_TENURE_DAYS
+        next.maxTenureDays = DEFAULT_ID_TENURE_DAYS
+      }
+      return next
+    })
+  }, [customFieldDefs, saved, programType])
 
   const reloadProgramFromLos = useCallback(async () => {
     if (!anchorId) return
@@ -236,17 +262,37 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
       setError('Encore product code is required when LMS entry is enabled.')
       return
     }
+    const customErr = validateCustomFieldValues(customFieldDefs, customFieldValues)
+    if (customErr) {
+      setError(customErr)
+      return
+    }
     setBusy(true)
     setError(null)
     setSuccessMsg(null)
     try {
+      const cfMap = customFieldsMapFromForm(customFieldDefs, customFieldValues)
+      const tenureFromCustom =
+        typeof cfMap.tenureDays === 'number'
+          ? cfMap.tenureDays
+          : typeof cfMap.maxTenureDays === 'number'
+            ? cfMap.maxTenureDays
+            : tenureDays
+              ? Number(tenureDays)
+              : undefined
+      const invoiceAgeFromCustom =
+        typeof cfMap.maxInvoiceVintageDays === 'number'
+          ? cfMap.maxInvoiceVintageDays
+          : typeof cfMap.maxInvoiceAgeDays === 'number'
+            ? cfMap.maxInvoiceAgeDays
+            : undefined
       const body: CreatePlpProgramRequest = {
         anchorId,
         programName: programName.trim(),
         programType,
         creditLimit: creditLimit ? Number(creditLimit) : undefined,
         interestRate: interestRate ? Number(interestRate) : undefined,
-        tenureDays: tenureDays ? Number(tenureDays) : undefined,
+        tenureDays: tenureFromCustom,
         validityStartDate: validityStart || undefined,
         validityEndDate: validityEnd || undefined,
         flowType: programType === 'INVOICE_DISCOUNTING' ? flowType : undefined,
@@ -259,26 +305,17 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
           programType === 'INVOICE_DISCOUNTING' && dependencyVintagePercent.trim()
             ? Number(dependencyVintagePercent)
             : undefined,
+        customFields: programType === 'INVOICE_DISCOUNTING' ? cfMap : undefined,
+        // Scalars for backward-compatible dual-write when map is partial
         anchorRelationshipVintageMonths:
-          programType === 'INVOICE_DISCOUNTING' && anchorRelationshipVintageMonths.trim()
-            ? Number.parseInt(anchorRelationshipVintageMonths, 10)
+          typeof cfMap.anchorRelationshipVintageMonths === 'number'
+            ? cfMap.anchorRelationshipVintageMonths
             : undefined,
         interestPayment:
-          programType === 'INVOICE_DISCOUNTING' && interestPayment.trim()
-            ? interestPayment.trim()
-            : undefined,
-        maxInvoiceVintageDays:
-          programType === 'INVOICE_DISCOUNTING' && maxInvoiceVintageDays.trim()
-            ? Number.parseInt(maxInvoiceVintageDays, 10)
-            : undefined,
-        maxCmr:
-          programType === 'INVOICE_DISCOUNTING' && maxCmr.trim()
-            ? Number.parseInt(maxCmr, 10)
-            : undefined,
-        minCibil:
-          programType === 'INVOICE_DISCOUNTING' && minCibil.trim()
-            ? Number.parseInt(minCibil, 10)
-            : undefined,
+          typeof cfMap.interestPayment === 'string' ? cfMap.interestPayment : undefined,
+        maxInvoiceVintageDays: invoiceAgeFromCustom,
+        maxCmr: typeof cfMap.maxCmr === 'number' ? cfMap.maxCmr : undefined,
+        minCibil: typeof cfMap.minCibil === 'number' ? cfMap.minCibil : undefined,
       }
       const result = await createPlpProgram(body)
       setSaved(result)
@@ -364,16 +401,10 @@ export function PlpProgramSetupSection({ app }: { app: ApplicationResponse }) {
             setValidityEnd={setValidityEnd}
             dependencyVintagePercent={dependencyVintagePercent}
             setDependencyVintagePercent={setDependencyVintagePercent}
-            anchorRelationshipVintageMonths={anchorRelationshipVintageMonths}
-            setAnchorRelationshipVintageMonths={setAnchorRelationshipVintageMonths}
-            interestPayment={interestPayment}
-            setInterestPayment={setInterestPayment}
-            maxInvoiceVintageDays={maxInvoiceVintageDays}
-            setMaxInvoiceVintageDays={setMaxInvoiceVintageDays}
-            maxCmr={maxCmr}
-            setMaxCmr={setMaxCmr}
-            minCibil={minCibil}
-            setMinCibil={setMinCibil}
+            customFieldDefs={customFieldDefs}
+            customFieldValues={customFieldValues}
+            setCustomFieldValues={setCustomFieldValues}
+            customFieldsLoading={customFieldsLoading}
             error={error}
             busy={busy}
             canCreate={canCreateProgram}
@@ -456,16 +487,10 @@ function ProgramSetupForm(props: {
   setValidityEnd: (v: string) => void
   dependencyVintagePercent: string
   setDependencyVintagePercent: (v: string) => void
-  anchorRelationshipVintageMonths: string
-  setAnchorRelationshipVintageMonths: (v: string) => void
-  interestPayment: string
-  setInterestPayment: (v: string) => void
-  maxInvoiceVintageDays: string
-  setMaxInvoiceVintageDays: (v: string) => void
-  maxCmr: string
-  setMaxCmr: (v: string) => void
-  minCibil: string
-  setMinCibil: (v: string) => void
+  customFieldDefs: import('@/types/plp').ProgramFieldDefinition[]
+  customFieldValues: Record<string, string>
+  setCustomFieldValues: (v: Record<string, string>) => void
+  customFieldsLoading: boolean
   error: string | null
   successMsg: string | null
   busy: boolean
@@ -503,16 +528,10 @@ function ProgramSetupForm(props: {
     setValidityEnd,
     dependencyVintagePercent,
     setDependencyVintagePercent,
-    anchorRelationshipVintageMonths,
-    setAnchorRelationshipVintageMonths,
-    interestPayment,
-    setInterestPayment,
-    maxInvoiceVintageDays,
-    setMaxInvoiceVintageDays,
-    maxCmr,
-    setMaxCmr,
-    minCibil,
-    setMinCibil,
+    customFieldDefs,
+    customFieldValues,
+    setCustomFieldValues,
+    customFieldsLoading,
     error,
     successMsg,
     busy,
@@ -642,72 +661,13 @@ function ProgramSetupForm(props: {
                 disabled={fieldsDisabled}
               />
             </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Min Dir Relationship (months)
-              <input
-                type="number"
-                step="1"
-                min={1}
-                className="mt-1 bt-input w-full text-sm"
-                value={anchorRelationshipVintageMonths}
-                onChange={(e) => setAnchorRelationshipVintageMonths(e.target.value)}
-                placeholder="e.g. 10"
-                disabled={fieldsDisabled}
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Interest payment
-              <select
-                className="mt-1 bt-input w-full text-sm"
-                value={interestPayment}
-                onChange={(e) => setInterestPayment(e.target.value)}
-                disabled={fieldsDisabled}
-              >
-                <option value="">Select</option>
-                <option value="UPFRONT">Upfront</option>
-                <option value="MONTHLY">Monthly</option>
-                <option value="REAR_ENDED">Rear-ended</option>
-              </select>
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Max invoice vintage (days)
-              <input
-                type="number"
-                step="1"
-                min={1}
-                className="mt-1 bt-input w-full text-sm"
-                value={maxInvoiceVintageDays}
-                onChange={(e) => setMaxInvoiceVintageDays(e.target.value)}
-                placeholder="e.g. 90"
-                disabled={fieldsDisabled}
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Max CMR
-              <input
-                type="number"
-                step="1"
-                min={1}
-                className="mt-1 bt-input w-full text-sm"
-                value={maxCmr}
-                onChange={(e) => setMaxCmr(e.target.value)}
-                placeholder="e.g. 7"
-                disabled={fieldsDisabled}
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              Min CIBIL
-              <input
-                type="number"
-                step="1"
-                min={1}
-                className="mt-1 bt-input w-full text-sm"
-                value={minCibil}
-                onChange={(e) => setMinCibil(e.target.value)}
-                placeholder="e.g. 700"
-                disabled={fieldsDisabled}
-              />
-            </label>
+            <ProgramCustomFieldsForm
+              definitions={customFieldDefs}
+              values={customFieldValues}
+              onChange={setCustomFieldValues}
+              disabled={fieldsDisabled}
+              loading={customFieldsLoading}
+            />
           </>
         ) : null}
         <label className="block text-sm font-medium text-slate-700">
@@ -731,16 +691,19 @@ function ProgramSetupForm(props: {
             disabled={fieldsDisabled}
           />
         </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Max tenor (days)
-          <input
-            type="number"
-            className="mt-1 bt-input w-full text-sm"
-            value={tenureDays}
-            onChange={(e) => setTenureDays(e.target.value)}
-            disabled={fieldsDisabled}
-          />
-        </label>
+        {programType !== 'INVOICE_DISCOUNTING' ||
+        !customFieldDefs.some((d) => d.fieldKey === 'tenureDays' || d.fieldKey === 'maxTenureDays') ? (
+          <label className="block text-sm font-medium text-slate-700">
+            Max tenor (days)
+            <input
+              type="number"
+              className="mt-1 bt-input w-full text-sm"
+              value={tenureDays}
+              onChange={(e) => setTenureDays(e.target.value)}
+              disabled={fieldsDisabled}
+            />
+          </label>
+        ) : null}
         <label className="block text-sm font-medium text-slate-700">
           Validity start
           <input

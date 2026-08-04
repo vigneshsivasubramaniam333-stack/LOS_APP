@@ -52,4 +52,29 @@ class SanctionLetterPdfServiceTest {
         assertTrue(pdf != null && pdf.length > 100);
         verifyNoInteractions(kfsPdfGenerationService);
     }
+
+    @Test
+    void renderStandaloneTwoPage_returnsLargerPdfThanSinglePage() {
+        UUID appId = UUID.randomUUID();
+        LoanApplication app = LoanApplication.builder()
+                .id(appId)
+                .applicationNumber("T-2")
+                .customerId(UUID.randomUUID())
+                .borrowerType(BorrowerType.INDIVIDUAL)
+                .loanProduct("PERSONAL")
+                .build();
+        SanctionRecord r = SanctionRecord.builder()
+                .id(UUID.randomUUID())
+                .applicationId(appId)
+                .approvedAmount(new BigDecimal("100000.00"))
+                .approvedTenure(36)
+                .interestRate(new BigDecimal("12.5"))
+                .build();
+
+        byte[] twoPage = svc.renderStandaloneTwoPageSanctionLetter(app, r);
+        byte[] onePage = svc.render(app, r);
+
+        assertTrue(twoPage != null && twoPage.length > onePage.length);
+        verifyNoInteractions(kfsPdfGenerationService);
+    }
 }

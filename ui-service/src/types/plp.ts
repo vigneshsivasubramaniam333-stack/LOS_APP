@@ -4,7 +4,6 @@ export type ProgramApprovalStatus =
   | 'DRAFT'
   | 'PENDING_L2'
   | 'SENT_BACK'
-  | 'APPROVED_PENDING_DOCS'
   | 'APPROVED'
   | 'REJECTED'
 
@@ -37,6 +36,7 @@ export interface PlpProgramSummary {
   maxInvoiceVintageDays?: number | null
   maxCmr?: number | null
   minCibil?: number | null
+  customFields?: Record<string, unknown> | null
 }
 
 export interface PlpProgramSetupResponse {
@@ -69,6 +69,7 @@ export interface PlpProgramSetupResponse {
   maxInvoiceVintageDays?: number | null
   maxCmr?: number | null
   minCibil?: number | null
+  customFields?: Record<string, unknown> | null
 }
 
 export interface CreatePlpProgramRequest {
@@ -93,6 +94,36 @@ export interface CreatePlpProgramRequest {
   maxInvoiceVintageDays?: number
   maxCmr?: number
   minCibil?: number
+  customFields?: Record<string, string | number>
+}
+
+export interface ProgramFieldDefinition {
+  id: string
+  fieldKey: string
+  label: string
+  inputType: 'TEXT' | 'NUMBER' | 'DROPDOWN' | string
+  options?: { value?: string; label?: string }[] | null
+  required: boolean
+  active: boolean
+  sortOrder: number
+  productTypes?: string[] | null
+  systemManaged: boolean
+  helpText?: string | null
+  storageTarget?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface ProgramFieldDefinitionRequest {
+  fieldKey?: string
+  label: string
+  inputType: string
+  options?: { value: string; label: string }[]
+  required?: boolean
+  active?: boolean
+  sortOrder?: number
+  productTypes?: string[]
+  helpText?: string
 }
 
 export interface PlpLinkedSubProgramSummary {

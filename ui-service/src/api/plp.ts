@@ -8,8 +8,22 @@ import type {
   PlpProgramSetupResponse,
   PlpProgramSummary,
   PlpSyncResult,
+  ProgramFieldDefinition,
   VintageEligibility,
 } from '@/types/plp'
+
+export async function listProgramFieldDefinitions(params?: {
+  productType?: string
+  activeOnly?: boolean
+}): Promise<ProgramFieldDefinition[]> {
+  const { data } = await http.get<ProgramFieldDefinition[]>('/plp/program-field-definitions', {
+    params: {
+      productType: params?.productType,
+      activeOnly: params?.activeOnly ?? true,
+    },
+  })
+  return data
+}
 
 export async function listPlpPrograms(): Promise<PlpProgramSummary[]> {
   const { data } = await http.get<PlpProgramSummary[]>('/plp/programs')

@@ -156,4 +156,82 @@ describe('workflowIntakeRules', () => {
     expect(slots.find((s) => s.documentType === 'VOTER_ID')?.label).toBe('Voter ID card')
     expect(slots.find((s) => s.documentType === 'DRIVING_LICENSE')?.label).toBe('Driving licence')
   })
+
+  it('merges intakeConfig.esignSigningDocuments when collectAtIntake is true', () => {
+    const workflow = wf({
+      intakeConfig: {
+        policy: 'WORKFLOW_DRIVEN',
+        esignSigningDocuments: [
+          {
+            documentType: 'GST',
+            label: 'GST certificate',
+            required: true,
+            collectAtIntake: true,
+            expectedPageCount: 2,
+          },
+          {
+            documentType: 'BOARD_RESOLUTION',
+            label: 'Board resolution',
+            required: true,
+            collectAtIntake: false,
+            expectedPageCount: 2,
+          },
+        ],
+      },
+      steps: [],
+    })
+    const slots = resolveDocumentSlots(workflow, 'COMPANY')
+    expect(slots.map((s) => s.documentType)).toEqual(expect.arrayContaining(['GST']))
+    expect(slots.map((s) => s.documentType)).not.toContain('BOARD_RESOLUTION')
+    expect(slots.map((s) => s.documentType)).not.toContain('KFS_AGREEMENT')
+    expect(slots.find((s) => s.documentType === 'GST')?.required).toBe(true)
+    const form = createEmptyIntakeFormState()
+    expect(missingRequiredWorkflowDocuments(form, workflow, 'COMPANY')).toContain('GST')
+  })
+
+  it('merges legacy esignDocuments additional when collectAtIntake is true', () => {
+    const workflow = wf({
+      intakeConfig: { policy: 'WORKFLOW_DRIVEN' },
+      steps: [
+        {
+          step: 'ESIGN_AGREEMENT',
+          esignDocuments: {
+            defaultDocumentKey: 'KFS_AGREEMENT',
+            expectedPageCount: 2,
+            additional: [
+              {
+                documentType: 'GST',
+                label: 'GST certificate',
+                required: true,
+                collectAtIntake: true,
+                expectedPageCount: 2,
+              },
+            ],
+          },
+        },
+      ],
+    })
+    const slots = resolveDocumentSlots(workflow, 'COMPANY')
+    expect(slots.map((s) => s.documentType)).toEqual(expect.arrayContaining(['GST']))
+    expect(slots.find((s) => s.documentType === 'GST')?.required).toBe(true)
+    const form = createEmptyIntakeFormState()
+    expect(missingRequiredWorkflowDocuments(form, workflow, 'COMPANY')).toContain('GST')
+  })
+
+  it('does not force esign default KFS document at intake', () => {
+    const workflow = wf({
+      intakeConfig: { policy: 'WORKFLOW_DRIVEN' },
+      steps: [
+        {
+          step: 'ESIGN_AGREEMENT',
+          esignDocuments: {
+            defaultDocumentKey: 'KFS_AGREEMENT',
+            additional: [],
+          },
+        },
+      ],
+    })
+    const slots = resolveDocumentSlots(workflow, 'INDIVIDUAL')
+    expect(slots.map((s) => s.documentType)).not.toContain('KFS_AGREEMENT')
+  })
 })

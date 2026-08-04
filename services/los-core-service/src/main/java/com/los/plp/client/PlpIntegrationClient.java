@@ -60,6 +60,7 @@ public class PlpIntegrationClient {
     private static final String PATH_LINKS = "/api/v1/integrations/los/sub-program-borrower-links";
     private static final String PATH_MAPPINGS = "/api/v1/integrations/los/borrower-program-mappings";
     private static final String PATH_APPLICATION_CLEANUP = "/api/v1/integrations/los/application-cleanup";
+    private static final String PATH_PROGRAM_FIELD_DEFINITIONS = "/api/v1/programs/field-definitions";
 
     private static final int MAX_LOG_BODY_CHARS = 4096;
 
@@ -71,6 +72,8 @@ public class PlpIntegrationClient {
     private static final TypeReference<PlpApiResponse<PlpSubProgramBorrowerLinkData>> LINK_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpBorrowerProgramMappingData>> MAPPING_TYPE = new TypeReference<>() {};
     private static final TypeReference<PlpApiResponse<PlpApplicationCleanupResponse>> CLEANUP_TYPE = new TypeReference<>() {};
+    private static final TypeReference<PlpApiResponse<java.util.List<com.los.plp.model.dto.ProgramFieldDefinitionResponse>>>
+            FIELD_DEFS_TYPE = new TypeReference<>() {};
 
     @Qualifier("plpRestClient")
     private final RestClient plpRestClient;
@@ -106,6 +109,25 @@ public class PlpIntegrationClient {
                 + "&losProgramId="
                 + losProgramId;
         return getAuthenticated(path, PROGRAM_STATUS_TYPE, false);
+    }
+
+    /**
+     * Fetch program custom field definitions (catalog) configured in PLP admin.
+     * Used by LOS program-create UI; PLP is the sole config source of truth.
+     */
+    public java.util.List<com.los.plp.model.dto.ProgramFieldDefinitionResponse> listProgramFieldDefinitions(
+            String productType, boolean activeOnly) {
+        if (!plpProperties.isEnabled()) {
+            throw new PlpIntegrationException("PLP sync is disabled (los.plp.enabled=false)");
+        }
+        StringBuilder path = new StringBuilder(PATH_PROGRAM_FIELD_DEFINITIONS);
+        path.append("?activeOnly=").append(activeOnly);
+        if (productType != null && !productType.isBlank()) {
+            path.append("&productType=").append(productType.trim());
+        }
+        PlpApiResponse<java.util.List<com.los.plp.model.dto.ProgramFieldDefinitionResponse>> resp =
+                getAuthenticated(path.toString(), FIELD_DEFS_TYPE, false);
+        return resp.getData() != null ? resp.getData() : java.util.List.of();
     }
 
     public PlpApiResponse<PlpSubProgramSyncData> syncSubProgram(PlpSubProgramSyncRequest request) {

@@ -138,8 +138,9 @@ public class LoanApplicationFlowController {
     @Operation(summary = "Step 6b: Complete eSign (webhook callback or manual) (→ DISBURSEMENT_PENDING)")
     public ResponseEntity<ApplicationResponse> completeESign(
             @PathVariable UUID applicationId,
-            @RequestParam(required = false) String transactionId) {
-        return ResponseEntity.ok(flowService.completeESign(applicationId, transactionId));
+            @RequestParam(required = false) String transactionId,
+            @RequestParam(required = false, defaultValue = "false") boolean markAllPendingDocuments) {
+        return ResponseEntity.ok(flowService.completeESign(applicationId, transactionId, markAllPendingDocuments));
     }
 
     @PostMapping("/{applicationId}/disburse")

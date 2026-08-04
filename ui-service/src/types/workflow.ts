@@ -59,6 +59,42 @@ export interface WorkflowStandaloneDocument {
   label?: string
 }
 
+/**
+ * Additional multi-doc eSign files (not KFS/program terms / system-generated).
+ * Configured under workflow Intake rules — `intakeConfig.esignSigningDocuments`.
+ */
+export interface WorkflowEsignSigningDocument {
+  documentType: string
+  label?: string
+  /** Required for multi-doc signing before completion; missing at initiate surfaces as error. */
+  required?: boolean
+  /**
+   * When true, required at application create (admin/borrower/anchor intake).
+   * When false, may be uploaded later from application review Documents panel.
+   */
+  collectAtIntake?: boolean
+  /** Expected PDF page count on upload validation (default 2). */
+  expectedPageCount?: number
+}
+
+/**
+ * System-generated documents for multi-doc eSign (KFS / program terms / sanction letter).
+ * Configured under `intakeConfig.esignSystemDocuments`. Templates are stored for future use;
+ * generation currently uses the built-in LOS PDF procedures.
+ */
+export interface WorkflowEsignSystemDocument {
+  documentKey: string
+  label?: string
+  /** When false, this system document is skipped at eSign initiate. Default true. */
+  enabled?: boolean
+  expectedPageCount?: number
+  /** Original file name of the optional template (not used for generation yet). */
+  templateFileName?: string | null
+  templateMimeType?: string | null
+  /** Base64 template payload stored on workflow config for future generation. */
+  templateBase64?: string | null
+}
+
 export interface WorkflowStepDocumentRequired {
   documentType: string
   required?: boolean
@@ -114,6 +150,15 @@ export interface WorkflowIntakeConfig {
   loanPurposeRules?: WorkflowCodedFieldRules
   mandatoryFieldGroups?: WorkflowMandatoryFieldGroup[]
   standaloneDocuments?: WorkflowStandaloneDocument[]
+  /**
+   * Additional documents for multi-document eSign (system-generated KFS/terms are configured separately).
+   */
+  esignSigningDocuments?: WorkflowEsignSigningDocument[]
+  /**
+   * System-generated signing documents (KFS / anchor program terms / optional sanction letter).
+   * When omitted, behaviour matches historical default (single default KFS/program-terms only).
+   */
+  esignSystemDocuments?: WorkflowEsignSystemDocument[]
   coApplicant?: WorkflowCoApplicantConfig
   contacts?: WorkflowContactsConfig
 }

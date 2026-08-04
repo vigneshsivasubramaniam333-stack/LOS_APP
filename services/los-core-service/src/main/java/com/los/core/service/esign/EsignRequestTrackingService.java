@@ -347,6 +347,48 @@ public class EsignRequestTrackingService {
         esignRequestRepository.save(e);
     }
 
+    /**
+     * Admin "Mark eSign complete" / force completion: mark every non-terminal request as SIGNED
+     * so multi-document applications advance without one request stuck on INITIATED.
+     * Does not alter already-terminal rows (SIGNED/FAILED/EXPIRED/CANCELLED).
+     *
+     * @return number of rows updated
+     */
+    @Transactional
+    public int markAllPendingAsSigned(UUID applicationId, String reason) {
+        if (applicationId == null) {
+            return 0;
+        }
+        List<EsignRequest> rows = esignRequestRepository.findByApplicationIdOrderByCreatedAtDesc(applicationId);
+        int updated = 0;
+        Instant now = Instant.now();
+        for (EsignRequest e : rows) {
+            String st = e.getStatus() != null ? e.getStatus().trim().toUpperCase(Locale.ROOT) : "";
+            if (EsignRequestStatuses.SIGNED.equals(st)
+                    || EsignRequestStatuses.FAILED.equals(st)
+                    || EsignRequestStatuses.EXPIRED.equals(st)
+                    || "CANCELLED".equals(st)) {
+                continue;
+            }
+            e.setStatus(EsignRequestStatuses.SIGNED);
+            e.setSignedAt(now);
+            Map<String, Object> merged = new HashMap<>();
+            if (e.getRawResponse() != null) {
+                merged.putAll(e.getRawResponse());
+            }
+            merged.put("manualMarkComplete", true);
+            if (reason != null && !reason.isBlank()) {
+                merged.put("manualMarkCompleteReason", reason);
+            }
+            e.setRawResponse(merged);
+            esignRequestRepository.save(e);
+            updated++;
+        }
+        log.info("[ESIGN_MANUAL_COMPLETE] marked {} pending esign_requests as SIGNED for applicationId={} reason={}",
+                updated, applicationId, reason);
+        return updated;
+    }
+
     private static Object firstSignedDocumentUrl(Map<String, Object> payload) {
         if (payload == null) {
             return null;

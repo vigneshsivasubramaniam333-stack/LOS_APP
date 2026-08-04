@@ -39,6 +39,7 @@ public class PlpProgramSetupService {
     private final ProgramApprovalService programApprovalService;
     private final LoanApplicationRepository loanApplicationRepository;
     private final AuditService auditService;
+    private final ProgramFieldDefinitionService programFieldDefinitionService;
 
     @Transactional
     public PlpProgramSetupResponse createProgramForAnchor(CreatePlpProgramRequest request) {
@@ -67,6 +68,9 @@ public class PlpProgramSetupService {
                 && (request.getEncoreProductCode() == null || request.getEncoreProductCode().isBlank())) {
             throw new IllegalArgumentException("encoreProductCode is required when LMS entry is YES for invoice discounting");
         }
+
+        Map<String, Object> customFields = resolveAndNormalizeCustomFields(request);
+
         ProgramMaster program = ProgramMaster.builder()
                 .programCode(programCode)
                 .programName(request.getProgramName())
@@ -86,10 +90,13 @@ public class PlpProgramSetupService {
                 .maxInvoiceVintageDays(request.getMaxInvoiceVintageDays())
                 .maxCmr(request.getMaxCmr())
                 .minCibil(request.getMinCibil())
+                .customFields(customFields)
                 .plpLenderId(parseLenderId())
                 .anchorApplicationId(anchor.getSourceAnchorApplicationId())
                 .plpProgramSyncStatus(PlpSyncStatus.NOT_SYNCED)
                 .build();
+        // Dual-write system keys from customFields onto columns (overrides scalars when map has values)
+        ProgramCustomFieldBridge.applySystemFields(program, customFields);
         programApprovalService.initDraftFromPlp(program);
         program = programMasterRepository.save(program);
         auditProgramLifecycle(program, anchor, "PROGRAM_CREATED",
@@ -225,6 +232,16 @@ public class PlpProgramSetupService {
             program.setMinCibil(request.getMinCibil());
         }
 
+        Map<String, Object> customFields = resolveAndNormalizeCustomFields(request);
+        // Merge with existing map for free-form keys already stored
+        Map<String, Object> mergedCf = new LinkedHashMap<>();
+        if (program.getCustomFields() != null) {
+            mergedCf.putAll(program.getCustomFields());
+        }
+        mergedCf.putAll(customFields);
+        program.setCustomFields(mergedCf);
+        ProgramCustomFieldBridge.applySystemFields(program, mergedCf);
+
         // Ready for another L1 cycle (send-back again or submit to L2).
         program.setApprovalStatus(ProgramApprovalStatus.DRAFT);
         program.setPlpOperationalStatus("DRAFT");
@@ -329,7 +346,34 @@ public class PlpProgramSetupService {
                 .maxInvoiceVintageDays(program.getMaxInvoiceVintageDays())
                 .maxCmr(program.getMaxCmr())
                 .minCibil(program.getMinCibil())
+                .customFields(ProgramCustomFieldBridge.mergeForResponse(program))
                 .build();
+    }
+
+    private Map<String, Object> resolveAndNormalizeCustomFields(CreatePlpProgramRequest request) {
+        Map<String, Object> raw = request.getCustomFields();
+        if (raw == null || raw.isEmpty()) {
+            raw = ProgramCustomFieldBridge.fromScalars(
+                    request.getTenureDays(),
+                    request.getAnchorRelationshipVintageMonths(),
+                    request.getInterestPayment(),
+                    request.getMaxInvoiceVintageDays(),
+                    request.getMaxCmr(),
+                    request.getMinCibil());
+        } else {
+            // Fill gaps from scalars when client sent partial customFields
+            Map<String, Object> fromScalars = ProgramCustomFieldBridge.fromScalars(
+                    request.getTenureDays(),
+                    request.getAnchorRelationshipVintageMonths(),
+                    request.getInterestPayment(),
+                    request.getMaxInvoiceVintageDays(),
+                    request.getMaxCmr(),
+                    request.getMinCibil());
+            Map<String, Object> merged = new LinkedHashMap<>(fromScalars);
+            merged.putAll(raw);
+            raw = merged;
+        }
+        return programFieldDefinitionService.validateAndNormalizeValues(request.getProgramType(), raw);
     }
 
     private UUID parseLenderId() {

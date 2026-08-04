@@ -11,11 +11,15 @@ import com.los.core.repository.KfsDocumentRepository;
 import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.repository.SanctionRecordRepository;
 import com.los.core.service.audit.AuditService;
-import com.los.core.service.esign.EsignSigningLinkNotifier;
 import com.los.core.service.esign.EsignRequestTrackingService;
+import com.los.core.service.esign.EsignSigningLinkNotifier;
+import com.los.core.service.esign.EsignSystemDocumentMaterializer;
 import com.los.core.service.integration.IIntegrationRouterService;
 import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.ApplicationPartyService;
+import com.los.core.service.workflow.ActiveWorkflowConfigService;
+import com.los.core.repository.DocumentRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,9 +62,22 @@ class EsignInitiateStepExecutorTest {
     private EsignNotificationProperties esignNotificationProperties;
     @Mock
     private ApplicationPartyService applicationPartyService;
+    @Mock
+    private ActiveWorkflowConfigService activeWorkflowConfigService;
+    @Mock
+    private DocumentRepository documentRepository;
+    @Mock
+    private EsignSystemDocumentMaterializer esignSystemDocumentMaterializer;
 
     @InjectMocks
     private EsignInitiateStepExecutor executor;
+
+    @BeforeEach
+    void stubWorkflowAndParties() {
+        lenient().when(activeWorkflowConfigService.findActiveForApplication(any())).thenReturn(Optional.empty());
+        lenient().when(applicationPartyService.isMultiPartyEnabled(any())).thenReturn(false);
+        lenient().when(applicationPartyService.ensurePrimaryParty(any())).thenReturn(null);
+    }
 
     @Test
     void onSuccess_persistsEsignRequestAndOutputShapeUnchanged() {
@@ -96,6 +114,7 @@ class EsignInitiateStepExecutorTest {
         verify(esignRequestTrackingService).recordInitiationSuccess(
                 eq(appId), eq("KFS_AGREEMENT"), eq("EMSIGNER"), eq("TX-9"), eq("https://sign.example"),
                 any(), any(), eq("ESIGN_AGREEMENT"), org.mockito.ArgumentMatchers.isNull());
+        verify(esignSystemDocumentMaterializer).materializeEnabledExtras(eq(appId), any(), any());
     }
 
     @Test

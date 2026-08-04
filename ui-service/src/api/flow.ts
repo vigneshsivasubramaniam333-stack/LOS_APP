@@ -118,16 +118,18 @@ export async function initiateEsignFlow(
 export async function completeEsignFlow(
   applicationId: string,
   transactionId?: string,
+  options?: { markAllPendingDocuments?: boolean },
 ): Promise<ApplicationResponse> {
+  const params: Record<string, string | boolean> = {}
+  if (transactionId != null && transactionId !== '') {
+    params.transactionId = transactionId
+  }
+  // Admin "Mark eSign complete" always marks all open multi-doc sessions signed.
+  params.markAllPendingDocuments = options?.markAllPendingDocuments !== false
   const { data } = await http.post<ApplicationResponse>(
     `/flow/${applicationId}/esign-complete`,
     {},
-    {
-      params:
-        transactionId != null && transactionId !== ''
-          ? { transactionId }
-          : undefined,
-    },
+    { params },
   )
   return data
 }

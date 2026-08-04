@@ -37,7 +37,16 @@ public class SanctionLetterPdfService {
         if (InvoiceDiscountingApplicationRules.isBorrowerFlow(app)) {
             return kfsPdfGenerationService.generateInvoiceDiscountingTermsPdfForApplication(app.getId());
         }
-        return renderStandardSanction(app, r);
+        return renderStandardSanction(app, r, false);
+    }
+
+    /**
+     * Standalone two-page sanction letter for multi-doc eSign (anchor + ID borrower and other
+     * flows). Always uses the built-in standard letter layout — not the invoice-discounting terms PDF
+     * and not a workflow-stored template.
+     */
+    public byte[] renderStandaloneTwoPageSanctionLetter(LoanApplication app, SanctionRecord r) {
+        return renderStandardSanction(app, r, true);
     }
 
     /** @deprecated use {@link KfsPdfGenerationService#generateInvoiceDiscountingTermsPdfForApplication} */
@@ -46,7 +55,7 @@ public class SanctionLetterPdfService {
         return render(app, r);
     }
 
-    private byte[] renderStandardSanction(LoanApplication app, SanctionRecord r) {
+    private byte[] renderStandardSanction(LoanApplication app, SanctionRecord r, boolean twoPages) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A4, 40, 40, 40, 40);
             PdfWriter.getInstance(document, baos);
@@ -88,6 +97,21 @@ public class SanctionLetterPdfService {
             String by = r.getApprovedBy() != null && !r.getApprovedBy().isBlank()
                     ? r.getApprovedBy() : "—";
             document.add(new Paragraph("Approved by: " + by, h));
+
+            if (twoPages) {
+                document.newPage();
+                document.add(new Paragraph("Sanction letter — continued (page 2)", title));
+                document.add(Chunk.NEWLINE);
+                document.add(new Paragraph(
+                        "This page forms part of the sanction letter for electronic signature. "
+                                + "Facility terms, conditions, and other particulars on page 1 remain binding.",
+                        body));
+                document.add(Chunk.NEWLINE);
+                document.add(new Paragraph(
+                        "Application reference: " + app.getApplicationNumber(), body));
+                document.add(new Paragraph("Approved amount: " + money(r.getApprovedAmount()), body));
+                document.add(new Paragraph("Approved by: " + by, body));
+            }
 
             document.close();
             return baos.toByteArray();

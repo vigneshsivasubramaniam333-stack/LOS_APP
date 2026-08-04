@@ -12,6 +12,7 @@ import com.los.core.config.EsignNotificationProperties;
 import com.los.core.service.esign.EsignDocumentsConfig;
 import com.los.core.service.esign.EsignSigningLinkNotifier;
 import com.los.core.service.esign.EsignRequestTrackingService;
+import com.los.core.service.esign.EsignSystemDocumentMaterializer;
 import com.los.core.service.integration.IIntegrationRouterService;
 import com.los.core.service.kfs.KfsService;
 import com.los.core.service.loan.ApplicationPartyResolver;
@@ -31,6 +32,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -55,6 +57,7 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
     private final ApplicationPartyService applicationPartyService;
     private final ActiveWorkflowConfigService activeWorkflowConfigService;
     private final DocumentRepository documentRepository;
+    private final EsignSystemDocumentMaterializer esignSystemDocumentMaterializer;
 
     @Override
     public boolean supports(String stepType) {
@@ -96,9 +99,9 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
 
         Map<String, Object> signerForRoute = ApplicationPartyResolver.enrichEsignSignerInfo(app, signerInfo);
         EsignDocumentsConfig.Settings docs = resolveEsignDocuments(app);
-        assertRequiredAdditionalDocuments(applicationId, docs);
-        if (docs.additional().isEmpty()) {
-            return initiateForSingleSigner(applicationId, app, signerForRoute, null, docs.defaultDocumentKey());
+        esignSystemDocumentMaterializer.materializeEnabledExtras(applicationId, app, docs);
+        if (!docs.hasMultiDocumentSigning()) {
+            return initiateForSingleSigner(applicationId, app, signerForRoute, null, docs.defaultDocumentKey(), docs);
         }
         return initiateMultiDocument(applicationId, app, signerForRoute, docs);
     }
@@ -108,20 +111,14 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
             LoanApplication app,
             Map<String, Object> signerForRoute,
             EsignDocumentsConfig.Settings docs) {
+        DocumentAvailability availability = resolveAvailableDocumentKeys(applicationId, docs);
         List<Map<String, Object>> docResults = new ArrayList<>();
-        boolean anyFail = false;
+        boolean anyFail = !availability.missingRequired().isEmpty();
         String primaryTxn = null;
         String primaryUrl = "";
 
-        List<String> keys = new ArrayList<>();
-        keys.add(docs.defaultDocumentKey());
-        for (EsignDocumentsConfig.AdditionalDoc d : docs.additional()) {
-            if (d.required()) {
-                keys.add(d.documentType());
-            }
-        }
-        for (String documentKey : keys) {
-            StepResult one = initiateForSingleSigner(applicationId, app, signerForRoute, null, documentKey);
+        for (String documentKey : availability.keysToInitiate()) {
+            StepResult one = initiateForSingleSigner(applicationId, app, signerForRoute, null, documentKey, docs);
             Map<String, Object> out = one.output() != null ? new HashMap<>(one.output()) : new HashMap<>();
             out.put("documentKey", documentKey);
             docResults.add(out);
@@ -134,6 +131,15 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                 primaryUrl = String.valueOf(out.getOrDefault("signingUrl", ""));
             }
         }
+        for (String missing : availability.missingRequired()) {
+            Map<String, Object> missingOut = new HashMap<>();
+            missingOut.put("documentKey", missing);
+            missingOut.put("documentLabel", docs.labelFor(missing));
+            missingOut.put("esignSuccess", false);
+            missingOut.put("errorMessage", "Document not uploaded — upload from application Documents and re-initiate eSign");
+            missingOut.put("missing", true);
+            docResults.add(missingOut);
+        }
         app = applicationRepository.findById(applicationId).orElse(app);
         Map<String, Object> aggregate = new HashMap<>();
         aggregate.put("applicationId", applicationId);
@@ -142,7 +148,8 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
         aggregate.put("esignSuccess", !anyFail);
         aggregate.put("transactionId", primaryTxn != null ? primaryTxn : "");
         aggregate.put("signingUrl", primaryUrl);
-        aggregate.put("errorMessage", anyFail ? "One or more document eSign initiations failed" : "");
+        aggregate.put("errorMessage", buildMultiDocErrorMessage(availability.missingRequired(), anyFail));
+        aggregate.put("missingDocumentTypes", availability.missingRequired());
         aggregate.put("documentResults", docResults);
         aggregate.put("multiDocument", true);
         return anyFail ? StepResult.fail(aggregate) : StepResult.ok(aggregate);
@@ -151,55 +158,114 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
     private EsignDocumentsConfig.Settings resolveEsignDocuments(LoanApplication app) {
         try {
             return activeWorkflowConfigService.findActiveForApplication(app)
-                    .map(wf -> EsignDocumentsConfig.fromWorkflowSteps(wf.getSteps()))
+                    .map(EsignDocumentsConfig::fromWorkflow)
                     .orElseGet(EsignDocumentsConfig.Settings::singleDefault);
         } catch (Exception e) {
-            log.warn("Could not resolve esignDocuments from workflow for {}: {}", app.getId(), e.getMessage());
+            log.warn("Could not resolve esign signing documents from workflow for {}: {}", app.getId(), e.getMessage());
             return EsignDocumentsConfig.Settings.singleDefault();
         }
     }
 
-    private void assertRequiredAdditionalDocuments(UUID applicationId, EsignDocumentsConfig.Settings docs) {
-        List<String> missing = new ArrayList<>();
-        for (String type : docs.requiredAdditionalTypes()) {
-            List<Document> found = documentRepository
-                    .findByApplicationIdAndDocumentTypeOrderByVersionNumberDesc(applicationId, type);
-            if (found == null || found.isEmpty()) {
-                missing.add(type);
+    /**
+     * Resolves which configured signing documents can be initiated now.
+     * Missing required additionals / system extras are reported (not hard-blocked) so default
+     * KFS/terms and available docs still generate signing URLs/emails.
+     */
+    private DocumentAvailability resolveAvailableDocumentKeys(UUID applicationId, EsignDocumentsConfig.Settings docs) {
+        List<String> keys = new ArrayList<>();
+        List<String> missingRequired = new ArrayList<>();
+        keys.add(docs.defaultDocumentKey());
+        for (EsignDocumentsConfig.SystemDoc d : docs.enabledSystemExtras()) {
+            String type = d.documentKey().trim().toUpperCase(Locale.ROOT);
+            if (hasUploadedDocument(applicationId, type)) {
+                keys.add(type);
+            } else {
+                // System extras are required when enabled — generation should have materialised them.
+                missingRequired.add(type);
             }
         }
-        if (!missing.isEmpty()) {
-            throw new BusinessRuleException(
-                    "Cannot initiate eSign — missing required documents for signing: " + String.join(", ", missing),
-                    "ESIGN_DOCUMENTS_MISSING",
-                    "ESIGN_INITIATE",
-                    Map.of("missingDocumentTypes", missing));
+        for (EsignDocumentsConfig.AdditionalDoc d : docs.additional()) {
+            if (d.documentType() == null || d.documentType().isBlank()) {
+                continue;
+            }
+            String type = d.documentType().trim();
+            boolean present = hasUploadedDocument(applicationId, type);
+            if (present) {
+                keys.add(type);
+            } else if (d.required()) {
+                missingRequired.add(type);
+            }
         }
+        return new DocumentAvailability(keys, missingRequired);
     }
+
+    private boolean hasUploadedDocument(UUID applicationId, String documentType) {
+        List<Document> found = documentRepository
+                .findByApplicationIdAndDocumentTypeOrderByVersionNumberDesc(applicationId, documentType);
+        return found != null && !found.isEmpty();
+    }
+
+    private static String buildMultiDocErrorMessage(List<String> missingRequired, boolean anyFail) {
+        if (missingRequired != null && !missingRequired.isEmpty()) {
+            return "Missing documents for signing (generated for available documents only): "
+                    + String.join(", ", missingRequired);
+        }
+        return anyFail ? "One or more document eSign initiations failed" : "";
+    }
+
+    private record DocumentAvailability(List<String> keysToInitiate, List<String> missingRequired) {}
 
     private StepResult initiateForAllRequiredParties(
             UUID applicationId, LoanApplication app, Map<String, Object> baseSignerInfo) {
+        EsignDocumentsConfig.Settings docs = resolveEsignDocuments(app);
+        esignSystemDocumentMaterializer.materializeEnabledExtras(applicationId, app, docs);
+        DocumentAvailability availability = resolveAvailableDocumentKeys(applicationId, docs);
+        List<String> keys = availability.keysToInitiate();
+
         List<ApplicationParty> parties = applicationPartyService.partiesRequiredForDisbursement(applicationId);
         List<Map<String, Object>> partyResults = new ArrayList<>();
-        boolean anyFail = false;
+        boolean anyFail = !availability.missingRequired().isEmpty();
         String primaryTxn = null;
         String primaryUrl = "";
 
         for (ApplicationParty party : parties) {
             Map<String, Object> signerForRoute = ApplicationPartyResolver.enrichEsignSignerInfoFromParty(
                     party, baseSignerInfo);
-            StepResult one = initiateForSingleSigner(applicationId, app, signerForRoute, party, "KFS_AGREEMENT");
-            Map<String, Object> out = one.output() != null ? new HashMap<>(one.output()) : new HashMap<>();
-            out.put("partyId", party.getId().toString());
-            out.put("partyRole", party.getRole().name());
-            partyResults.add(out);
-            boolean ok = Boolean.TRUE.equals(out.get("esignSuccess"))
-                    || "true".equalsIgnoreCase(String.valueOf(out.get("esignSuccess")));
-            if (!ok) {
+            List<Map<String, Object>> docResults = new ArrayList<>();
+            boolean partyFail = !availability.missingRequired().isEmpty();
+            for (String documentKey : keys) {
+                StepResult one = initiateForSingleSigner(
+                        applicationId, app, signerForRoute, party, documentKey, docs);
+                Map<String, Object> out = one.output() != null ? new HashMap<>(one.output()) : new HashMap<>();
+                out.put("documentKey", documentKey);
+                docResults.add(out);
+                boolean ok = Boolean.TRUE.equals(out.get("esignSuccess"))
+                        || "true".equalsIgnoreCase(String.valueOf(out.get("esignSuccess")));
+                if (!ok) {
+                    partyFail = true;
+                } else if (party.getRole() == ApplicationPartyRole.PRIMARY
+                        && (primaryTxn == null || primaryTxn.isBlank())) {
+                    primaryTxn = String.valueOf(out.getOrDefault("transactionId", ""));
+                    primaryUrl = String.valueOf(out.getOrDefault("signingUrl", ""));
+                }
+            }
+            for (String missing : availability.missingRequired()) {
+                Map<String, Object> missingOut = new HashMap<>();
+                missingOut.put("documentKey", missing);
+                missingOut.put("documentLabel", docs.labelFor(missing));
+                missingOut.put("esignSuccess", false);
+                missingOut.put("errorMessage", "Document not uploaded — upload from application Documents and re-initiate eSign");
+                missingOut.put("missing", true);
+                docResults.add(missingOut);
+            }
+            Map<String, Object> partyOut = new HashMap<>();
+            partyOut.put("partyId", party.getId().toString());
+            partyOut.put("partyRole", party.getRole().name());
+            partyOut.put("documentResults", docResults);
+            partyOut.put("esignSuccess", !partyFail);
+            partyResults.add(partyOut);
+            if (partyFail) {
                 anyFail = true;
-            } else if (party.getRole() == ApplicationPartyRole.PRIMARY) {
-                primaryTxn = String.valueOf(out.getOrDefault("transactionId", ""));
-                primaryUrl = String.valueOf(out.getOrDefault("signingUrl", ""));
             }
         }
 
@@ -211,9 +277,11 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
         aggregate.put("esignSuccess", !anyFail);
         aggregate.put("transactionId", primaryTxn != null ? primaryTxn : "");
         aggregate.put("signingUrl", primaryUrl);
-        aggregate.put("errorMessage", anyFail ? "One or more party eSign initiations failed" : "");
+        aggregate.put("errorMessage", buildMultiDocErrorMessage(availability.missingRequired(), anyFail));
+        aggregate.put("missingDocumentTypes", availability.missingRequired());
         aggregate.put("partyResults", partyResults);
         aggregate.put("multiParty", true);
+        aggregate.put("multiDocument", keys.size() > 1 || !availability.missingRequired().isEmpty());
         return anyFail ? StepResult.fail(aggregate) : StepResult.ok(aggregate);
     }
 
@@ -222,7 +290,8 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
             LoanApplication app,
             Map<String, Object> signerForRoute,
             ApplicationParty party,
-            String documentKey) {
+            String documentKey,
+            EsignDocumentsConfig.Settings docs) {
         Object email = signerForRoute.get("email");
         Object borrowerEmail = signerForRoute.get("borrowerEmail");
         if ((borrowerEmail == null || borrowerEmail.toString().isBlank())
@@ -232,9 +301,18 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
         }
 
         String docKey = documentKey != null && !documentKey.isBlank() ? documentKey : "KFS_AGREEMENT";
+        int expectedPages = docs != null
+                ? docs.expectedPageCountFor(docKey)
+                : EsignDocumentsConfig.DEFAULT_EXPECTED_PAGE_COUNT;
+        String documentLabel = docs != null ? docs.labelFor(docKey) : docKey;
+        Map<String, Object> signerWithMeta = new HashMap<>(signerForRoute);
+        signerWithMeta.put("expectedPageCount", expectedPages);
+        signerWithMeta.put("documentLabel", documentLabel);
         Map<String, Object> esignPayload = new HashMap<>();
         esignPayload.put("documentKey", docKey);
-        esignPayload.put("signerInfo", signerForRoute);
+        esignPayload.put("expectedPageCount", expectedPages);
+        esignPayload.put("documentLabel", documentLabel);
+        esignPayload.put("signerInfo", signerWithMeta);
         esignPayload.put("esignStepType", "ESIGN_AGREEMENT");
         if (party != null && party.getId() != null) {
             esignPayload.put("partyId", party.getId().toString());
@@ -249,6 +327,7 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
             if (party == null || party.getRole() == ApplicationPartyRole.PRIMARY) {
                 if ("KFS_AGREEMENT".equalsIgnoreCase(docKey)
                         || "ANCHOR_PROGRAM_TERMS".equalsIgnoreCase(docKey)
+                        || EsignDocumentsConfig.DOCUMENT_KEY_SANCTION_LETTER.equalsIgnoreCase(docKey)
                         || app.getEsignTransactionId() == null) {
                     app.setEsignTransactionId(result.transactionId());
                 }
@@ -261,6 +340,7 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                     Map.of("status", "ESIGN_PENDING",
                             "esignTransactionId", result.transactionId(),
                             "documentKey", docKey,
+                            "documentLabel", documentLabel,
                             "partyId", party != null && party.getId() != null ? party.getId().toString() : ""),
                     "eSign initiated");
 
@@ -275,7 +355,7 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                             result.providerName(),
                             result.transactionId(),
                             result.signingUrl(),
-                            signerForRoute,
+                            signerWithMeta,
                             meta,
                             "ESIGN_AGREEMENT",
                             party != null ? party.getId() : null);
@@ -290,9 +370,12 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
             if (party != null) {
                 applicationPartyService.markPartyEsignPending(party);
             }
-            dispatchSigningLinkEmail(applicationId, app, signerForRoute, result, reusedSigningUrl);
+            // Always notify for a newly created signing URL; additional documents must each get their own email.
+            dispatchSigningLinkEmail(
+                    applicationId, app, signerWithMeta, result, reusedSigningUrl, docKey, documentLabel);
         } else {
-            log.error("eSign initiation failed for {}: {}", app.getApplicationNumber(), result.errorMessage());
+            log.error("eSign initiation failed for {} documentKey={}: {}",
+                    app.getApplicationNumber(), docKey, result.errorMessage());
         }
 
         Map<String, Object> out = Map.of(
@@ -303,6 +386,7 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                 "transactionId", result.transactionId() != null ? result.transactionId() : "",
                 "signingUrl", result.signingUrl() != null ? result.signingUrl() : "",
                 "documentKey", docKey,
+                "documentLabel", documentLabel,
                 "errorMessage", result.errorMessage() != null ? result.errorMessage() : ""
         );
         return StepResult.ok(out);
@@ -355,18 +439,26 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
             LoanApplication app,
             Map<String, Object> signerForRoute,
             IIntegrationRouterService.ESignRouteResult result,
-            boolean reusedSigningUrl) {
+            boolean reusedSigningUrl,
+            String documentKey,
+            String documentLabel) {
         if (!esignNotificationProperties.isEnabled()) {
-            log.info("[ESIGN_EMAIL] skipped (los.esign.notification.enabled=false) applicationId={}", applicationId);
+            log.info("[ESIGN_EMAIL] skipped (los.esign.notification.enabled=false) applicationId={} documentKey={}",
+                    applicationId, documentKey);
             return;
         }
-        if (reusedSigningUrl) {
-            log.info("[ESIGN_EMAIL] skipped (reusedSigningUrl=true) applicationId={}", applicationId);
-            return;
-        }
+        // Always email when a signing URL exists — including multi-doc additionals and reuse of stored URLs.
+        // Reused KFS links used to skip here, which also blocked additional-document emails in multi-doc loops.
         String rawEmail = borrowerEmailRaw(signerForRoute);
         if (rawEmail == null || rawEmail.isBlank()) {
-            log.warn("[ESIGN_EMAIL] skipped (no borrower email on signer info) applicationId={}", applicationId);
+            log.warn("[ESIGN_EMAIL] skipped (no borrower email on signer info) applicationId={} documentKey={}",
+                    applicationId, documentKey);
+            return;
+        }
+        String signingUrl = result.signingUrl() != null ? result.signingUrl().trim() : "";
+        if (signingUrl.isBlank()) {
+            log.warn("[ESIGN_EMAIL] skipped (empty signingUrl) applicationId={} documentKey={}",
+                    applicationId, documentKey);
             return;
         }
         String name = signerForRoute.get("name") != null ? signerForRoute.get("name").toString().trim() : "Borrower";
@@ -376,12 +468,15 @@ public class EsignInitiateStepExecutor implements IStepExecutor {
                     app.getApplicationNumber(),
                     name,
                     List.of(rawEmail.trim()),
-                    result.signingUrl() != null ? result.signingUrl() : "",
+                    signingUrl,
                     esignNotificationProperties.getTemplateCode(),
                     esignNotificationProperties.getLinkExpiryHours(),
-                    false);
+                    reusedSigningUrl,
+                    documentKey,
+                    documentLabel);
         } catch (Exception ex) {
-            log.error("[ESIGN_EMAIL] unexpected failure applicationId={}: {}", applicationId, ex.getMessage(), ex);
+            log.error("[ESIGN_EMAIL] unexpected failure applicationId={} documentKey={}: {}",
+                    applicationId, documentKey, ex.getMessage(), ex);
         }
     }
 

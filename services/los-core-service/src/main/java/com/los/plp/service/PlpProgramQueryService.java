@@ -239,6 +239,7 @@ public class PlpProgramQueryService {
                 .maxInvoiceVintageDays(program.getMaxInvoiceVintageDays())
                 .maxCmr(program.getMaxCmr())
                 .minCibil(program.getMinCibil())
+                .customFields(ProgramCustomFieldBridge.mergeForResponse(program))
                 .build();
     }
 

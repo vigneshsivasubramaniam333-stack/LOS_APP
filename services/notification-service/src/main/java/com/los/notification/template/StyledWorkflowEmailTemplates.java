@@ -15,11 +15,12 @@ public final class StyledWorkflowEmailTemplates {
     public static String esignLinkEmail() {
         return actionRequiredEmail(
                 "BillionTech LOS",
-                "Secure eSign Workflow",
-                "Your loan documents are ready for digital signing. Please review the documents carefully and complete eSign to continue processing your application.",
+                "Secure eSign — {{documentLabel}}",
+                "Your document is ready for digital signing. Please review carefully and complete eSign to continue processing your application.",
                 """
                         <p style="margin:0 0 8px 0;font-size:13px;color:#64748b;">Application Reference</p>
                         <p style="margin:0;font-size:14px;line-height:22px;color:#0f172a;"><strong>Application Number:</strong> {{applicationNumber}}</p>
+                        <p style="margin:8px 0 0 0;font-size:14px;line-height:22px;color:#0f172a;"><strong>Document:</strong> {{documentLabel}}</p>
                         <p style="margin:8px 0 0 0;font-size:14px;line-height:22px;color:#0f172a;"><strong>Expiry Duration:</strong> {{expiryHours}} hours</p>
                         """,
                 "Review &amp; Sign Documents",

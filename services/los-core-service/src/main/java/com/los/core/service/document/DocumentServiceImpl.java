@@ -1,12 +1,18 @@
 package com.los.core.service.document;
 
+import com.los.core.exception.BusinessRuleException;
 import com.los.core.exception.ResourceNotFoundException;
 import com.los.core.model.dto.response.DocumentResponse;
 import com.los.core.model.entity.Document;
+import com.los.core.model.entity.LoanApplication;
 import com.los.core.model.enums.KycStepType;
 import com.los.core.repository.DocumentRepository;
+import com.los.core.repository.LoanApplicationRepository;
 import com.los.core.service.audit.AuditService;
 import com.los.core.service.document.storage.DocumentBlobStore;
+import com.los.core.service.esign.EsignDocumentsConfig;
+import com.los.core.service.workflow.ActiveWorkflowConfigService;
+import com.lowagie.text.pdf.PdfReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +34,8 @@ public class DocumentServiceImpl implements IDocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentBlobStore documentBlobStore;
     private final AuditService auditService;
+    private final LoanApplicationRepository loanApplicationRepository;
+    private final ActiveWorkflowConfigService activeWorkflowConfigService;
 
     private static final Set<String> REQUIRED_DOC_TYPES = Set.of(
             "PAN_CARD", "AADHAAR", "BANK_STATEMENT", "PHOTOGRAPH"
@@ -44,6 +52,7 @@ public class DocumentServiceImpl implements IDocumentService {
 
         try {
             byte[] fileBytes = file.getBytes();
+            validateEsignSigningUpload(applicationId, documentType, originalFileName, file.getContentType(), fileBytes);
             String checksum = computeSha256(fileBytes);
             String contentType = normalizeContentType(file.getContentType(), originalFileName);
             documentBlobStore.putObject(storageKey, fileBytes, fileBytes.length, contentType);
@@ -68,9 +77,119 @@ public class DocumentServiceImpl implements IDocumentService {
                     "Document uploaded: " + documentType);
 
             return toResponse(document);
+        } catch (BusinessRuleException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to upload document: {}", e.getMessage());
             throw new RuntimeException("Document upload failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Workflow-configured additional eSign documents must be valid PDFs with the expected page count
+     * (admin review docs panel, borrower/portal create, PLP anchor upload all share this path).
+     */
+    private void validateEsignSigningUpload(
+            UUID applicationId,
+            String documentType,
+            String fileName,
+            String contentType,
+            byte[] fileBytes) {
+        if (documentType == null || documentType.isBlank() || fileBytes == null || fileBytes.length == 0) {
+            return;
+        }
+        LoanApplication app = loanApplicationRepository.findById(applicationId).orElse(null);
+        if (app == null) {
+            return;
+        }
+        EsignDocumentsConfig.Settings docs = activeWorkflowConfigService.findActiveForApplication(app)
+                .map(EsignDocumentsConfig::fromWorkflow)
+                .orElseGet(EsignDocumentsConfig.Settings::singleDefault);
+        if (!docs.isAdditionalSigningType(documentType)) {
+            return;
+        }
+        String type = documentType.trim().toUpperCase(Locale.ROOT);
+        int expected = docs.expectedPageCountFor(type);
+        String label = docs.labelFor(type);
+        String name = fileName != null ? fileName : "";
+        String ct = contentType != null ? contentType : "";
+        boolean nameLooksPdf = name.toLowerCase(Locale.ROOT).endsWith(".pdf");
+        boolean typeLooksPdf = ct.toLowerCase(Locale.ROOT).contains("pdf");
+        if (!nameLooksPdf && !typeLooksPdf && !isPdfMagic(fileBytes)) {
+            throw new BusinessRuleException(
+                    label + " must be a PDF file (expected " + expected + " page"
+                            + (expected == 1 ? "" : "s") + ").",
+                    "ESIGN_DOCUMENT_INVALID",
+                    "DOCUMENT_UPLOAD",
+                    Map.of(
+                            "documentType", type,
+                            "expectedPageCount", expected,
+                            "reason", "NOT_PDF"));
+        }
+        int actualPages;
+        try {
+            actualPages = countPdfPages(fileBytes);
+        } catch (BusinessRuleException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessRuleException(
+                    "Invalid or unreadable PDF for " + label + ".",
+                    "ESIGN_DOCUMENT_INVALID",
+                    "DOCUMENT_UPLOAD",
+                    Map.of(
+                            "documentType", type,
+                            "expectedPageCount", expected,
+                            "reason", "UNREADABLE_PDF"));
+        }
+        if (actualPages != expected) {
+            throw new BusinessRuleException(
+                    label + " must have exactly " + expected + " page"
+                            + (expected == 1 ? "" : "s")
+                            + " (uploaded file has " + actualPages + ").",
+                    "ESIGN_DOCUMENT_PAGE_COUNT",
+                    "DOCUMENT_UPLOAD",
+                    Map.of(
+                            "documentType", type,
+                            "expectedPageCount", expected,
+                            "actualPageCount", actualPages));
+        }
+    }
+
+    private static boolean isPdfMagic(byte[] bytes) {
+        return bytes != null
+                && bytes.length >= 4
+                && bytes[0] == 0x25
+                && bytes[1] == 0x50
+                && bytes[2] == 0x44
+                && bytes[3] == 0x46;
+    }
+
+    private static int countPdfPages(byte[] pdfBytes) {
+        if (!isPdfMagic(pdfBytes)) {
+            throw new BusinessRuleException(
+                    "File is not a valid PDF.",
+                    "ESIGN_DOCUMENT_INVALID",
+                    "DOCUMENT_UPLOAD",
+                    Map.of("reason", "NOT_PDF"));
+        }
+        PdfReader reader = null;
+        try {
+            reader = new PdfReader(pdfBytes);
+            return reader.getNumberOfPages();
+        } catch (Exception e) {
+            throw new BusinessRuleException(
+                    "Invalid or unreadable PDF.",
+                    "ESIGN_DOCUMENT_INVALID",
+                    "DOCUMENT_UPLOAD",
+                    Map.of("reason", "UNREADABLE_PDF"));
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception ignored) {
+                    // ignore
+                }
+            }
         }
     }
 
